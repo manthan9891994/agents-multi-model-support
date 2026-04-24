@@ -1,0 +1,68 @@
+# Python project ignores
+/plan_docs
+/archieve_Do_Not_Read
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments and env files
+.env
+.env.*
+venv/
+ENV/
+env/
+.venv/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+*.whl
+wheelhouse/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+
+# Jupyter
+.ipynb_checkpoints
+
+# IDEs / editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Editor temp files
+*.swp
+*~
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Static analysis caches
+.mypy_cache/
+.pyrightcache/
+.pyre/
+
+# Logs / local files
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+secrets.json
+*.pem
+*.key
+
+# Node
+node_modules/
