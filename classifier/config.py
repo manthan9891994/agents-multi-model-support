@@ -9,7 +9,6 @@ from classifier.exceptions import ConfigurationError
 logger = logging.getLogger(__name__)
 
 _ENV_FILE = Path(__file__).parent.parent / ".env"
-
 _VALID_PROVIDERS = {"google", "openai", "anthropic"}
 
 
@@ -20,16 +19,32 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # API keys
-    google_api_key: str = ""
-    openai_api_key: str = ""
+    # ── API keys ──────────────────────────────────────────────────────────────
+    google_api_key:    str = ""
+    openai_api_key:    str = ""
     anthropic_api_key: str = ""
 
-    # Classifier behaviour
-    default_provider: str = "google"
-    layer2_enabled: bool = False
-    layer3_enabled: bool = False
-    layer4_enabled: bool = False
+    # ── Classifier behaviour ──────────────────────────────────────────────────
+    default_provider: str  = "google"
+    layer2_enabled:   bool = False
+    layer3_enabled:   bool = False
+    layer4_enabled:   bool = False   # ML ensemble — needs 500+ logged samples
+
+    # ── Cascade confidence thresholds ─────────────────────────────────────────
+    # If a layer's confidence is below its threshold, escalate to the next layer.
+    layer3_confidence_threshold: float = 0.85
+    layer2_confidence_threshold: float = 0.75
+
+    # ── Cache ─────────────────────────────────────────────────────────────────
+    cache_enabled:   bool = True
+    cache_max_size:  int  = 10_000
+    cache_ttl_secs:  int  = 3600    # 1 hour
+
+    # ── Cost / budget ─────────────────────────────────────────────────────────
+    monthly_budget_usd: float = 1000.0
+
+    # ── Decision logging ──────────────────────────────────────────────────────
+    log_decisions: bool = True
 
     @field_validator("default_provider")
     @classmethod
@@ -53,15 +68,14 @@ class Settings(BaseSettings):
         }
         if provider not in key_map:
             raise ConfigurationError(
-                f"Unknown provider '{provider}'. "
-                f"Supported: {sorted(key_map)}"
+                f"Unknown provider '{provider}'. Supported: {sorted(key_map)}"
             )
         key = key_map[provider]
         if not key or key.startswith("your_"):
             raise ConfigurationError(
                 f"API key for '{provider}' is not configured. "
                 f"Set {provider.upper()}_API_KEY in your .env file "
-                f"(copy .env.example to .env to get started)."
+                "(copy .env.example to .env to get started)."
             )
         return key
 
@@ -69,11 +83,12 @@ class Settings(BaseSettings):
 try:
     settings = Settings()
     logger.debug(
-        "Config loaded: provider=%s layer2=%s layer3=%s layer4=%s",
+        "Config loaded: provider=%s layer2=%s layer3=%s cache=%s budget=$%.0f",
         settings.default_provider,
         settings.layer2_enabled,
         settings.layer3_enabled,
-        settings.layer4_enabled,
+        settings.cache_enabled,
+        settings.monthly_budget_usd,
     )
 except Exception as exc:
     raise ConfigurationError(

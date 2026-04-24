@@ -1,0 +1,29 @@
+{"task": "Write a short README for this project", "task_type": "doc_creation", "complexity": "simple"}
+{"task": "Summarize this paragraph in one sentence", "task_type": "doc_creation", "complexity": "simple"}
+{"task": "Write API documentation with examples for 5 endpoints", "task_type": "doc_creation", "complexity": "standard"}
+{"task": "Create a comprehensive system design document with trade-offs", "task_type": "doc_creation", "complexity": "complex"}
+{"task": "Write a technical research paper on distributed consensus algorithms", "task_type": "doc_creation", "complexity": "research"}
+{"task": "Write a function to check if a string is a palindrome", "task_type": "code_creation", "complexity": "simple"}
+{"task": "Implement a REST API endpoint with input validation", "task_type": "code_creation", "complexity": "standard"}
+{"task": "Design a distributed cache with LRU eviction and TTL support", "task_type": "code_creation", "complexity": "complex"}
+{"task": "Build a full microservices platform with service mesh and observability", "task_type": "code_creation", "complexity": "research"}
+{"task": "Debug this null pointer exception in my Java code", "task_type": "code_creation", "complexity": "standard"}
+{"task": "Compare Python vs JavaScript for building REST APIs", "task_type": "reasoning", "complexity": "simple"}
+{"task": "Analyze trade-offs between microservices and monolith architecture", "task_type": "reasoning", "complexity": "standard"}
+{"task": "Evaluate long-term AI impact on software engineering jobs", "task_type": "reasoning", "complexity": "complex"}
+{"task": "Comprehensive analysis of AI adoption across 10 industries", "task_type": "reasoning", "complexity": "research"}
+{"task": "Plan a simple onboarding flow for a new user", "task_type": "thinking", "complexity": "simple"}
+{"task": "Design a REST API for user management", "task_type": "thinking", "complexity": "standard"}
+{"task": "Architect a microservices migration strategy with phased rollout", "task_type": "thinking", "complexity": "complex"}
+{"task": "Summarize monthly sales by region", "task_type": "analyzing", "complexity": "simple"}
+{"task": "Identify top user behavior patterns from clickstream data", "task_type": "analyzing", "complexity": "standard"}
+{"task": "Perform A/B test analysis with confidence intervals", "task_type": "analyzing", "complexity": "complex"}
+{"task": "Market analysis across 50 data sources with trend modeling", "task_type": "analyzing", "complexity": "research"}
+{"task": "Translate this paragraph to Spanish", "task_type": "translation", "complexity": "simple"}
+{"task": "Localize the entire product UI into French and German", "task_type": "translation", "complexity": "standard"}
+{"task": "What is 2 + 2?", "task_type": "math", "complexity": "simple"}
+{"task": "Solve this quadratic equation: x^2 + 5x + 6 = 0", "task_type": "math", "complexity": "simple"}
+{"task": "Calculate the eigenvalues of a 4x4 matrix", "task_type": "math", "complexity": "standard"}
+{"task": "Hello, how are you?", "task_type": "conversation", "complexity": "simple"}
+{"task": "Thanks for your help!", "task_type": "conversation", "complexity": "simple"}
+{"task": "Good morning! What can you do?", "task_type": "conversation", "complexity": "simple"}

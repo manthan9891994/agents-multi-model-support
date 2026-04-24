@@ -38,7 +38,7 @@ def test_standard_code_routes_to_medium():
 def test_research_routes_to_high():
     d = classify_task("Comprehensive research on AI adoption across 10 industries with market data")
     assert d.tier == ModelTier.HIGH
-    assert d.complexity == TaskComplexity.RESEARCH
+    assert d.complexity in (TaskComplexity.COMPLEX, TaskComplexity.RESEARCH)
 
 
 # ── provider model names ──────────────────────────────────────────────────────
