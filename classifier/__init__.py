@@ -1,9 +1,10 @@
 from classifier.types import ModelTier, TaskType, TaskComplexity, ClassificationDecision
 from classifier.layer1 import classify_layer1
 from classifier.registry import MODEL_REGISTRY, TIER_MATRIX
+from classifier.config import DEFAULT_PROVIDER
 
 
-def classify_task(task: str, provider: str = "google") -> ClassificationDecision:
+def classify_task(task: str, provider: str = DEFAULT_PROVIDER) -> ClassificationDecision:
     if provider not in MODEL_REGISTRY:
         raise ValueError(f"Unknown provider '{provider}'. Choose from: {list(MODEL_REGISTRY)}")
 

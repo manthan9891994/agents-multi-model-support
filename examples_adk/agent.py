@@ -1,7 +1,12 @@
+from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")  # load root .env
+
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from classifier import classify_task
+from classifier.config import DEFAULT_PROVIDER
 
 
 def _dynamic_model_selector(
@@ -21,7 +26,7 @@ def _dynamic_model_selector(
             break
 
     if task:
-        decision = classify_task(task, provider="google")
+        decision = classify_task(task, provider=DEFAULT_PROVIDER)
         original = llm_request.model
         llm_request.model = decision.model_name
         print(
