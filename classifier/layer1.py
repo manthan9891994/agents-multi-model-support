@@ -1,6 +1,11 @@
+import logging
 import re
+
+from classifier.exceptions import ClassificationError
 from classifier.types import TaskType, TaskComplexity, ModelTier
 from classifier.registry import TIER_MATRIX
+
+logger = logging.getLogger(__name__)
 
 _TASK_KEYWORDS: dict[TaskType, list[str]] = {
     TaskType.REASONING: [
@@ -83,6 +88,9 @@ def _detect_complexity(lower: str, tokens: int) -> TaskComplexity:
 
 
 def classify_layer1(task: str) -> tuple[TaskType, TaskComplexity, ModelTier, float, str]:
+    if not task or not task.strip():
+        raise ClassificationError("Layer 1 received an empty task string.")
+
     lower = task.lower()
     tokens = _estimate_tokens(task)
     task_type, confidence = _detect_task_type(lower)
@@ -90,6 +98,7 @@ def classify_layer1(task: str) -> tuple[TaskType, TaskComplexity, ModelTier, flo
     tier = TIER_MATRIX.get((task_type, complexity), ModelTier.MEDIUM)
     reason = (
         f"layer1 | type={task_type.value} complexity={complexity.value} "
-        f"tokens≈{tokens} → tier={tier.value}"
+        f"tokens={tokens} tier={tier.value}"
     )
+    logger.debug(reason)
     return task_type, complexity, tier, confidence, reason

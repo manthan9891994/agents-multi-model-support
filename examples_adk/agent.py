@@ -1,23 +1,31 @@
+import logging
 from pathlib import Path
+
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")  # load root .env
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
+
 from classifier import classify_task
-from classifier.config import DEFAULT_PROVIDER
+from classifier.config import settings
+from classifier.exceptions import ClassificationError
+
+logger = logging.getLogger(__name__)
 
 
 def _dynamic_model_selector(
     callback_context: CallbackContext,
     llm_request: LlmRequest,
 ):
-    """
-    Fires before every LLM call inside ADK's _call_llm_async().
-    Classifies the user's task and mutates llm_request.model.
-    Gemini client uses llm_request.model for the actual API call.
-    Returning None tells ADK to proceed with the (mutated) request.
+    """ADK before_model_callback — fires before every LLM API call.
+
+    Reads the user message from llm_request.contents, classifies the task,
+    and mutates llm_request.model. The Gemini client uses llm_request.model
+    for the actual API call, so this genuinely changes which model runs.
+
+    Returns None to tell ADK to proceed with the (now mutated) request.
     """
     task = ""
     for content in reversed(llm_request.contents):
@@ -25,25 +33,36 @@ def _dynamic_model_selector(
             task = content.parts[0].text or ""
             break
 
-    if task:
-        decision = classify_task(task, provider=DEFAULT_PROVIDER)
-        original = llm_request.model
-        llm_request.model = decision.model_name
-        print(
-            f"\n[classifier] task   : {task[:70]}"
-            f"\n[classifier] model  : {original} => {decision.model_name}"
-            f"\n[classifier] reason : {decision.task_type.value} / {decision.complexity.value} => {decision.tier.value.upper()}\n"
-        )
+    if not task:
+        logger.warning("before_model_callback: no user message found, keeping default model.")
+        return None
 
+    try:
+        decision = classify_task(task, provider=settings.default_provider)
+    except ClassificationError as exc:
+        logger.error("Classification failed: %s — keeping default model.", exc)
+        return None
+
+    original = llm_request.model
+    llm_request.model = decision.model_name
+
+    logger.info(
+        "Model selected | %s => %s [%s | %s | %s]",
+        original,
+        decision.model_name,
+        decision.tier.value.upper(),
+        decision.task_type.value,
+        decision.complexity.value,
+    )
     return None
 
 
-# ONE agent. The model on it is just the fallback if task is empty.
-# _dynamic_model_selector swaps it before every real API call.
+# ONE agent. model= is the fallback when task is empty or classification fails.
+# _dynamic_model_selector replaces it before every real API call.
 root_agent = LlmAgent(
     name="DynamicModelAgent",
     model="gemini-2.5-flash",
-    description="An agent that picks the right Gemini model based on task complexity.",
+    description="An agent that selects the right Gemini model per request based on task complexity.",
     instruction=(
         "You are a helpful expert assistant. "
         "Answer the user's question clearly and concisely."

@@ -1,0 +1,7 @@
+# Core
+google-adk>=1.31.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.0.0
