@@ -1,29 +1,34 @@
 import logging
 import time
 
-from classifier.exceptions import (
+from classifier.core.exceptions import (
     ClassificationError,
     ConfigurationError,
     LayerNotAvailableError,
     UnsupportedProviderError,
 )
-from classifier.types import ClassificationDecision, TaskComplexity, TaskType, ModelTier
-from classifier.layer1 import classify_layer1
-from classifier.registry import MODEL_REGISTRY, TIER_MATRIX
-from classifier.config import settings
-from classifier.cache import cache
-from classifier.cost_tracker import cost_tracker
+from classifier.core.types import ClassificationDecision, TaskComplexity, TaskType, ModelTier
+from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX
+from classifier.layers.layer1 import classify_layer1
+from classifier.infra.config import settings
+from classifier.infra.cache import cache
+from classifier.infra.cost_tracker import cost_tracker
 
 logger = logging.getLogger(__name__)
 
 
-def classify_task(task: str, provider: str = None) -> ClassificationDecision:
+def classify_task(
+    task: str,
+    provider: str = None,
+    history: list[str] | None = None,
+) -> ClassificationDecision:
     """Classify a task and return the best model for it.
 
     Args:
         task:     The user's input text.
         provider: One of 'google', 'openai', 'anthropic'.
                   Defaults to DEFAULT_PROVIDER from .env.
+        history:  Optional prior conversation turns (most-recent last).
 
     Returns:
         ClassificationDecision with model_name, tier, task_type, complexity,
@@ -49,21 +54,19 @@ def classify_task(task: str, provider: str = None) -> ClassificationDecision:
     # ── Budget guard ──────────────────────────────────────────────────────────
     if cost_tracker.is_exhausted():
         tier = ModelTier.LOW
-        model_name = MODEL_REGISTRY[resolved_provider][tier]
         return ClassificationDecision(
-            model_name=model_name, tier=tier,
+            model_name=MODEL_REGISTRY[resolved_provider][tier],
+            tier=tier,
             task_type=TaskType.DOC_CREATION,
             complexity=TaskComplexity.SIMPLE,
             reasoning="budget exhausted — forced LOW",
-            confidence=1.0, provider=resolved_provider,
-            layer_used="budget_guard", latency_ms=0.0,
+            confidence=1.0,
+            provider=resolved_provider,
+            layer_used="budget_guard",
+            latency_ms=0.0,
         )
 
-    if cost_tracker.should_downgrade():
-        # Cap at MEDIUM — do not allow HIGH when budget is near limit
-        max_tier = ModelTier.MEDIUM
-    else:
-        max_tier = None  # no cap
+    max_tier = ModelTier.MEDIUM if cost_tracker.should_downgrade() else None
 
     # ── Cache lookup ──────────────────────────────────────────────────────────
     t0 = time.perf_counter()
@@ -74,18 +77,31 @@ def classify_task(task: str, provider: str = None) -> ClassificationDecision:
             return cached
 
     # ── Layer 1: keyword + token heuristic (always available) ────────────────
+    layer_used = "layer1"
     try:
-        task_type, complexity, tier, confidence, reasoning = classify_layer1(task)
+        task_type, complexity, tier, confidence, reasoning = classify_layer1(
+            task, history=history
+        )
     except Exception as exc:
         raise ClassificationError(f"Layer 1 classification failed: {exc}") from exc
 
-    # Apply budget cap
+    # ── Layer 2: LLM reclassifier (low-confidence tasks only) ────────────────
+    if settings.layer2_enabled and confidence < settings.layer2_confidence_threshold:
+        try:
+            from classifier.layers.layer2 import classify_layer2
+            l2 = classify_layer2(task)
+            if l2 is not None:
+                task_type, complexity, tier, confidence, reasoning = l2
+                layer_used = "layer2"
+        except ImportError:
+            logger.warning("layer2: google-genai not installed — falling back to layer1")
+
     if max_tier is not None and tier == ModelTier.HIGH:
         tier = max_tier
         reasoning += " [capped to MEDIUM: budget >80%]"
 
     latency_ms = (time.perf_counter() - t0) * 1000
-    model_name  = MODEL_REGISTRY[resolved_provider][tier]
+    model_name = MODEL_REGISTRY[resolved_provider][tier]
 
     decision = ClassificationDecision(
         model_name=model_name,
@@ -95,28 +111,22 @@ def classify_task(task: str, provider: str = None) -> ClassificationDecision:
         reasoning=reasoning,
         confidence=confidence,
         provider=resolved_provider,
-        layer_used="layer1",
+        layer_used=layer_used,
         latency_ms=round(latency_ms, 2),
     )
 
     logger.info(
-        "Classified | %s => %s [%s | %s | %s | %.1fms]",
-        resolved_provider,
-        model_name,
-        tier.value.upper(),
-        task_type.value,
-        complexity.value,
-        latency_ms,
+        "Classified | %s => %s [%s | %s | %s | %s | %.1fms]",
+        resolved_provider, model_name,
+        tier.value.upper(), task_type.value, complexity.value, layer_used, latency_ms,
     )
 
-    # ── Cache store ───────────────────────────────────────────────────────────
     if settings.cache_enabled:
         cache.set(task, resolved_provider, decision)
 
-    # ── Decision log ──────────────────────────────────────────────────────────
     if settings.log_decisions:
-        from classifier.decision_logger import log_decision
-        log_decision(task, decision, layer_used="layer1", latency_ms=latency_ms)
+        from classifier.infra.decision_logger import log_decision
+        log_decision(task, decision, layer_used=layer_used, latency_ms=latency_ms)
 
     return decision
 
@@ -129,9 +139,8 @@ __all__ = [
     "TaskComplexity",
     "MODEL_REGISTRY",
     "TIER_MATRIX",
-    "ClassifierError",
+    "ClassificationError",
     "ConfigurationError",
     "UnsupportedProviderError",
-    "ClassificationError",
     "LayerNotAvailableError",
 ]

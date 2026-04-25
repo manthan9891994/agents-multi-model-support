@@ -4,11 +4,11 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from classifier.exceptions import ConfigurationError
+from classifier.core.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
-_ENV_FILE = Path(__file__).parent.parent / ".env"
+_ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 _VALID_PROVIDERS = {"google", "openai", "anthropic"}
 
 
@@ -28,17 +28,21 @@ class Settings(BaseSettings):
     default_provider: str  = "google"
     layer2_enabled:   bool = False
     layer3_enabled:   bool = False
-    layer4_enabled:   bool = False   # ML ensemble — needs 500+ logged samples
+    layer4_enabled:   bool = False
 
     # ── Cascade confidence thresholds ─────────────────────────────────────────
-    # If a layer's confidence is below its threshold, escalate to the next layer.
     layer3_confidence_threshold: float = 0.85
     layer2_confidence_threshold: float = 0.75
+
+    # ── Layer 2 settings ──────────────────────────────────────────────────────
+    layer2_model:      str = "gemini-2.5-flash-lite"
+    layer2_timeout_ms: int = 2000
+    layer2_max_rpm:    int = 100
 
     # ── Cache ─────────────────────────────────────────────────────────────────
     cache_enabled:   bool = True
     cache_max_size:  int  = 10_000
-    cache_ttl_secs:  int  = 3600    # 1 hour
+    cache_ttl_secs:  int  = 3600
 
     # ── Cost / budget ─────────────────────────────────────────────────────────
     monthly_budget_usd: float = 1000.0
@@ -57,10 +61,6 @@ class Settings(BaseSettings):
         return v
 
     def api_key_for(self, provider: str) -> str:
-        """Return the API key for a provider.
-
-        Raises ConfigurationError if the key is missing or still a placeholder.
-        """
         key_map = {
             "google":    self.google_api_key,
             "openai":    self.openai_api_key,
@@ -74,8 +74,7 @@ class Settings(BaseSettings):
         if not key or key.startswith("your_"):
             raise ConfigurationError(
                 f"API key for '{provider}' is not configured. "
-                f"Set {provider.upper()}_API_KEY in your .env file "
-                "(copy .env.example to .env to get started)."
+                f"Set {provider.upper()}_API_KEY in your .env file."
             )
         return key
 

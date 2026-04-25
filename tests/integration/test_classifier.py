@@ -1,10 +1,11 @@
+"""Integration tests for classifier.classify_task() — tests full Layer 1 pipeline."""
 import pytest
 from classifier import classify_task
-from classifier.types import ModelTier, TaskType, TaskComplexity
-from classifier.exceptions import ClassificationError, UnsupportedProviderError
+from classifier.core.types import ModelTier, TaskType, TaskComplexity
+from classifier.core.exceptions import ClassificationError, UnsupportedProviderError
 
 
-# ── tier routing ──────────────────────────────────────────────────────────────
+# ── Tier routing ───────────────────────────────────────────────────────────────
 
 def test_simple_doc_routes_to_low():
     d = classify_task("Write a README for this project")
@@ -41,7 +42,7 @@ def test_research_routes_to_high():
     assert d.complexity in (TaskComplexity.COMPLEX, TaskComplexity.RESEARCH)
 
 
-# ── provider model names ──────────────────────────────────────────────────────
+# ── Provider model names ───────────────────────────────────────────────────────
 
 def test_google_model_name():
     d = classify_task("Write a README", provider="google")
@@ -61,7 +62,7 @@ def test_anthropic_model_name():
     assert d.provider == "anthropic"
 
 
-# ── error handling ────────────────────────────────────────────────────────────
+# ── Error handling ─────────────────────────────────────────────────────────────
 
 def test_empty_task_raises():
     with pytest.raises(ClassificationError):
@@ -78,7 +79,7 @@ def test_invalid_provider_raises():
         classify_task("Write a README", provider="cohere")
 
 
-# ── decision fields ───────────────────────────────────────────────────────────
+# ── Decision fields ────────────────────────────────────────────────────────────
 
 def test_decision_has_all_fields():
     d = classify_task("Write a README")
@@ -89,3 +90,5 @@ def test_decision_has_all_fields():
     assert 0.0 <= d.confidence <= 1.0
     assert d.reasoning
     assert d.provider
+    assert d.layer_used
+    assert d.latency_ms >= 0.0

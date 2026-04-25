@@ -1,7 +1,7 @@
-from classifier.types import ModelTier, TaskType, TaskComplexity
+from classifier.core.types import ModelTier, TaskType, TaskComplexity
 
 TIER_MATRIX = {
-    # ── Reasoning — needs capable model even on simple tasks ──────────────────
+    # ── Reasoning ─────────────────────────────────────────────────────────────
     (TaskType.REASONING,     TaskComplexity.SIMPLE):   ModelTier.MEDIUM,
     (TaskType.REASONING,     TaskComplexity.STANDARD): ModelTier.MEDIUM,
     (TaskType.REASONING,     TaskComplexity.COMPLEX):  ModelTier.HIGH,
@@ -43,11 +43,17 @@ TIER_MATRIX = {
     (TaskType.MATH,          TaskComplexity.COMPLEX):  ModelTier.HIGH,
     (TaskType.MATH,          TaskComplexity.RESEARCH): ModelTier.HIGH,
 
-    # ── Casual conversation — always cheapest model ───────────────────────────
+    # ── Casual conversation ───────────────────────────────────────────────────
     (TaskType.CONVERSATION,  TaskComplexity.SIMPLE):   ModelTier.LOW,
     (TaskType.CONVERSATION,  TaskComplexity.STANDARD): ModelTier.LOW,
     (TaskType.CONVERSATION,  TaskComplexity.COMPLEX):  ModelTier.LOW,
     (TaskType.CONVERSATION,  TaskComplexity.RESEARCH): ModelTier.LOW,
+
+    # ── Multimodal (image/audio/vision) ──────────────────────────────────────
+    (TaskType.MULTIMODAL,    TaskComplexity.SIMPLE):   ModelTier.MEDIUM,
+    (TaskType.MULTIMODAL,    TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.MULTIMODAL,    TaskComplexity.COMPLEX):  ModelTier.HIGH,
+    (TaskType.MULTIMODAL,    TaskComplexity.RESEARCH): ModelTier.HIGH,
 }
 
 MODEL_REGISTRY = {

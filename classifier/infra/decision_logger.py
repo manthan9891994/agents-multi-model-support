@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from classifier.types import ClassificationDecision
+    from classifier.core.types import ClassificationDecision
 
 logger = logging.getLogger(__name__)
 
-_lock = threading.Lock()
+_lock    = threading.Lock()
 _LOG_FILE = Path("routing_decisions.jsonl")
 
 
@@ -21,10 +21,6 @@ def log_decision(
     layer_used: str,
     latency_ms: float,
 ) -> None:
-    """Append one routing decision to routing_decisions.jsonl.
-
-    Each line is valid JSON — easy to ingest into BigQuery, Elasticsearch, etc.
-    """
     entry = {
         "timestamp":    datetime.now(timezone.utc).isoformat(),
         "task_preview": task[:200],

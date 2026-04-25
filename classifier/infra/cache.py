@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Optional
 
-from classifier.types import ClassificationDecision
+from classifier.core.types import ClassificationDecision
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 class ClassificationCache:
     def __init__(self, max_size: int = 10_000, ttl_seconds: int = 3600):
         self._cache: dict[str, tuple[ClassificationDecision, float]] = {}
-        self._max_size   = max_size
-        self._ttl        = ttl_seconds
-        self._lock       = threading.Lock()
-        self._hits       = 0
-        self._misses     = 0
+        self._max_size  = max_size
+        self._ttl       = ttl_seconds
+        self._lock      = threading.Lock()
+        self._hits      = 0
+        self._misses    = 0
 
     def _key(self, task: str, provider: str) -> str:
-        normalized = " ".join(task.lower().split())   # collapse whitespace
+        normalized = " ".join(task.lower().split())
         return hashlib.sha256(f"{provider}:{normalized}".encode()).hexdigest()
 
     def get(self, task: str, provider: str) -> Optional[ClassificationDecision]:
@@ -36,7 +36,7 @@ class ClassificationCache:
                 self._misses += 1
                 return None
             self._hits += 1
-            logger.debug("Cache hit for task: %s...", task[:40])
+            logger.debug("Cache hit: %s...", task[:40])
             return decision
 
     def set(self, task: str, provider: str, decision: ClassificationDecision) -> None:
@@ -73,5 +73,4 @@ class ClassificationCache:
         }
 
 
-# Module-level singleton used by classify_task()
 cache = ClassificationCache()

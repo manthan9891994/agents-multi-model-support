@@ -2,15 +2,15 @@ import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 
 from classifier import classify_task
-from classifier.config import settings
-from classifier.exceptions import ClassificationError
+from classifier.core.exceptions import ClassificationError
+from classifier.infra.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,8 @@ def _dynamic_model_selector(
 ):
     """ADK before_model_callback — fires before every LLM API call.
 
-    Reads the user message from llm_request.contents, classifies the task,
-    and mutates llm_request.model. The Gemini client uses llm_request.model
-    for the actual API call, so this genuinely changes which model runs.
-
+    Reads the user message, classifies the task, and mutates llm_request.model.
+    The Gemini client uses llm_request.model directly in the API call.
     Returns None to tell ADK to proceed with the (now mutated) request.
     """
     task = ""
@@ -34,7 +32,7 @@ def _dynamic_model_selector(
             break
 
     if not task:
-        logger.warning("before_model_callback: no user message found, keeping default model.")
+        logger.warning("before_model_callback: no user message found — keeping default model.")
         return None
 
     try:
@@ -57,8 +55,6 @@ def _dynamic_model_selector(
     return None
 
 
-# ONE agent. model= is the fallback when task is empty or classification fails.
-# _dynamic_model_selector replaces it before every real API call.
 root_agent = LlmAgent(
     name="DynamicModelAgent",
     model="gemini-2.5-flash",

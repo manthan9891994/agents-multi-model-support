@@ -4,6 +4,9 @@
 # Python project ignores
 /plan_docs
 /archieve_Do_Not_Read
+
+# Auto-generated logs
+routing_decisions.jsonl
 __pycache__/
 *.py[cod]
 *$py.class

@@ -17,6 +17,7 @@ class TaskType(Enum):
     TRANSLATION   = "translation"   # translate, convert language, localize
     MATH          = "math"          # calculate, solve, equation, integral
     CONVERSATION  = "conversation"  # hello, thanks, casual chat → always LOW
+    MULTIMODAL    = "multimodal"    # image/audio/vision tasks
 
 
 class TaskComplexity(Enum):
@@ -35,5 +36,5 @@ class ClassificationDecision:
     reasoning:   str
     confidence:  float
     provider:    str
-    layer_used:  str   = "layer1"  # which layer produced this decision
-    latency_ms:  float = 0.0       # total classification time
+    layer_used:  str   = "layer1"
+    latency_ms:  float = 0.0
