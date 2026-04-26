@@ -92,3 +92,62 @@ def test_decision_has_all_fields():
     assert d.provider
     assert d.layer_used
     assert d.latency_ms >= 0.0
+    assert isinstance(d.compliance_flag, bool)
+    assert isinstance(d.disagreement, bool)
+
+
+# ── Phase 3: PII compliance flag (Item 1) ─────────────────────────────────────
+
+def test_pii_task_sets_compliance_flag():
+    d = classify_task("Patient John Doe DOB 1947-03-12 MRN: 48210 reports chest pain")
+    assert d.compliance_flag is True
+
+
+def test_pii_task_bumped_to_medium_minimum():
+    d = classify_task("Send report to user@example.com", provider="google")
+    assert d.compliance_flag is True
+    assert d.tier in (ModelTier.MEDIUM, ModelTier.HIGH)
+
+
+def test_clean_task_has_no_compliance_flag():
+    d = classify_task("Write a README for this project")
+    assert d.compliance_flag is False
+
+
+# ── Phase 3: Trivial input (Item 18) ─────────────────────────────────────────
+
+def test_trivial_input_routes_to_conversation():
+    d = classify_task("k")
+    assert d.task_type == TaskType.CONVERSATION
+    assert d.tier == ModelTier.LOW
+
+
+# ── Phase 3: task_stable debounce param (Item 20) ────────────────────────────
+
+def test_task_stable_false_returns_last_known():
+    # First call establishes a known decision
+    first = classify_task("Write a function to sort a list", task_stable=True)
+    # Second call with task_stable=False should return the cached last decision
+    second = classify_task("completely different unrelated text here", task_stable=False)
+    # Should be the same decision object (last known)
+    assert second.model_name == first.model_name
+
+
+# ── Phase 3: Context signals (Items 3, 4) ────────────────────────────────────
+
+def test_multimodal_content_forces_multimodal_type():
+    from classifier.core.types import ContextSignals
+    ctx = ContextSignals(has_multimodal=True, call_number=1)
+    d = classify_task("What does this look like?", context_signals=ctx)
+    assert d.task_type == TaskType.MULTIMODAL
+
+
+def test_tool_aware_routing_bumps_tier():
+    from classifier.core.types import ContextSignals
+    # Start with a low-tier task; 5 tools should bump tier
+    ctx = ContextSignals(available_tools=5, call_number=1)
+    d_with_tools    = classify_task("Get me the weather", context_signals=ctx)
+    d_without_tools = classify_task("Get me the weather")
+    # With tools, tier should be >= without-tools tier
+    tier_order = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]
+    assert tier_order.index(d_with_tools.tier) >= tier_order.index(d_without_tools.tier)

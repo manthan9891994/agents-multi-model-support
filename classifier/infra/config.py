@@ -35,20 +35,31 @@ class Settings(BaseSettings):
     layer2_confidence_threshold: float = 0.75
 
     # ── Layer 2 settings ──────────────────────────────────────────────────────
-    layer2_model:      str = "gemini-2.5-flash-lite"
-    layer2_timeout_ms: int = 2000
-    layer2_max_rpm:    int = 100
+    layer2_model:                str   = "gemini-2.5-flash-lite"
+    layer2_timeout_ms:           int   = 3500
+    layer2_max_rpm:              int   = 100
+    layer2_fallback_model:       str   = ""
+    layer2_monthly_budget_usd:   float = 0.0  # 0 = auto (5% of monthly_budget_usd)
 
     # ── Cache ─────────────────────────────────────────────────────────────────
-    cache_enabled:   bool = True
-    cache_max_size:  int  = 10_000
-    cache_ttl_secs:  int  = 3600
+    cache_enabled:              bool  = True
+    cache_max_size:             int   = 10_000
+    cache_ttl_secs:             int   = 3600
+    semantic_cache_enabled:     bool  = False
+    semantic_cache_threshold:   float = 0.92
 
     # ── Cost / budget ─────────────────────────────────────────────────────────
     monthly_budget_usd: float = 1000.0
 
     # ── Decision logging ──────────────────────────────────────────────────────
-    log_decisions: bool = True
+    log_decisions:  bool = True
+    debug_ab_mode:  bool = False
+
+    # ── Test mode ─────────────────────────────────────────────────────────────
+    classifier_test_mode: bool = False   # set CLASSIFIER_TEST_MODE=1 in env
+
+    # ── Domain keyword packs ──────────────────────────────────────────────────
+    keyword_packs: str = ""  # comma-separated names: "healthcare,fintech"
 
     @field_validator("default_provider")
     @classmethod

@@ -1,0 +1,291 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Feature Flags — classifier/config/features.yaml
+#
+#  Toggle individual classifier behaviours without touching code.
+#  Loaded once at process start. Restart required to pick up changes.
+#
+#  Each entry: { enabled: true|false }
+#  doc:          what the feature does (always shown)
+#  disable_when: real-world scenario where you'd turn it off
+#  example:      concrete input/output to make the effect tangible
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Layer 1 — keyword + heuristic classifier ──────────────────────────────────
+layer1:
+
+  trivial_input_guard:
+    enabled: true
+    doc: >
+      Short-circuits classification for meaningless input (≤2 chars, emoji-only,
+      ack words: "k", "ok", "noted"). Returns CONVERSATION/SIMPLE instantly at 0.95 confidence.
+    disable_when: >
+      Voice-transcription pipeline where a single word IS a real command
+      (e.g. "stop", "go") and must be classified normally.
+
+  pii_detection:
+    enabled: true
+    doc: >
+      Scans task for SSN, email, phone, credit card, API key, JWT, MRN, DOB patterns.
+      Any match → forces tier ≥ MEDIUM and sets compliance_flag=True on the decision.
+      Decision log redacts matched spans before writing. Does NOT block the task.
+    example: >
+      "Patient MRN: 48210 DOB 1947-03-12 reports chest pain"
+      → tier bumped to MEDIUM, compliance_flag=True, log shows "[REDACTED]"
+    disable_when: >
+      PII is already redacted upstream before tasks reach the classifier,
+      or environment never receives real user data (CI / pure dev sandbox).
+
+  continuation_detection:
+    enabled: true
+    doc: >
+      Detects follow-up phrases at the START of a task ("now make it faster",
+      "try again", "also add X", "what about Y") and inherits the task type
+      from recent history instead of re-classifying from keywords alone.
+      Sets confidence=0.80 and appends [continuation] to reasoning.
+    example: >
+      history=["implement REST API endpoint", "add input validation"]
+      task="now make it faster" → CODE_CREATION/SIMPLE (not DOC_CREATION)
+    disable_when: >
+      Each turn is fully standalone (stateless chat) and history
+      is unreliable or deliberately ignored.
+
+  history_bias:
+    enabled: true
+    doc: >
+      When recent history (last 3 turns) scores ≥4 pts for a task type different
+      from the current classification, overrides the current type and nudges
+      confidence +0.10. Handles short follow-ups that lack keywords.
+    disable_when: >
+      System is stateless by design and prior turns must never influence routing
+      (e.g. each API call is independent with no shared session).
+
+  domain_escalation:
+    enabled: true
+    doc: >
+      Keyword-based tier floor: "hipaa"/"gdpr" → HIGH minimum, "clinical"/"legal"
+      → MEDIUM minimum, regardless of complexity scoring. Also covers "patient data",
+      "ehr", "litigation", "hedge fund", "derivative pricing".
+    disable_when: >
+      Domain sensitivity is enforced at the application layer (e.g. all requests
+      already routed to HIGH-tier models by policy), making classifier escalation redundant.
+
+  question_type_override:
+    enabled: true
+    doc: >
+      "What is X" → always SIMPLE (definitional question, not complexity signal).
+      "Can/Should/Is X" (yes/no) → SIMPLE when escalator weight < 3.
+      Prevents "What is a distributed system?" from routing HIGH just because
+      "distributed" appears in the text.
+    example: >
+      "What is a microservice architecture?" → SIMPLE  (not COMPLEX)
+      "Can you design a distributed fault-tolerant system?" → NOT overridden (weight≥3)
+    disable_when: >
+      You need conservative (worst-case) routing for all question forms
+      and prefer to over-spend on model capability.
+
+  code_snippet_detection:
+    enabled: true
+    doc: >
+      Adds +4 pts to CODE_CREATION when task contains def/class/import/backtick blocks.
+      Catches "fix this: ```def foo(): pass```" without needing "fix" or "debug" keywords.
+    disable_when: >
+      Tasks are pre-processed and code blocks are stripped before classification,
+      so snippet detection would fire on empty/cleaned strings.
+
+  language_detection:
+    enabled: true
+    doc: >
+      Detects non-English Unicode (CJK, Arabic, Cyrillic, Devanagari). When detected
+      AND confidence is already uncertain (<0.60), caps confidence at 0.40 to signal
+      cascade to Layer 2.  English-only tasks are unaffected.
+    disable_when: >
+      System is English-only and you want to avoid the unicode-scan overhead,
+      or you use a separate language-detection service upstream.
+
+  multi_task_detection:
+    enabled: true
+    doc: >
+      When two task types score within 80% of each other (ambiguous), picks the
+      higher-tier type instead of the highest-scored one. "Compare approaches and
+      implement" → CODE_CREATION beats REASONING (safer routing, never under-provisions).
+    disable_when: >
+      You prefer the raw highest-scoring type even when ambiguous and are willing
+      to accept occasional under-provisioning for lower cost.
+
+  negation_suppression:
+    enabled: true
+    doc: >
+      Detects negation words (don't, not, without, avoid…) within 50 chars of a
+      keyword and halves its score instead of counting it fully.
+      "do not implement" → CODE_CREATION score reduced, not inflated.
+    example: >
+      "explain what a cache is, don't implement it" → DOC_CREATION (not CODE_CREATION)
+    disable_when: >
+      Your tasks never use negation patterns, or pre-processing has already removed
+      negative phrasing before classification.
+
+  keyword_packs:
+    enabled: true
+    doc: >
+      Loads domain-specific keyword packs from classifier/data/keyword_packs/*.yaml
+      at startup (set KEYWORD_PACKS=healthcare,finance in .env).
+      Extends escalators, domain_min_tier floors, and task_keywords tables.
+    disable_when: >
+      No domain packs are configured (KEYWORD_PACKS is empty), or you want strict
+      baseline behaviour without any domain augmentation.
+
+  format_request_deescalation:
+    enabled: true
+    doc: >
+      Prevents pure formatting requests ("as JSON", "as a table", "in markdown")
+      from triggering complexity escalation. Formatting is always a shallow
+      transformation, regardless of escalator keywords present.
+    example: >
+      "return the user data as JSON" → SIMPLE even if "data" escalates normally
+    disable_when: >
+      Your system treats format-conversion tasks as equally complex as content tasks.
+
+  algorithm_detection:
+    enabled: true
+    doc: >
+      Known algorithm/data-structure names (raft, bloom filter, lsm tree, dijkstra…)
+      force complexity to COMPLEX minimum. These tasks always need a capable model.
+    example: >
+      "implement consistent hashing" → COMPLEX (not STANDARD)
+    disable_when: >
+      Algorithm names are not meaningful in your domain (e.g. a non-technical pipeline
+      that happens to receive text containing these words).
+
+  escalator_scoring:
+    enabled: true
+    doc: >
+      Weighted keyword list ("distributed"=3, "thread-safe"=2, "authentication"=1…)
+      bumps complexity based on cumulative weight. Weight ≥5 → RESEARCH, ≥3 → COMPLEX,
+      ≥1 → STANDARD. De-escalators ("simple", "quick", "basic") halve the weight.
+    disable_when: >
+      You want flat complexity based purely on token count, without keyword-driven
+      escalation (e.g. strict cost-cap environment).
+
+
+# ── Layer 2 — LLM reclassifier (Gemini Flash Lite) ───────────────────────────
+layer2:
+
+  rate_limiter:
+    enabled: true
+    doc: >
+      Thread-safe deque-based sliding-window limiter (default 100 rpm).
+      When the window is full, Layer 2 returns None → falls back to Layer 1 result.
+    disable_when: >
+      You're running Layer 2 behind your own API gateway that already enforces
+      rate limits, making a second limiter redundant.
+
+  retry_with_backoff:
+    enabled: true
+    doc: >
+      On retryable failures (429, 500, 502, 503, 504), retries up to 3 times with
+      200ms / 600ms / 1.8s exponential backoff + jitter. Non-retryable errors
+      (400, 401) fail immediately — no wasted retries.
+    example: >
+      Gemini 429 → wait 200ms+jitter → retry → success. Worst-case overhead: ~2.6s.
+    disable_when: >
+      Your total timeout budget is < 2s, or retry logic is managed by the caller.
+
+  output_validation:
+    enabled: true
+    doc: >
+      Post-call plausibility check on Layer 2's JSON response. Rejects outputs that
+      are structurally implausible — indicating the LLM was steered by task content.
+      Three checks run in order:
+        1. Keyword cross-check: L2's returned task_type must score > 0 in L1's
+           keyword table when L1 has strong evidence (>3 pts) for a different type.
+        2. Complexity sanity: task > 60 tokens classified as conversation/simple
+           with confidence > 0.80 is rejected.
+        3. Code-in-task: task contains code blocks but L2 returns doc_creation/simple.
+      On rejection: returns None → L1 result is used. Legitimate tasks with words
+      like "ignore", "disregard", "act as" pass through normally — only the OUTPUT
+      is checked, never the input.
+    example: >
+      Task: 400-word system design question.
+      L2 returns: {"task_type":"conversation","complexity":"simple","confidence":0.97}
+      → Keyword check: "conversation" scores 0, "code_creation" scores 9 → REJECTED.
+      Task: "Ignore the outliers in this dataset and find the trend"
+      → L2 returns: {"task_type":"analyzing","complexity":"standard","confidence":0.88}
+      → All checks pass → ACCEPTED normally.
+    disable_when: >
+      You fully trust the LLM response and want raw L2 output even when implausible.
+      Not recommended in production.
+
+  fallback_model:
+    enabled: true
+    doc: >
+      When the primary Layer 2 model fails (after retries), tries LAYER2_FALLBACK_MODEL
+      from .env. No-op when LAYER2_FALLBACK_MODEL is not set.
+    disable_when: >
+      You prefer hard failures over silent fallback (useful when debugging
+      why the primary model is failing).
+
+
+# ── System — orchestration and cross-layer features ───────────────────────────
+system:
+
+  single_flight_coalescing:
+    enabled: true
+    doc: >
+      Prevents cache stampede: 100 concurrent identical tasks → only 1 classification
+      runs; others wait and share the result. Critical for cold-start / cache-miss spikes.
+    disable_when: >
+      Single-threaded or single-process deployment where concurrency
+      is impossible, or a load balancer already deduplicates requests.
+
+  health_tracker:
+    enabled: true
+    doc: >
+      Tracks p95 classifier latency per (provider, tier) over a 50-sample window.
+      When p95 > SLO (default 8s), demotes one tier for subsequent requests.
+      Auto-recovers when p95 normalises. Use `health_tracker.stats()` to inspect.
+    disable_when: >
+      You have an external circuit breaker (e.g. Hystrix, Resilience4j) managing
+      provider degradation, making in-process demotion redundant.
+
+  l1_l2_agreement:
+    enabled: true
+    doc: >
+      When L1 and L2 agree on type+complexity → confidence boosted to
+      min(0.95, max(c1,c2) + 0.10). When they disagree → confidence capped at 0.55,
+      higher-tier wins (safer), disagreement=True logged for review.
+    example: >
+      L1=code_creation/complex (0.65) + L2=code_creation/complex (0.82)
+      → final confidence = 0.92, reasoning += "| L1∩L2 agree"
+    disable_when: >
+      You want L2 to always fully override L1 with no confidence adjustment.
+
+  per_user_personalization:
+    enabled: false
+    doc: >
+      Stores per-user tier bias (±0.5, 30-day half-life decay). Users who get
+      tier_too_low feedback are bumped +1 tier; tier_too_high are demoted.
+      Requires user_id= parameter in classify_task(). Biases stored in
+      classifier/data/user_biases.json.
+    enable_when: >
+      Multi-tenant system where individual users have persistent, diverging
+      routing preferences (power users vs. cost-sensitive users).
+
+  semantic_cache:
+    enabled: false
+    doc: >
+      Embedding-based cache keyed by cosine similarity (default threshold 0.92).
+      Hits paraphrased tasks that exact-match cache misses. Requires
+      sentence-transformers + numpy. Falls back to exact cache if model unavailable.
+    enable_when: >
+      Production traffic has high paraphrase rate AND sentence-transformers
+      is installed. Run `pip install sentence-transformers numpy` first.
+
+  calibration:
+    enabled: false
+    doc: >
+      Applies offline-computed calibration curves to raw L1/L2 confidence scores.
+      Run `python -m classifier.calibrate` first to generate
+      classifier/data/calibration.json from labeled decisions.
+    enable_when: >
+      You have ≥500 labeled examples in reference_tasks.jsonl and want
+      confidence scores to reflect actual accuracy (not LLM self-assessment).

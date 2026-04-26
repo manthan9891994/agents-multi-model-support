@@ -1,0 +1,51 @@
+# Healthcare domain keyword pack
+# Load via: KEYWORD_PACKS=healthcare in .env
+name: healthcare
+version: "1.0"
+
+# Extra escalator weights merged into the base _ESCALATORS dict
+escalators:
+  - {kw: "differential diagnosis", weight: 3}
+  - {kw: "drug interaction",        weight: 3}
+  - {kw: "pharmacokinetics",        weight: 3}
+  - {kw: "prior authorization",     weight: 2}
+  - {kw: "clinical decision",       weight: 2}
+  - {kw: "patient outcome",         weight: 2}
+  - {kw: "adverse event",           weight: 2}
+  - {kw: "contraindication",        weight: 2}
+  - {kw: "fhir",                    weight: 2}
+  - {kw: "hl7",                     weight: 2}
+  - {kw: "icd-10",                  weight: 1}
+  - {kw: "snomed",                  weight: 1}
+
+# Domain-minimum-tier overrides (merged into _DOMAIN_MIN_TIER)
+domain_min_tier:
+  - {kw: "echocardiogram",  tier: medium}
+  - {kw: "biopsy",          tier: high}
+  - {kw: "radiology",       tier: medium}
+  - {kw: "pathology",       tier: medium}
+  - {kw: "mrn",             tier: medium}
+  - {kw: "phi",             tier: high}
+  - {kw: "de-identify",     tier: medium}
+  - {kw: "epic",            tier: medium}
+
+# Task-type keyword additions (merged into _TASK_KEYWORDS)
+task_keywords:
+  analyzing:
+    primary:
+      - "differential diagnosis"
+      - "interpret labs"
+      - "lab values"
+      - "imaging findings"
+      - "vitals trend"
+  reasoning:
+    primary:
+      - "treatment protocol"
+      - "drug interaction"
+      - "clinical decision"
+      - "evidence-based"
+  thinking:
+    primary:
+      - "care pathway"
+      - "clinical workflow"
+      - "care plan"

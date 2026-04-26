@@ -3,6 +3,7 @@ import hashlib
 import logging
 import threading
 import time
+from collections import OrderedDict
 from typing import Optional
 
 from classifier.core.types import ClassificationDecision
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ClassificationCache:
     def __init__(self, max_size: int = 10_000, ttl_seconds: int = 3600):
-        self._cache: dict[str, tuple[ClassificationDecision, float]] = {}
+        self._cache: OrderedDict[str, tuple[ClassificationDecision, float]] = OrderedDict()
         self._max_size  = max_size
         self._ttl       = ttl_seconds
         self._lock      = threading.Lock()
@@ -35,6 +36,7 @@ class ClassificationCache:
                 del self._cache[key]
                 self._misses += 1
                 return None
+            self._cache.move_to_end(key)
             self._hits += 1
             logger.debug("Cache hit: %s...", task[:40])
             return decision
@@ -42,10 +44,11 @@ class ClassificationCache:
     def set(self, task: str, provider: str, decision: ClassificationDecision) -> None:
         key = self._key(task, provider)
         with self._lock:
-            if len(self._cache) >= self._max_size:
-                oldest = min(self._cache, key=lambda k: self._cache[k][1])
-                del self._cache[oldest]
+            if key in self._cache:
+                self._cache.move_to_end(key)
             self._cache[key] = (decision, time.time())
+            if len(self._cache) > self._max_size:
+                self._cache.popitem(last=False)
 
     def clear(self) -> None:
         with self._lock:

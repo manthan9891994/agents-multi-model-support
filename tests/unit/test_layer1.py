@@ -188,3 +188,81 @@ def test_latency_is_fast():
     classify_layer1("Write a function to sort a list")
     elapsed_ms = (time.perf_counter() - t0) * 1000
     assert elapsed_ms < 100  # Layer 1 must be < 100ms even without tiktoken
+
+
+# ── Phase 3: Trivial-input guard (Item 18) ────────────────────────────────────
+
+def test_trivial_single_char_is_conversation():
+    tt, cx, tier, conf, _ = classify_layer1("k")
+    assert tt == TaskType.CONVERSATION
+    assert cx == TaskComplexity.SIMPLE
+    assert tier == ModelTier.LOW
+    assert conf >= 0.9
+
+
+def test_trivial_emoji_only_is_conversation():
+    tt, cx, tier, _, _ = classify_layer1("👍")
+    assert tt == TaskType.CONVERSATION
+    assert tier == ModelTier.LOW
+
+
+def test_trivial_ack_word_is_conversation():
+    tt, _, _, conf, _ = classify_layer1("okay")
+    assert tt == TaskType.CONVERSATION
+    assert conf >= 0.9
+
+
+def test_non_trivial_short_task_classified_normally():
+    tt, _, _, _, _ = classify_layer1("Write a README")
+    assert tt == TaskType.DOC_CREATION
+
+
+# ── Phase 3: PII detection (Item 1) ───────────────────────────────────────────
+
+def test_detect_pii_email():
+    from classifier.layers.layer1 import detect_pii
+    assert detect_pii("Send results to john.doe@example.com") is True
+
+
+def test_detect_pii_ssn():
+    from classifier.layers.layer1 import detect_pii
+    assert detect_pii("Patient SSN is 123-45-6789") is True
+
+
+def test_detect_pii_api_key():
+    from classifier.layers.layer1 import detect_pii
+    assert detect_pii("My key: sk-abcdefghijklmnopqrstuvwx") is True
+
+
+def test_detect_pii_mrn():
+    from classifier.layers.layer1 import detect_pii
+    assert detect_pii("Patient MRN: 48210 reports chest pain") is True
+
+
+def test_no_pii_in_clean_task():
+    from classifier.layers.layer1 import detect_pii
+    assert detect_pii("Write a function to sort a list") is False
+
+
+# ── Phase 3: Continuation detection (Item 13) ─────────────────────────────────
+
+def test_continuation_inherits_history_type():
+    history = ["implement a REST API endpoint", "add authentication to it"]
+    tt, _, _, _, reason = classify_layer1("now make it faster", history=history)
+    assert tt == TaskType.CODE_CREATION
+    assert "continuation" in reason
+
+
+def test_non_continuation_classified_normally():
+    # "Write a README" doesn't start with a continuation word → classified by content, not history
+    tt, _, _, _, reason = classify_layer1("Write a README for this project")
+    assert tt == TaskType.DOC_CREATION
+    assert "continuation" not in reason
+
+
+# ── Phase 3: Provider tokenizer (Item 14) ─────────────────────────────────────
+
+def test_provider_param_accepted():
+    for provider in ("google", "anthropic", "openai"):
+        result = classify_layer1("Write a function", provider=provider)
+        assert len(result) == 5

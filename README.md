@@ -22,6 +22,7 @@ can handle it well.
 User message
   → Layer 1: keyword + heuristic (<1ms, no API call)
       └─ conf < 0.75 → Layer 2: Gemini Flash Lite (~2s, $0.00001/call)
+  → Context signals from agent loop → tier adjustment (mid-flight switching)
   → Picks: LOW / MEDIUM / HIGH tier
   → Maps tier to model name for the chosen provider
   → ADK: llm_request.model = selected_model  (mutated before API call)
@@ -181,29 +182,57 @@ decision = classify_task(
 
 ---
 
+## Layer 2 — Features
+
+LLM classifier (Gemini Flash Lite), fires only when Layer 1 confidence < 0.75:
+
+**Classification**
+- Few-shot prompt with 4 canonical examples → accurate routing without chain-of-thought
+- Smart task truncation: first 250 + last 250 chars preserves both preamble and the actual ask
+- Conversation history injection: last 3 turns prepended to prompt for context-aware classification
+- JSON response schema enforcement via `response_mime_type="application/json"` + `response_schema`
+- Confidence clamping to 0.85 max — prevents over-trusting uncalibrated LLM self-assessments
+
+**Reliability**
+- Thread-safe deque rate limiter (100 rpm, sliding window, O(k) expired-entry removal)
+- `ThreadPoolExecutor` timeout (5s default) — API hangs never block the caller
+- Optional fallback model: `LAYER2_FALLBACK_MODEL=gpt-4o-mini` retries before returning `None`
+- Any failure (timeout, parse error, API error) returns `None` → Layer 1 always the final fallback
+
+**Observability**
+- L2 classification cost tracked via `cost_tracker.record()` after each successful call
+- Layer reported in `ClassificationDecision.layer_used` field (`"layer2"`)
+- A/B debug mode (`DEBUG_AB_MODE=true`): runs both L1 and L2 unconditionally, logs results side-by-side
+
+---
+
 ## Layer 1 — Features
 
-Pure Python, no API calls, <1ms. 15 detection features:
+Pure Python, no API calls, <1ms. 16 detection features:
 
 **Task classification**
 - Weighted keyword scoring — primary keywords score 3pts, secondary 1pt, across 9 task types
 - Greedy multi-word phrase matching — longer phrases matched first; consumed regions prevent double-counting
 - Negation awareness — `don't write`, `without code` → penalises the matched category score
 - Negative keywords — `explain` suppresses CODE_CREATION; `write` suppresses MATH
+- Code snippet detection — `def`, `class`, `import`, triple-backtick blocks → +4pt bias toward CODE_CREATION
+- Keyword gaps filled — `dockerize`, `scaffold`, `benchmark` (CODE), `paraphrase`, `proofread` (DOC), `blueprint`, `rfc` (THINKING)
+- Multi-task detection — when two types score within 80% of each other, picks the higher-tier type (safer routing)
+- Generalized history bias — last 3 turns scored against all task types; strong history signal overrides current
 
 **Complexity detection**
+- Instruction extraction — separates user's actual ask from pasted context/logs for token-based scoring
 - Weighted escalators — keyword weight sum: `distributed`=3, `microservices`=3, `rest api`=1 → escalates tier
-- De-escalators — `simple`, `basic`, `quick`, `tldr`, `one-liner` → push complexity down one level
+- De-escalator dampening — `simple`, `basic` present → escalator weights halved before applying thresholds
 - Algorithm names — `raft`, `paxos`, `bloom filter`, `b-tree` → forces COMPLEX minimum
 - Domain escalation — `hipaa`, `gdpr` → HIGH tier minimum; `clinical`, `contract` → MEDIUM minimum
 - Format request suppression — `return json`, `as a table`, `in yaml` → suppresses escalation
-- Question type detection — yes/no questions, "what is X" → forces SIMPLE
+- Question type detection — "What is X" always SIMPLE; yes/no questions SIMPLE when no strong escalators
 - Context window check — tokens > 50% of LOW tier limit → SIMPLE bumped to STANDARD
 
 **Confidence & signals**
 - Ambiguity detection — top-2 task types within 20% score → confidence capped at 0.45 (cascade signal)
-- Language detection — non-English Unicode ranges → confidence 0.40 (cascade signal)
-- Conversation history bias — recent code-heavy turns bias toward CODE_CREATION
+- Language detection — non-English Unicode ranges → caps confidence only when already < 0.60 (greetings unchanged)
 - Token counting — tiktoken if installed, word-estimate fallback
 
 ---
@@ -222,7 +251,11 @@ LAYER2_ENABLED=false             # LLM classifier via Gemini Flash Lite (set tru
 LAYER2_MODEL=gemini-2.5-flash-lite
 LAYER2_TIMEOUT_MS=5000
 LAYER2_MAX_RPM=100
+LAYER2_FALLBACK_MODEL=           # e.g. gpt-4o-mini — retries on primary model failure
 LAYER3_ENABLED=false             # Embedding-based classifier (planned)
+
+# Debug / A/B testing
+DEBUG_AB_MODE=false              # Run both L1 and L2, log results side-by-side (no routing change)
 
 # Cache
 CACHE_ENABLED=true
@@ -264,6 +297,15 @@ agent = Agent(llm=decision.model_name, ...)  # llm=, not model=
 | Layer 2 | ✅ Built | ~2s | Layer 1 confidence < 0.75 |
 | Layer 3 | Planned | ~20ms | Layer 2 confidence < 0.85 |
 
+**Context-aware agent switching** (`before_model_callback` only):
+| Call | Condition | Adjustment |
+|------|-----------|------------|
+| 1st | Any | No change — trust initial classification |
+| ≥2nd, last=tool, no error | Agent reading tool output | Step down one tier |
+| ≥3rd, last=model, no error | Agent formatting/summarizing | Drop to LOW |
+| Any, has_error=True | Tool returned error | Bump to at least MEDIUM |
+| Any, ctx > 100K tokens | Large context window needed | Bump to at least MEDIUM |
+
 ---
 
 ## Tests
@@ -271,9 +313,9 @@ agent = Agent(llm=decision.model_name, ...)  # llm=, not model=
 ```
 77 tests, 0 failures
 
-tests/unit/test_layer1.py            22 tests  — all Layer 1 features
-tests/unit/test_layer2.py            23 tests  — Layer 2: mocked API, rate limiter, all types
-tests/unit/test_cache.py              8 tests  — LRU cache behaviour
+tests/unit/test_layer1.py            22 tests  — all Layer 1 features (multi-task, code snippets, history bias)
+tests/unit/test_layer2.py            23 tests  — Layer 2: mocked API, rate limiter, few-shot, history, fallback
+tests/unit/test_cache.py              8 tests  — LRU cache, O(1) eviction, TTL
 tests/unit/test_cost_tracker.py       6 tests  — budget tracking
 tests/integration/test_classifier.py 13 tests  — full classify_task() pipeline
 ```
