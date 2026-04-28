@@ -4,5 +4,15 @@ google-genai>=1.14.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 
+# Layer 3 — ML classifier (optional; required only when LAYER3_ENABLED=true)
+# Stage 1 (zeroshot):  transformers + torch
+# Stage 2 (head):      + sentence-transformers, scikit-learn
+# Stage 3 (distilbert): + onnxruntime, accelerate
+# transformers>=4.36.0
+# torch>=2.0.0
+# sentence-transformers>=2.2.0
+# scikit-learn>=1.3.0
+# onnxruntime>=1.16.0
+
 # Testing
 pytest>=7.0.0

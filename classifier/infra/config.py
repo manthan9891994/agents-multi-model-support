@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     layer3_confidence_threshold: float = 0.85
     layer2_confidence_threshold: float = 0.75
 
+    # ── Layer 3 settings ──────────────────────────────────────────────────────
+    # Strategy: zeroshot (no data, ~80ms) | head (1.5K examples, ~15ms) | distilbert (5K, ~12ms)
+    layer3_strategy:           str   = "zeroshot"
+    # Higher abstain threshold than `layer3_confidence_threshold` because zero-shot
+    # is uncalibrated and tends to be over-confident on out-of-distribution inputs.
+    layer3_zeroshot_threshold: float = 0.85
+
     # ── Layer 2 settings ──────────────────────────────────────────────────────
     layer2_model:                str   = "gemini-2.5-flash-lite"
     layer2_timeout_ms:           int   = 3500

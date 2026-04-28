@@ -1,70 +1,51 @@
-# Dynamic Model Selection — Multi-Model Task Router
+# Dynamic Model Router — Multi-Model Task Classifier
 
-Automatically picks the right model (cheap → powerful) **before the agent runs**,
-based on task complexity, domain, and intent. One agent. Zero framework changes.
+Automatically routes each task to the **cheapest model that can handle it well** — before the agent makes an API call. One classifier, three providers, zero framework changes.
 
-Supports Google ADK, with CrewAI and direct-API usage also possible.
+Built for Google ADK. Works with CrewAI, direct API, or any Python agent.
 
 ---
 
 ## The Problem
 
-Agents are hardcoded to one model. A simple "write a README" and a complex
-"design a distributed system" both hit `gemini-2.5-pro` — wasting money and
-adding latency where it isn't needed.
+Every agent is hardcoded to one model. A "write a README" and a "design a distributed fault-tolerant system" both hit `gemini-2.5-pro` — wasting money and adding latency where it isn't needed.
 
 ## The Solution
 
-Classify the task **before** the model call. Route to the cheapest model that
-can handle it well.
+Classify the task **before** the model call. Route to the cheapest model that can handle it well.
 
 ```
 User message
-  → Layer 1: keyword + heuristic (<1ms, no API call)
-      └─ conf < 0.75 → Layer 2: Gemini Flash Lite (~2s, $0.00001/call)
-  → Context signals from agent loop → tier adjustment (mid-flight switching)
-  → Picks: LOW / MEDIUM / HIGH tier
-  → Maps tier to model name for the chosen provider
+  → Layer 1: keyword + heuristic  (<1ms,  no API call, always runs)
+      └─ conf < 0.75 → Layer 2: Gemini Flash Lite  (~2s, $0.00001/call)
+  → Context signals from agent loop → mid-flight tier adjustment
+  → Tier: LOW / MEDIUM / HIGH
+  → Maps tier → model name for chosen provider
   → ADK: llm_request.model = selected_model  (mutated before API call)
 ```
 
-No ADK source changes. No pre-built agent variants. One agent.
-
 ---
 
-## Project Structure
+## Quick Start
 
-```
-agents_multi_model_support/
-│
-├── classifier/                    # Core package
-│   ├── __init__.py               # Public API: classify_task()
-│   ├── core/
-│   │   ├── types.py              # ModelTier, TaskType, TaskComplexity, ClassificationDecision
-│   │   ├── registry.py           # TIER_MATRIX + MODEL_REGISTRY (3 providers × 3 tiers)
-│   │   └── exceptions.py        # ClassifierError hierarchy
-│   ├── layers/
-│   │   ├── layer1.py             # Keyword + heuristic classifier (<1ms, no API call)
-│   │   └── layer2.py             # LLM classifier via Gemini Flash Lite (~2s, only on low-conf)
-│   ├── infra/
-│   │   ├── config.py             # Pydantic Settings (.env)
-│   │   ├── cache.py              # LRU + TTL classification cache
-│   │   ├── cost_tracker.py       # Budget tracking + downgrade signals
-│   │   └── decision_logger.py    # JSONL routing decision log
-│   └── data/
-│       └── reference_tasks.jsonl # Labeled examples for future Layer 3
-│
-├── integrations/
-│   └── adk/
-│       ├── agent.py              # LlmAgent with before_model_callback
-│       └── run.py                # Demo runner
-│
-├── tests/
-│   ├── unit/                     # test_layer1, test_cache, test_cost_tracker
-│   └── integration/              # test_classifier (full pipeline)
-│
-├── .env.example
-└── requirements.txt
+```bash
+pip install -r requirements.txt
+
+cp .env.example .env
+# Fill in DEFAULT_PROVIDER and the matching API key
+
+# ADK demo
+adk run integrations/adk
+
+# Run tests
+python -m pytest tests/ -v   # 104 tests, 0 failures
+
+# Direct usage
+python -c "
+from classifier import classify_task
+d = classify_task('Design a distributed cache with LRU eviction', provider='google')
+print(d.model_name, d.tier.value, d.layer_used, d.confidence)
+"
 ```
 
 ---
@@ -73,7 +54,7 @@ agents_multi_model_support/
 
 | Tier | Google | Anthropic | OpenAI | When |
 |------|--------|-----------|--------|------|
-| LOW | gemini-2.5-flash-lite | claude-haiku-4-5 | gpt-4o-mini | Simple docs, trivial code, conversation |
+| LOW | gemini-2.5-flash-lite | claude-haiku-4-5 | gpt-4o-mini | Conversation, simple docs, trivial code |
 | MEDIUM | gemini-2.5-flash | claude-sonnet-4-6 | gpt-4o | Reasoning, standard APIs, analysis |
 | HIGH | gemini-2.5-pro | claude-opus-4-7 | gpt-4-turbo | Complex architecture, research, hard code |
 
@@ -88,36 +69,152 @@ CODE_CREATION     LOW       MEDIUM      HIGH       HIGH
 DOC_CREATION      LOW       LOW         MEDIUM     MEDIUM
 TRANSLATION       LOW       MEDIUM      HIGH       HIGH
 MATH              LOW       MEDIUM      HIGH       HIGH
-CONVERSATION      LOW       LOW         LOW        LOW      ← always cheapest
+CONVERSATION      LOW       LOW         LOW        LOW
 MULTIMODAL        MEDIUM    MEDIUM      HIGH       HIGH
 ```
 
 ---
 
-## Quick Start
+## Project Structure
 
-```bash
-# Install
-pip install google-adk google-genai pydantic-settings python-dotenv
-
-# Copy env and fill in your key
-cp .env.example .env
-
-# Run demo (model selection printed before each API call)
-adk run integrations/adk
-
-# Or web UI
-adk web integrations/adk
-
-# Run tests
-python -m pytest tests/unit/ tests/integration/ -v
+```
+agents_multi_model_support/
+├── classifier/
+│   ├── __init__.py                   # Public API: classify_task()
+│   ├── core/
+│   │   ├── types.py                  # ModelTier, TaskType, TaskComplexity, ClassificationDecision
+│   │   ├── registry.py               # TIER_MATRIX, MODEL_REGISTRY (3 providers × 3 tiers)
+│   │   └── exceptions.py             # ClassifierError hierarchy
+│   ├── layers/
+│   │   ├── layer1/                   # Keyword + heuristic classifier (<1ms)
+│   │   │   ├── constants.py          # Keyword tables, escalators, domain tiers
+│   │   │   ├── helpers.py            # Token counting, language detection, negation
+│   │   │   ├── pii.py                # PII/PHI pattern detection
+│   │   │   ├── scoring.py            # _score_task_type, _detect_complexity
+│   │   │   ├── keyword_packs.py      # Domain YAML pack loader
+│   │   │   └── classify.py           # classify_layer1() entry point
+│   │   └── layer2/                   # LLM reclassifier (Gemini Flash Lite)
+│   │       ├── prompt.py             # Injection-resistant prompt + schema
+│   │       ├── api.py                # Client calls, retry logic, executor
+│   │       ├── rate_limiter.py       # Thread-safe sliding-window limiter
+│   │       ├── validation.py         # Output plausibility validation
+│   │       └── classify.py           # classify_layer2() entry point
+│   ├── infra/
+│   │   ├── config.py                 # Pydantic Settings (.env)
+│   │   ├── cache.py                  # LRU + TTL exact-match cache
+│   │   ├── semantic_cache.py         # Embedding-based similarity cache (optional)
+│   │   ├── cost_tracker.py           # Budget tracking, per-category limits
+│   │   ├── decision_logger.py        # JSONL routing log with PII redaction
+│   │   ├── coalescer.py              # Single-flight cache stampede protection
+│   │   ├── health_tracker.py         # p95 latency SLO tracker per (provider, tier)
+│   │   ├── personalization.py        # Per-user tier bias (30-day decay)
+│   │   └── feedback.py               # Feedback recording for L3 training
+│   ├── config/
+│   │   ├── features.yaml             # Feature flag configuration (24 flags)
+│   │   └── feature_flags.py          # Typed FeatureFlags dataclass + YAML loader
+│   ├── data/
+│   │   ├── reference_tasks.jsonl     # Labeled examples for Layer 3
+│   │   └── keyword_packs/
+│   │       └── healthcare.yaml       # Healthcare domain keyword pack
+│   ├── calibrate.py                  # Offline confidence calibration
+│   └── stats.py                      # CLI: routing decisions analytics
+├── integrations/
+│   └── adk/
+│       ├── agent.py                  # LlmAgent with before_model_callback
+│       └── run.py
+├── tests/
+│   ├── conftest.py
+│   ├── unit/                         # test_layer1, test_layer2, test_cache, test_cost_tracker
+│   └── integration/                  # test_classifier (full pipeline)
+└── plan_docs/
+    ├── 00_status.md                  # Current implementation status
+    ├── 01_layer3_embedding.md        # Next: Layer 3 embedding KNN classifier
+    ├── 02_layer3_ml_pipeline.md      # Future: fine-tuned ML classifier
+    └── 03_enterprise_scale.md        # Future: enterprise & global scale
 ```
 
 ---
 
-## How It Works
+## Layer 1 — Keyword + Heuristic (14 feature flags)
 
-### ADK Integration
+Pure Python, no API calls, <1ms. Handles ~78% of production traffic at zero LLM cost.
+
+| Feature | What it does |
+|---------|-------------|
+| Weighted keyword scoring | Primary keywords score 3pts, secondary 1pt, 9 task types |
+| Negation suppression | `don't implement`, `without code` → penalises matched category |
+| Code snippet detection | `def`/`class`/triple-backtick → +4pts toward CODE_CREATION |
+| Multi-task detection | Ambiguous tasks (top-2 within 80%) → picks higher-tier type |
+| Weighted escalator scoring | `distributed`=3, `thread-safe`=2, `rest api`=1 → bumps complexity |
+| Algorithm detection | `raft`, `bloom filter`, `dijkstra` → forces COMPLEX minimum |
+| Domain escalation | `hipaa`/`gdpr` → HIGH tier; `clinical`/`contract` → MEDIUM |
+| Format request de-escalation | `as JSON`, `in markdown` → suppresses escalation |
+| Question type override | "What is X" → always SIMPLE; yes/no → SIMPLE when weight < 3 |
+| Language detection | Non-English Unicode → caps conf at 0.40 (cascade signal) |
+| Continuation detection | "Now make it faster" → inherits type from history |
+| History bias | Last 3 turns score ≥ 4pts → overrides current task type |
+| Trivial-input guard | `"k"`, `"👍"`, single chars → CONVERSATION/SIMPLE instantly |
+| Pluggable keyword packs | Domain YAML packs (healthcare, fintech, legal) via `KEYWORD_PACKS=` |
+| PII/PHI detection | SSN, email, credit card, JWT, MRN, DOB → forces MEDIUM+, sets `compliance_flag=True` |
+
+---
+
+## Layer 2 — LLM Reclassifier (4 feature flags)
+
+Fires only when Layer 1 confidence < 0.75. Uses Gemini Flash Lite for ~$0.00001/call.
+
+| Feature | What it does |
+|---------|-------------|
+| Injection-resistant prompt | Task wrapped in `<task>` tags; model told to treat as untrusted data |
+| Output plausibility validation | Rejects structurally implausible responses (not input blocking — zero false positives) |
+| Exponential backoff retry | 3 attempts on 429/5xx; 200ms/600ms/1.8s; non-retryable errors fail fast |
+| Thread-safe rate limiter | Sliding-window 100 rpm; blocks excess calls, falls back to L1 |
+| Fallback model | `LAYER2_FALLBACK_MODEL` retried if primary fails |
+| ThreadPoolExecutor timeout | API hangs never block the caller (default 2s) |
+
+**Output validation checks** (on L2's JSON response, never on input):
+1. Keyword cross-check — returned type must have keyword support if L1 has strong counter-evidence
+2. Complexity sanity — `conversation/simple/conf>0.80` rejected for tasks > 60 tokens
+3. Code-in-task — code blocks + `doc_creation/simple` = structural mismatch → rejected
+
+---
+
+## System Features (6 feature flags)
+
+| Feature | What it does |
+|---------|-------------|
+| L1+L2 agreement boost | Both agree → confidence boosted to `min(0.95, max+0.10)` |
+| L1+L2 disagreement flag | Disagree → higher-tier wins, `disagreement=True` logged |
+| Single-flight coalescing | 100 concurrent identical tasks → 1 classification, others wait |
+| Health tracker | p95 latency SLO; demotes tier when provider degrades |
+| Per-user personalization | Tier bias per user_id, 30-day half-life decay |
+| Confidence calibration | Offline-computed curves from labeled decisions |
+
+---
+
+## Feature Flags
+
+All 24 features can be toggled in `classifier/config/features.yaml` without touching code:
+
+```yaml
+layer1:
+  pii_detection: false         # disable if PII is redacted upstream
+  trivial_input_guard: false   # disable for voice pipelines ("stop", "go" = real commands)
+  domain_escalation: false     # disable if all traffic is pre-routed to HIGH
+  keyword_packs: false         # disable if no domain packs configured
+
+layer2:
+  l2_output_validation: false  # disable to trust raw LLM output
+  l2_rate_limiter: false       # disable if gateway already enforces rate limits
+
+system:
+  semantic_cache: true         # enable once sentence-transformers is installed
+  per_user_personalization: true  # enable for multi-tenant systems
+```
+
+---
+
+## ADK Integration
 
 ```python
 # integrations/adk/agent.py
@@ -133,8 +230,7 @@ def _dynamic_model_selector(callback_context, llm_request):
         decision = classify_task(task, provider="google")
         llm_request.model = decision.model_name  # the key line
 
-    return None  # None = proceed with the (now mutated) request
-
+    return None  # proceed with the (now mutated) request
 
 root_agent = LlmAgent(
     name="DynamicModelAgent",
@@ -144,96 +240,59 @@ root_agent = LlmAgent(
 )
 ```
 
-### Direct Usage
+**Context-aware mid-flight switching** (auto, no config needed):
+
+| Call | Condition | Action |
+|------|-----------|--------|
+| Any | `total_context_tokens > 100K` | Bump to MEDIUM minimum |
+| Any | `has_error=True` | Bump to MEDIUM minimum |
+| ≥ 2nd | `last=tool, no error` | Step down one tier |
+| ≥ 3rd | `last=model, no error` | Drop to LOW |
+| 1st | `available_tools ≥ 3` | Bump one tier (planning call) |
+| Any | Multimodal content detected | Force MULTIMODAL task type |
+
+---
+
+## Direct Usage
 
 ```python
-from classifier import classify_task
+from classifier import classify_task, ContextSignals
 
+# Basic
 decision = classify_task("Design a distributed cache with LRU eviction", provider="google")
 print(decision.model_name)      # "gemini-2.5-pro"
 print(decision.tier.value)      # "high"
 print(decision.task_type.value) # "code_creation"
-print(decision.confidence)      # 0.72
-print(decision.layer_used)      # "layer1" or "layer2"
+print(decision.confidence)      # 0.92
+print(decision.layer_used)      # "layer1" | "layer2"
 print(decision.reasoning)       # "layer1 | type=code_creation complexity=complex ..."
-#                                  "layer2 | multi-part implementation required | conf=0.90"
+print(decision.compliance_flag) # True if PII/PHI detected
 
-# With conversation history
+# With history
 decision = classify_task(
     "Make it faster",
     provider="google",
     history=["implement binary search", "debug this function"],
 )
-# history bias nudges toward CODE_CREATION
+
+# With context signals (agent loop)
+decision = classify_task(
+    "summarize the results",
+    provider="google",
+    context_signals=ContextSignals(
+        call_number=3,
+        last_role="tool",
+        has_error=False,
+        total_context_tokens=12000,
+    ),
+)
+
+# Per-user personalization
+decision = classify_task("help me with this", provider="google", user_id="alice")
+
+# Streaming debounce (user still typing)
+decision = classify_task(task, provider="google", task_stable=False)
 ```
-
-### What You See at Runtime
-
-```
-[classifier] task   : Write a README for this project
-[classifier] model  : gemini-2.5-flash => gemini-2.5-flash-lite  (LOW)
-
-[classifier] task   : Design a distributed cache with LRU eviction...
-[classifier] model  : gemini-2.5-flash => gemini-2.5-pro          (HIGH)
-
-[classifier] task   : Implement a REST API endpoint with validation
-[classifier] model  : gemini-2.5-flash => gemini-2.5-flash        (MEDIUM)
-```
-
----
-
-## Layer 2 — Features
-
-LLM classifier (Gemini Flash Lite), fires only when Layer 1 confidence < 0.75:
-
-**Classification**
-- Few-shot prompt with 4 canonical examples → accurate routing without chain-of-thought
-- Smart task truncation: first 250 + last 250 chars preserves both preamble and the actual ask
-- Conversation history injection: last 3 turns prepended to prompt for context-aware classification
-- JSON response schema enforcement via `response_mime_type="application/json"` + `response_schema`
-- Confidence clamping to 0.85 max — prevents over-trusting uncalibrated LLM self-assessments
-
-**Reliability**
-- Thread-safe deque rate limiter (100 rpm, sliding window, O(k) expired-entry removal)
-- `ThreadPoolExecutor` timeout (5s default) — API hangs never block the caller
-- Optional fallback model: `LAYER2_FALLBACK_MODEL=gpt-4o-mini` retries before returning `None`
-- Any failure (timeout, parse error, API error) returns `None` → Layer 1 always the final fallback
-
-**Observability**
-- L2 classification cost tracked via `cost_tracker.record()` after each successful call
-- Layer reported in `ClassificationDecision.layer_used` field (`"layer2"`)
-- A/B debug mode (`DEBUG_AB_MODE=true`): runs both L1 and L2 unconditionally, logs results side-by-side
-
----
-
-## Layer 1 — Features
-
-Pure Python, no API calls, <1ms. 16 detection features:
-
-**Task classification**
-- Weighted keyword scoring — primary keywords score 3pts, secondary 1pt, across 9 task types
-- Greedy multi-word phrase matching — longer phrases matched first; consumed regions prevent double-counting
-- Negation awareness — `don't write`, `without code` → penalises the matched category score
-- Negative keywords — `explain` suppresses CODE_CREATION; `write` suppresses MATH
-- Code snippet detection — `def`, `class`, `import`, triple-backtick blocks → +4pt bias toward CODE_CREATION
-- Keyword gaps filled — `dockerize`, `scaffold`, `benchmark` (CODE), `paraphrase`, `proofread` (DOC), `blueprint`, `rfc` (THINKING)
-- Multi-task detection — when two types score within 80% of each other, picks the higher-tier type (safer routing)
-- Generalized history bias — last 3 turns scored against all task types; strong history signal overrides current
-
-**Complexity detection**
-- Instruction extraction — separates user's actual ask from pasted context/logs for token-based scoring
-- Weighted escalators — keyword weight sum: `distributed`=3, `microservices`=3, `rest api`=1 → escalates tier
-- De-escalator dampening — `simple`, `basic` present → escalator weights halved before applying thresholds
-- Algorithm names — `raft`, `paxos`, `bloom filter`, `b-tree` → forces COMPLEX minimum
-- Domain escalation — `hipaa`, `gdpr` → HIGH tier minimum; `clinical`, `contract` → MEDIUM minimum
-- Format request suppression — `return json`, `as a table`, `in yaml` → suppresses escalation
-- Question type detection — "What is X" always SIMPLE; yes/no questions SIMPLE when no strong escalators
-- Context window check — tokens > 50% of LOW tier limit → SIMPLE bumped to STANDARD
-
-**Confidence & signals**
-- Ambiguity detection — top-2 task types within 20% score → confidence capped at 0.45 (cascade signal)
-- Language detection — non-English Unicode ranges → caps confidence only when already < 0.60 (greetings unchanged)
-- Token counting — tiktoken if installed, word-estimate fallback
 
 ---
 
@@ -241,83 +300,133 @@ Pure Python, no API calls, <1ms. 16 detection features:
 
 ```bash
 # Provider
-DEFAULT_PROVIDER=google          # google | anthropic | openai
+DEFAULT_PROVIDER=google
 GOOGLE_API_KEY=...
 OPENAI_API_KEY=...
 ANTHROPIC_API_KEY=...
 
-# Classification layers
-LAYER2_ENABLED=false             # LLM classifier via Gemini Flash Lite (set true + GOOGLE_API_KEY)
+# Layer 2
+LAYER2_ENABLED=true
 LAYER2_MODEL=gemini-2.5-flash-lite
-LAYER2_TIMEOUT_MS=5000
+LAYER2_TIMEOUT_MS=2000
 LAYER2_MAX_RPM=100
-LAYER2_FALLBACK_MODEL=           # e.g. gpt-4o-mini — retries on primary model failure
-LAYER3_ENABLED=false             # Embedding-based classifier (planned)
+LAYER2_CONFIDENCE_THRESHOLD=0.75
+LAYER2_FALLBACK_MODEL=           # e.g. gpt-4o-mini
 
-# Debug / A/B testing
-DEBUG_AB_MODE=false              # Run both L1 and L2, log results side-by-side (no routing change)
+# Budget (80% spend → cap MEDIUM; 100% → force LOW)
+MONTHLY_BUDGET_USD=1000.0
+LAYER2_MONTHLY_BUDGET_USD=50.0   # defaults to 5% of main budget
 
 # Cache
 CACHE_ENABLED=true
 CACHE_MAX_SIZE=10000
 CACHE_TTL_SECS=3600
+SEMANTIC_CACHE_ENABLED=false     # requires sentence-transformers
 
-# Budget (at 80% spend: cap MEDIUM. At 100%: force LOW)
-MONTHLY_BUDGET_USD=1000.0
+# Domain keyword packs
+KEYWORD_PACKS=healthcare          # comma-separated pack names
 
 # Logging
 LOG_DECISIONS=true               # writes routing_decisions.jsonl
+DEBUG_AB_MODE=false              # run L1 and L2 unconditionally, log both
 ```
-
----
-
-## Extending
-
-**Add a provider** — update `MODEL_REGISTRY` in `classifier/core/registry.py`:
-```python
-"mistral": {
-    ModelTier.LOW:    "mistral-small",
-    ModelTier.MEDIUM: "mistral-medium",
-    ModelTier.HIGH:   "mistral-large",
-}
-```
-
-**CrewAI** — same classifier, swap the last line:
-```python
-from crewai import Agent
-decision = classify_task(task, provider="openai")
-agent = Agent(llm=decision.model_name, ...)  # llm=, not model=
-```
-
-**Classification layers** (cascading — only called when previous layer is low-confidence):
-
-| Layer | Status | Latency | When triggered |
-|-------|--------|---------|----------------|
-| Layer 1 | ✅ Built | <1ms | Always (fallback) |
-| Layer 2 | ✅ Built | ~2s | Layer 1 confidence < 0.75 |
-| Layer 3 | Planned | ~20ms | Layer 2 confidence < 0.85 |
-
-**Context-aware agent switching** (`before_model_callback` only):
-| Call | Condition | Adjustment |
-|------|-----------|------------|
-| 1st | Any | No change — trust initial classification |
-| ≥2nd, last=tool, no error | Agent reading tool output | Step down one tier |
-| ≥3rd, last=model, no error | Agent formatting/summarizing | Drop to LOW |
-| Any, has_error=True | Tool returned error | Bump to at least MEDIUM |
-| Any, ctx > 100K tokens | Large context window needed | Bump to at least MEDIUM |
 
 ---
 
 ## Tests
 
 ```
-77 tests, 0 failures
+104 tests, 0 failures
 
-tests/unit/test_layer1.py            22 tests  — all Layer 1 features (multi-task, code snippets, history bias)
-tests/unit/test_layer2.py            23 tests  — Layer 2: mocked API, rate limiter, few-shot, history, fallback
-tests/unit/test_cache.py              8 tests  — LRU cache, O(1) eviction, TTL
-tests/unit/test_cost_tracker.py       6 tests  — budget tracking
-tests/integration/test_classifier.py 13 tests  — full classify_task() pipeline
+tests/unit/test_layer1.py            ~47 tests  — all 14 L1 features
+tests/unit/test_layer2.py            ~30 tests  — output validation, injection defense, retry, rate limiter
+tests/unit/test_cache.py              8 tests   — LRU, TTL, hit rate
+tests/unit/test_cost_tracker.py       6 tests   — budget thresholds, category budgets
+tests/integration/test_classifier.py 13 tests   — full classify_task() pipeline
 ```
 
-Run: `python -m pytest tests/unit/ tests/integration/ -v`
+```bash
+python -m pytest tests/ -v
+```
+
+---
+
+## Observability
+
+```bash
+# Routing summary (last 24 hours)
+python -m classifier.stats summary --since 24h
+# total: 12,403 | L1-only: 78% | L2-fired: 22% | L2-agreement: 86%
+# Avg latency: LOW=120ms MEDIUM=180ms HIGH=250ms (classifier overhead)
+
+# L1/L2 disagreements (review candidates for L3 training)
+python -m classifier.stats disagreements --since 7d --limit 20
+
+# Cost breakdown
+python -m classifier.stats cost --since 30d
+# L2 spend: $4.32 / budget $50.00 (8.6%)
+```
+
+---
+
+## Healthcare / Domain Notes
+
+This system was built with healthcare and high-compliance domains in mind:
+
+- **PII/PHI detection** — SSN, email, MRN, DOB, credit card, API key, JWT patterns → forces MEDIUM+ tier, sets `compliance_flag=True`, redacts spans in decision log
+- **HIPAA/GDPR domain escalation** — any task containing these keywords is forced to HIGH tier regardless of complexity score
+- **Domain keyword packs** — extend the classifier with clinical vocabularies (ICD-10, SNOMED terms, drug names) via `classifier/data/keyword_packs/healthcare.yaml`
+- **Audit trail** — every routing decision logged to `routing_decisions.jsonl` with tier, confidence, layer used, latency
+- **Governance** — feature flags let compliance teams disable specific classifier behaviors per deployment
+
+---
+
+## Roadmap
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| 1 | Layer 1 (keyword + heuristic) + infra + ADK | ✅ Done |
+| 2 | Layer 2 (LLM classifier) + reliability hardening | ✅ Done |
+| 3 | 20 production hardening features + feature flags | ✅ Done |
+| 4 | Layer 3 (embedding KNN, ~10ms, $0) | `plan_docs/01_layer3_embedding.md` |
+| 5 | In-house fine-tuned ML classifier | `plan_docs/02_layer3_ml_pipeline.md` |
+| 6 | Enterprise scale (multi-region, multi-tenant, REST API) | `plan_docs/03_enterprise_scale.md` |
+
+---
+
+## Extending
+
+**Add a provider:**
+```python
+# classifier/core/registry.py
+MODEL_REGISTRY["mistral"] = {
+    ModelTier.LOW:    "mistral-small",
+    ModelTier.MEDIUM: "mistral-medium",
+    ModelTier.HIGH:   "mistral-large",
+}
+```
+
+**Add a domain pack:**
+```yaml
+# classifier/data/keyword_packs/fintech.yaml
+escalators:
+  - {kw: "derivative pricing", weight: 3}
+domain_min_tier:
+  - {kw: "sec filing", tier: high}
+task_keywords:
+  analyzing:
+    primary: ["portfolio attribution", "risk-adjusted return"]
+```
+```bash
+# .env
+KEYWORD_PACKS=healthcare,fintech
+```
+
+**CrewAI:**
+```python
+from crewai import Agent
+from classifier import classify_task
+
+decision = classify_task(task, provider="openai")
+agent = Agent(llm=decision.model_name, ...)  # llm=, not model=
+```

@@ -55,8 +55,14 @@ def cmd_summary(args) -> None:
     layer_counts = Counter(r.get("layer", "layer1") for r in records)
     l1_only      = layer_counts.get("layer1", 0)
     l2_fired     = layer_counts.get("layer2", 0)
+    l3_fired     = layer_counts.get("layer3", 0)
     pii_count    = sum(1 for r in records if r.get("compliance_flag"))
     disagree_ct  = sum(1 for r in records if r.get("disagreement"))
+
+    # L3 intercept rate: fraction of low-conf-L1 traffic that L3 confidently handled
+    # (vs. falling through to L2). Only meaningful when L3 is enabled.
+    ml_total      = l2_fired + l3_fired
+    l3_intercept  = (l3_fired / ml_total * 100) if ml_total > 0 else 0.0
 
     type_counts: Counter  = Counter(r.get("task_type", "?") for r in records)
     tier_latencies: dict  = defaultdict(list)
@@ -66,7 +72,10 @@ def cmd_summary(args) -> None:
     print(f"\n=== Summary (since {args.since}) ===")
     print(f"Total:          {total:>8,}")
     print(f"L1-only:        {l1_only:>8,}  ({l1_only/total*100:.0f}%)")
+    print(f"L3-fired:       {l3_fired:>8,}  ({l3_fired/total*100:.0f}%)")
     print(f"L2-fired:       {l2_fired:>8,}  ({l2_fired/total*100:.0f}%)")
+    if ml_total > 0:
+        print(f"L3 intercept:   {l3_intercept:>7.1f}%  (of L2+L3 traffic — higher is better)")
     print(f"PII-flagged:    {pii_count:>8,}  ({pii_count/total*100:.1f}%)")
     print(f"L1≠L2 disagree: {disagree_ct:>8,}  ({disagree_ct/total*100:.1f}%)")
 

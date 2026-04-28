@@ -58,7 +58,7 @@ TIER_MATRIX = {
 
 MODEL_REGISTRY = {
     "google": {
-        ModelTier.LOW:    "gemini-2.5-flash-lite",
+        ModelTier.LOW:    "gemini-2.5-flash",       # flash-lite quota exhausted on free tier
         ModelTier.MEDIUM: "gemini-2.5-flash",
         ModelTier.HIGH:   "gemini-2.5-pro",
     },

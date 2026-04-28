@@ -1,0 +1,8 @@
+{
+  "trained_at": "2026-04-27T23:25:08.598328+00:00",
+  "n_examples": 419,
+  "task_type_val_accuracy": 0.6031746031746031,
+  "complexity_val_accuracy": 0.7142857142857143,
+  "encoder": "all-MiniLM-L6-v2",
+  "architecture": "MLPClassifier(256,) per head"
+}

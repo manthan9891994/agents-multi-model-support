@@ -206,6 +206,21 @@ def _classify_inner(
     if feature_flags.calibration:
         confidence = _apply_calibration("layer1", confidence)
 
+    # ── Layer 3 (between L1 and L2 — fast ML classifier with abstain) ─────────
+    if settings.layer3_enabled and confidence < settings.layer2_confidence_threshold:
+        try:
+            from classifier.layers.layer3 import classify_layer3
+            l3 = classify_layer3(task, history=history)
+            if l3 is not None and l3[3] >= settings.layer3_confidence_threshold:
+                task_type, complexity, tier, confidence, reasoning = l3
+                layer_used = "layer3"
+                if feature_flags.calibration:
+                    confidence = _apply_calibration("layer3", confidence)
+        except ImportError:
+            logger.warning("layer3: transformers not installed — skipping")
+        except Exception as exc:
+            logger.warning("layer3: failed: %s — skipping", exc)
+
     # ── Layer 2 (Item 10: check L2 budget before firing) ──────────────────────
     l2_result = None
     l2_fired = settings.layer2_enabled and not cost_tracker.is_exhausted_for("layer2")
