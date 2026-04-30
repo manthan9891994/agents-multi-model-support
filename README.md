@@ -16,13 +16,130 @@ Classify the task **before** the model call. Route to the cheapest model that ca
 
 ```
 User message
-  → Layer 1: keyword + heuristic  (<1ms,  no API call, always runs)
-      └─ conf < 0.75 → Layer 2: Gemini Flash Lite  (~2s, $0.00001/call)
-  → Context signals from agent loop → mid-flight tier adjustment
+  → Layer 1: keyword + heuristic        (<1ms,    free,    always runs)
+      └─ conf < 0.75 → Layer 3: ML classifier  (~15ms,   free,    abstain-capable)
+          └─ conf < 0.75 → Layer 2: Gemini Flash Lite  (~500ms,  $0.0001, LLM fallback)
+  → Context signals from agent loop → mid-flight tier adjustment (PII, multimodal, errors, tools)
   → Tier: LOW / MEDIUM / HIGH
   → Maps tier → model name for chosen provider
   → ADK: llm_request.model = selected_model  (mutated before API call)
 ```
+
+---
+
+## Cascade Architecture (Three Layers)
+
+Each layer handles what it can, escalates what it can't. Higher layers cost more but classify harder cases.
+
+| Layer | What it does | Latency | Cost | Confidence threshold | Coverage |
+|---|---|---|---|---|---|
+| **L1** Keyword + heuristic | Regex/keyword matching, structural signals | <1ms | $0 | 0.75 | ~33% |
+| **L3** ML classifier (frozen MiniLM + sklearn MLPs) | Real classification model — see below | ~15ms | $0 | 0.75 | ~25% |
+| **L2** Gemini Flash Lite | LLM with structured JSON output schema | ~500ms | $0.0001 | 0.75 | ~42% |
+
+L1 → L3 → L2: L3 sits between L1 and L2 because L1 catches obvious cases for free, and L3 catches the next slice without paying for an LLM call. L2 is the LLM fallback for anything ambiguous to both.
+
+---
+
+## Layer 3 — What the ML classifier actually does
+
+L3 is **NOT** cosine similarity, vector search, or KNN. It's a real **supervised multi-class classifier** with two heads.
+
+```
+User task: "What are contraindications for ACE inhibitors?"
+         │
+         ▼
+┌──────────────────────────────────────────────┐
+│ STEP 1 — Sentence Embedder (FROZEN)          │
+│   Model: all-MiniLM-L6-v2 (22M params)       │
+│   Input:  text                               │
+│   Output: 384-dim dense vector               │
+│   Status: pre-trained, never modified        │
+└──────────────────────────────────────────────┘
+         │
+         ▼  [0.12, -0.45, 0.78, ..., 0.03]   ← 384 numbers
+         │
+         ├──────────────────────┬─────────────────────┐
+         ▼                      ▼                     │
+┌──────────────────┐   ┌──────────────────┐           │
+│ HEAD 1 — MLP     │   │ HEAD 2 — MLP     │           │
+│ task_type        │   │ complexity       │           │
+│ classifier       │   │ classifier       │           │
+│                  │   │                  │           │
+│ 384 → 256 → 9    │   │ 384 → 256 → 4    │           │
+│ classes:         │   │ classes:         │           │
+│ • reasoning      │   │ • simple         │           │
+│ • code_creation  │   │ • standard       │           │
+│ • doc_creation   │   │ • complex        │           │
+│ • math, ...      │   │ • research       │           │
+└──────────────────┘   └──────────────────┘           │
+         │                      │                     │
+         ▼                      ▼                     │
+   tt_probs               cx_probs                    │
+   [0.05, 0.78, ...]      [0.85, 0.10, ...]           │
+         │                      │                     │
+         ▼                      ▼                     │
+   tt = "reasoning"        cx = "simple"              │
+   prob = 0.78             prob = 0.85                │
+         │                      │                     │
+         └──────────┬───────────┘                     │
+                    ▼                                 │
+       confidence = √(0.78 × 0.85) = 0.81             │
+                    │                                 │
+                    ▼                                 │
+            if conf >= 0.75: return decision  ────────┘
+            else: abstain → cascade to L2
+
+         ↓ tier lookup in TIER_MATRIX
+         (reasoning, simple) → MEDIUM tier → gemini-2.5-flash
+```
+
+### Components
+
+| Component | Type | Trainable | What it learned |
+|---|---|---|---|
+| MiniLM encoder | Pre-trained transformer | ❌ Frozen | General semantic representation of text |
+| Task type head | sklearn MLPClassifier (256 hidden) | ✅ On 2,000 examples | "Vectors that look like X are reasoning tasks" |
+| Complexity head | sklearn MLPClassifier (256 hidden) | ✅ On 2,000 examples | "Vectors that look like Y are complex tasks" |
+| Sigmoid calibrator | Platt scaling | ✅ On held-out cal set | Maps raw scores to honest probabilities |
+
+
+
+### Why two heads instead of one big classifier
+
+Predicting `(task_type × complexity)` jointly would mean 36 classes with sparse data per class. Two independent heads (9 + 4 classes) need far less data per class and combine via geometric mean of their probabilities — penalizing asymmetric confidence. Either head can be wrong, but if both are confident the joint decision is trustworthy.
+
+### Why L3 abstains (returns None)
+
+The threshold (`LAYER3_CONFIDENCE_THRESHOLD=0.75`) is the abstain bar. Below it, L3 silently passes the task to L2 — better to spend $0.0001 on an LLM call than to route a poorly-understood task to the wrong tier. L3 wins by being **conservative and confident**, not by intercepting everything.
+
+### Training pipeline
+
+```bash
+# 1. Generate synthetic training data via LLM (or hand-curate)
+python -m classifier.ml.generate_synthetic --per-slot 50 --domain healthcare
+
+# 2. Train both MLP heads + sigmoid calibration + threshold sweep
+python -m classifier.ml.train_head
+# → classifier/ml/models/head_v1.joblib
+# → classifier/ml/models/head_v1.metadata.json (includes threshold sweep)
+```
+
+The training script:
+1. Encodes all examples with frozen MiniLM
+2. Three-way split: 70% train / 15% calibration / 15% test
+3. Trains MLPs on train set
+4. Wraps each MLP with `CalibratedClassifierCV(method="sigmoid")` fit on calibration set
+5. Sweeps thresholds [0.50–0.95] on test set, reports (intercept_rate, precision)
+6. Saves bundle for runtime
+
+### Three L3 strategies (pick via `LAYER3_STRATEGY`)
+
+| Strategy | Latency | Accuracy | Training data | Status |
+|---|---|---|---|---|
+| `zeroshot` | ~80ms | ~80% | None | ✅ Built (Stage 1) |
+| `head` | ~15ms | ~80% (calibrated) | 1,500+ | ✅ Built (Stage 2) — **default** |
+| `distilbert` | ~12ms | ~95% target | 5,000+ | ⏳ Not built (Stage 3 — fine-tune on Colab) |
 
 ---
 

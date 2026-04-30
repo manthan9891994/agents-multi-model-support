@@ -1,8 +1,50 @@
 {
-  "trained_at": "2026-04-27T23:25:08.598328+00:00",
-  "n_examples": 419,
-  "task_type_val_accuracy": 0.6031746031746031,
-  "complexity_val_accuracy": 0.7142857142857143,
+  "trained_at": "2026-04-30T03:32:40.479267+00:00",
+  "n_examples": 2026,
+  "task_type_test_accuracy": 0.7894736842105263,
+  "complexity_test_accuracy": 0.7960526315789473,
   "encoder": "all-MiniLM-L6-v2",
-  "architecture": "MLPClassifier(256,) per head"
+  "architecture": "MLPClassifier(256,) per head + isotonic calibration",
+  "threshold_sweep": {
+    "0.5": {
+      "intercept_rate": 0.9901315789473685,
+      "precision": 0.6744186046511628,
+      "n": 301
+    },
+    "0.6": {
+      "intercept_rate": 0.9243421052631579,
+      "precision": 0.697508896797153,
+      "n": 281
+    },
+    "0.7": {
+      "intercept_rate": 0.8519736842105263,
+      "precision": 0.7258687258687259,
+      "n": 259
+    },
+    "0.75": {
+      "intercept_rate": 0.7467105263157895,
+      "precision": 0.7533039647577092,
+      "n": 227
+    },
+    "0.8": {
+      "intercept_rate": 0.4967105263157895,
+      "precision": 0.8675496688741722,
+      "n": 151
+    },
+    "0.85": {
+      "intercept_rate": 0.0,
+      "precision": null,
+      "n": 0
+    },
+    "0.9": {
+      "intercept_rate": 0.0,
+      "precision": null,
+      "n": 0
+    },
+    "0.95": {
+      "intercept_rate": 0.0,
+      "precision": null,
+      "n": 0
+    }
+  }
 }
