@@ -1,0 +1,30 @@
+{"task": "Calculate the net present value of this 5-year cash flow projection.", "task_type": "math", "complexity": "standard", "tier": "medium"}
+{"task": "What is the current federal funds rate?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Analyze the credit risk profile of this SME loan application.", "task_type": "analyzing", "complexity": "complex", "tier": "high"}
+{"task": "Generate a quarterly risk report for our FX derivatives portfolio.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "Flag any suspicious transactions in this batch for AML review.", "task_type": "analyzing", "complexity": "standard", "tier": "medium"}
+{"task": "Explain what Basel III capital requirements mean for a retail bank.", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "Calculate VaR at 99% confidence for this equity portfolio over a 10-day horizon.", "task_type": "math", "complexity": "complex", "tier": "high"}
+{"task": "Draft a term sheet for a $5M Series A investment with 1.5x liquidation preference.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "What is a SWIFT code?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Identify PCI-DSS compliance gaps in this payment processing workflow.", "task_type": "analyzing", "complexity": "complex", "tier": "high"}
+{"task": "Build a Monte Carlo simulation model for loan default probability.", "task_type": "code_creation", "complexity": "complex", "tier": "high"}
+{"task": "Summarize key KYC requirements for onboarding a corporate client in the EU.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Compare fixed-rate vs variable-rate mortgage products for this customer profile.", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "What does EBITDA stand for?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Design a fraud detection pipeline using transaction velocity features.", "task_type": "code_creation", "complexity": "research", "tier": "high"}
+{"task": "Compute the Sharpe ratio for this portfolio given monthly return data.", "task_type": "math", "complexity": "standard", "tier": "medium"}
+{"task": "Explain the difference between Tier 1 and Tier 2 capital.", "task_type": "reasoning", "complexity": "simple", "tier": "medium"}
+{"task": "Write a regulatory change impact assessment for DORA (EU Digital Operational Resilience Act).", "task_type": "doc_creation", "complexity": "research", "tier": "high"}
+{"task": "What are the main features of a collateralized debt obligation?", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "Analyze stress test results across these 12 bank portfolios under a 30% equity drawdown scenario.", "task_type": "analyzing", "complexity": "research", "tier": "high"}
+{"task": "List the documents needed to open a business bank account.", "task_type": "doc_creation", "complexity": "simple", "tier": "low"}
+{"task": "Write a Python script to parse ISO 20022 XML payment messages.", "task_type": "code_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Calculate the effective annual rate for a loan with 1.5% monthly compounding.", "task_type": "math", "complexity": "simple", "tier": "low"}
+{"task": "Summarize the Dodd-Frank Act's main provisions affecting derivatives trading.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "What is a P&L statement?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Build a credit scorecard model using logistic regression on this dataset.", "task_type": "code_creation", "complexity": "complex", "tier": "high"}
+{"task": "Translate this German KYC questionnaire into English.", "task_type": "translation", "complexity": "standard", "tier": "medium"}
+{"task": "Review this algorithmic trading strategy for regulatory compliance risks.", "task_type": "reasoning", "complexity": "complex", "tier": "high"}
+{"task": "Explain how stablecoins differ from CBDCs.", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "What is a leverage ratio?", "task_type": "conversation", "complexity": "simple", "tier": "low"}

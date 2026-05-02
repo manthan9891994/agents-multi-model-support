@@ -42,8 +42,11 @@ def _load_bundle():
             return None
         if not _MODEL_PATH.exists():
             logger.warning(
-                "layer3.head: model not found at %s — "
-                "run `python -m classifier.ml.train_head` first",
+                "layer3.head: model file not found at %s\n"
+                "  → Layer 3 will SILENTLY ABSTAIN (cascade falls back to L2/L1).\n"
+                "  → To train: `dmr train --data classifier/data/synthetic_tasks.jsonl`\n"
+                "  → To disable L3 entirely: Router(layer3_enabled=False)\n"
+                "  → Or set DMR_LAYER3_STRATEGY=zeroshot for the no-data fallback.",
                 _MODEL_PATH,
             )
             _load_failed = True

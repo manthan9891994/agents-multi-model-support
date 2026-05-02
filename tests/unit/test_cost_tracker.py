@@ -1,5 +1,13 @@
 """Unit tests for classifier/infra/cost_tracker.py."""
+import os
+import pytest
 from classifier.infra.cost_tracker import CostTracker
+
+
+@pytest.fixture(autouse=True)
+def no_test_mode(monkeypatch):
+    """Ensure CLASSIFIER_TEST_MODE is off so cost tracking fires."""
+    monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
 
 def test_initial_state():
@@ -35,7 +43,7 @@ def test_is_exhausted_at_100pct():
 def test_unknown_model_uses_default_rate():
     t = CostTracker(monthly_budget_usd=100.0)
     cost = t.record("unknown-model-xyz", input_tokens=1_000_000, output_tokens=0)
-    assert cost == 0.25  # default rate
+    assert cost == pytest.approx(0.25)  # default rate
 
 
 def test_summary_structure():
@@ -46,6 +54,3 @@ def test_summary_structure():
     assert "budget_usd" in s
     assert "by_model" in s
     assert "gpt-4o-mini" in s["by_model"]
-
-
-import pytest

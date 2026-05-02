@@ -1,0 +1,126 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynamic-model-router"
+version = "0.1.0"
+description = "A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — before the agent makes an API call."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Manthan Vaghela", email = "manthansinhvaghela@gmail.com" }
+]
+keywords = ["llm", "router", "classifier", "agents", "adk", "gemini", "claude", "openai", "cost-optimization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+google = ["google-genai>=1.14.0"]
+anthropic = ["anthropic>=0.39.0"]
+openai = ["openai>=1.50.0"]
+ml = [
+    "scikit-learn>=1.3.0",
+    "sentence-transformers>=2.2.0",
+    "joblib>=1.3.0",
+    "numpy>=1.24.0",
+]
+adk = ["google-adk>=1.31.0", "google-genai>=1.14.0"]
+crewai = ["crewai>=0.80.0"]
+all = [
+    "dynamic-model-router[google,anthropic,openai,ml,adk,crewai]",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "build>=1.0.0",
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+    "twine>=5.0.0",
+    "pip-audit>=2.7.0",
+    "nbmake>=1.5.0",
+]
+otel = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/manthanvaghela/dynamic-model-router"
+Repository = "https://github.com/manthanvaghela/dynamic-model-router"
+Issues = "https://github.com/manthanvaghela/dynamic-model-router/issues"
+
+[project.scripts]
+dmr = "classifier.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["classifier*", "dynamic_model_router*"]
+exclude = ["tests*", "examples*", "plan_docs*", "integrations*"]
+
+[tool.setuptools.package-data]
+classifier = [
+    "py.typed",
+    "*.pyi",
+    "data/*.jsonl",
+    "config/*.yaml",
+    "ml/models/*.joblib",
+    "ml/models/*.json",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["examples", "plan_docs", "docs/_build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",   # line-too-long — we use 110-col, ruff still flags long strings
+    "B008",   # do-not-call-fn-in-default — common for FastAPI patterns
+    "UP007",  # X | Y syntax — keep Optional for clarity in stubs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011", "F401"]
+"classifier/__init__.py" = ["F401", "E402"]   # re-exports + __version__-first pattern
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+no_strict_optional = true
+warn_unused_ignores = false
+exclude = ["examples/", "plan_docs/", "docs/", "tests/"]

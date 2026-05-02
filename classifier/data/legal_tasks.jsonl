@@ -1,0 +1,30 @@
+{"task": "Draft a non-disclosure agreement for a software vendor relationship.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Review this contract clause for indemnification obligations.", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "Translate this legal memo to plain English.", "task_type": "translation", "complexity": "simple", "tier": "low"}
+{"task": "What is the statute of limitations for breach of contract in California?", "task_type": "reasoning", "complexity": "simple", "tier": "medium"}
+{"task": "Summarize the key obligations in this 40-page licensing agreement.", "task_type": "doc_creation", "complexity": "complex", "tier": "medium"}
+{"task": "Identify potential GDPR compliance risks in this data processing addendum.", "task_type": "analyzing", "complexity": "complex", "tier": "high"}
+{"task": "Draft a comprehensive employment agreement with non-compete, IP assignment, and arbitration clauses.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "Analyze precedents for trade secret misappropriation in the semiconductor industry over the last 10 years.", "task_type": "reasoning", "complexity": "research", "tier": "high"}
+{"task": "Write a cease and desist letter regarding trademark infringement.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "What does 'force majeure' mean?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Compare arbitration versus litigation for resolving commercial disputes.", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "Draft a software-as-a-service master subscription agreement with SLA, data security, and termination provisions.", "task_type": "doc_creation", "complexity": "research", "tier": "high"}
+{"task": "Explain the difference between copyright and trademark protection.", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Analyze the enforceability of non-compete clauses across all 50 US states.", "task_type": "analyzing", "complexity": "research", "tier": "high"}
+{"task": "Is this contract clause enforceable under New York law?", "task_type": "reasoning", "complexity": "standard", "tier": "medium"}
+{"task": "Draft a privacy policy compliant with CCPA and GDPR for a B2B SaaS platform.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "List the required disclosures for a Series A term sheet.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Summarize the main holdings in this appellate court decision.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "What is attorney-client privilege?", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Assess litigation risk for a patent infringement claim given these claim charts.", "task_type": "reasoning", "complexity": "complex", "tier": "high"}
+{"task": "Create a due diligence checklist for a corporate acquisition.", "task_type": "doc_creation", "complexity": "complex", "tier": "high"}
+{"task": "Translate this French arbitration award into English.", "task_type": "translation", "complexity": "complex", "tier": "high"}
+{"task": "What is the penalty for late payment under this agreement?", "task_type": "analyzing", "complexity": "simple", "tier": "low"}
+{"task": "Draft an IP assignment agreement for a freelance software developer.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Explain what a fiduciary duty is.", "task_type": "conversation", "complexity": "simple", "tier": "low"}
+{"task": "Research international arbitration forums suitable for cross-border technology disputes.", "task_type": "reasoning", "complexity": "research", "tier": "high"}
+{"task": "Review these three vendor contracts and flag inconsistencies in payment terms.", "task_type": "analyzing", "complexity": "complex", "tier": "high"}
+{"task": "Draft a mutual termination and release agreement.", "task_type": "doc_creation", "complexity": "standard", "tier": "medium"}
+{"task": "Calculate the liquidated damages clause exposure based on these contract terms.", "task_type": "math", "complexity": "standard", "tier": "medium"}
+{"task": "What is an SOW?", "task_type": "conversation", "complexity": "simple", "tier": "low"}

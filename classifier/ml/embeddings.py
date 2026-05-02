@@ -6,6 +6,7 @@ Subsequent calls return the cached SentenceTransformer instance.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import Optional
 
@@ -13,10 +14,36 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_MODEL_NAME = "all-MiniLM-L6-v2"
+_DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
+_MODEL_NAME = os.environ.get("DMR_EMBEDDING_MODEL", _DEFAULT_MODEL_NAME)
 _lock = threading.Lock()
 _model = None
 _load_failed = False
+
+
+def set_embedding_model(name: str) -> None:
+    """Override the embedding model used by Layer 3.
+
+    Switching models invalidates the loaded singleton. The new model loads on
+    next encode() call.
+
+    NOTE: If the new model has a different output dimensionality than the
+    trained head_v1.joblib, you MUST retrain (`dmr train`) — otherwise the
+    head will reject the embeddings.
+
+    Example:
+        set_embedding_model("BAAI/bge-large-en-v1.5")
+    """
+    global _MODEL_NAME, _model, _load_failed
+    with _lock:
+        _MODEL_NAME = name
+        _model = None
+        _load_failed = False
+    logger.info("ml.embeddings: switched to %s (retrain L3 head if dim differs)", name)
+
+
+def current_embedding_model() -> str:
+    return _MODEL_NAME
 
 
 def get_encoder():

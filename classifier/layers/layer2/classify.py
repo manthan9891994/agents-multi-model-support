@@ -75,8 +75,14 @@ def classify_layer2(
         tier      = TIER_MATRIX[(task_type, complexity)]
         reasoning = f"layer2 | {reason} | conf={conf:.2f}"
 
-        input_tokens = len(task) // 4 + 200
-        cost_tracker.record(settings.layer2_model, input_tokens, output_tokens=50, category="layer2")
+        # Prefer real token counts from the API response; fall back to estimate.
+        usage = getattr(response, "usage_metadata", None)
+        if usage is not None:
+            input_tokens  = int(getattr(usage, "prompt_token_count", 0) or len(task) // 4 + 200)
+            output_tokens = int(getattr(usage, "candidates_token_count", 0) or 50)
+        else:
+            input_tokens, output_tokens = len(task) // 4 + 200, 50
+        cost_tracker.record(settings.layer2_model, input_tokens, output_tokens=output_tokens, category="layer2")
 
         return task_type, complexity, tier, conf, reasoning
 

@@ -38,6 +38,7 @@ class FeatureFlags:
     l2_retry_with_backoff:  bool = True
     l2_output_validation:   bool = True   # output plausibility check (replaces input blocking)
     l2_fallback_model:      bool = True
+    l2_pii_scrub:           bool = True   # scrub PII before sending task to external LLM
 
     # ── System ─────────────────────────────────────────────────────────────────
     single_flight_coalescing:  bool = True

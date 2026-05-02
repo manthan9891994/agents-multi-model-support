@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or Discussion
+    url: https://github.com/manthanvaghela/dynamic-model-router/discussions
+    about: For questions and design discussions, use Discussions instead of issues.
+  - name: Security Vulnerability
+    url: https://github.com/manthanvaghela/dynamic-model-router/security/policy
+    about: Please report security issues privately, not as a public issue.

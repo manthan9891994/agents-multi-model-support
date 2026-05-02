@@ -1,4 +1,7 @@
+__version__ = "0.1.0"
+
 import logging
+import threading
 import time
 
 from classifier.core.exceptions import (
@@ -17,11 +20,22 @@ from classifier.infra.cost_tracker import cost_tracker
 from classifier.config.feature_flags import feature_flags
 
 logger = logging.getLogger(__name__)
+# PEP 282 best practice: libraries must NOT configure logging — only attach
+# a NullHandler so that "no handlers" warnings don't fire if the host app
+# doesn't configure logging itself.
+logger.addHandler(logging.NullHandler())
 
 _TIER_ORDER = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]
 
-# Item 20: Streaming debounce — last known good decision (stateless fallback)
+# Maximum input length — guards L3 OOM, L2 timeout, runaway costs.
+# Override via DMR_MAX_TASK_CHARS env var if you really need longer inputs.
+import os as _os
+MAX_TASK_CHARS = int(_os.environ.get("DMR_MAX_TASK_CHARS", "32000"))
+
+# Item 20: Streaming debounce — last known good decision (stateless fallback).
+# Bounded + lock-protected so long-running processes don't accumulate state.
 _last_decision: ClassificationDecision | None = None
+_last_decision_lock = threading.Lock()
 
 # Item 11: Calibration data (loaded once at first use)
 _calibration: dict | None = None
@@ -95,6 +109,8 @@ def classify_task(
     context_signals: "ContextSignals | None" = None,
     task_stable: bool = True,
     user_id: str | None = None,
+    hook_context: dict | None = None,
+    custom_classifier: callable = None,
 ) -> ClassificationDecision:
     """Classify a task and return the best model for it.
 
@@ -112,9 +128,30 @@ def classify_task(
     """
     global _last_decision
 
+    # Hook context: per-call user data passed to all hooks
+    ctx: dict = dict(hook_context) if hook_context else {}
+    ctx.setdefault("provider", provider)
+    ctx.setdefault("user_id",  user_id)
+
+    # Pre-classify hooks — can modify or reject the task
+    from classifier.hooks import hook_manager
+    task = hook_manager.run_pre(task, ctx)
+
+    # Custom classifier escape hatch — if the user provided one and it returns
+    # a decision, skip the cascade entirely.
+    if custom_classifier is not None:
+        try:
+            custom = custom_classifier(task, ctx)
+            if custom is not None:
+                return hook_manager.run_post("post_classify", task, custom, ctx)
+        except Exception as exc:
+            logger.warning("custom_classifier raised: %s — falling back to cascade", exc)
+
     # Item 20: Streaming debounce — return last decision while input is in-flight
-    if not task_stable and _last_decision is not None:
-        return _last_decision
+    if not task_stable:
+        with _last_decision_lock:
+            if _last_decision is not None:
+                return _last_decision
 
     resolved_provider = provider or settings.default_provider
 
@@ -126,8 +163,32 @@ def classify_task(
 
     if not task or not task.strip():
         raise ClassificationError(
-            "Task cannot be empty. Provide a non-empty string to classify."
+            "Task cannot be empty.",
+            layer="input",
+            suggestion="Pass a non-empty string, e.g. classify('Write a Python function')",
         )
+
+    # Item: input length guard — protects L3 OOM, L2 timeout, runaway costs
+    if len(task) > MAX_TASK_CHARS:
+        raise ClassificationError(
+            f"Task length {len(task)} chars exceeds DMR_MAX_TASK_CHARS={MAX_TASK_CHARS}.",
+            layer="input",
+            task=task,
+            suggestion=(
+                "Truncate input or set DMR_MAX_TASK_CHARS to a higher value. "
+                "Long inputs are usually a sign you should split the work."
+            ),
+        )
+
+    # Item: API key validation — only validate the GOOGLE key when L2 is enabled
+    # (L2 always uses Gemini Flash Lite regardless of `provider`). The package
+    # itself never calls Anthropic/OpenAI — it only returns model names that
+    # the user's own SDK will use, so we don't validate those keys here.
+    if settings.layer2_enabled:
+        try:
+            settings.api_key_for("google")
+        except ConfigurationError:
+            raise
 
     # ── Budget guard ──────────────────────────────────────────────────────────
     if cost_tracker.is_exhausted():
@@ -168,9 +229,15 @@ def classify_task(
     cache_key = f"{resolved_provider}::{task[:200]}"
 
     def _compute() -> ClassificationDecision:
-        return _classify_inner(
-            task, resolved_provider, history, context_signals, max_tier, t0, user_id
-        )
+        try:
+            return _classify_inner(
+                task, resolved_provider, history, context_signals, max_tier, t0, user_id, ctx,
+            )
+        except Exception as exc:
+            recovery = hook_manager.run_error(task, exc, ctx)
+            if recovery is not None:
+                return recovery
+            raise
 
     if feature_flags.single_flight_coalescing:
         from classifier.infra.coalescer import single_flight
@@ -178,10 +245,21 @@ def classify_task(
     else:
         decision = _compute()
 
+    # Final post-classify hooks (after all cascade logic, including PII bumps)
+    decision = hook_manager.run_post("post_classify", task, decision, ctx)
+
     # ── Store for streaming debounce (Item 20) ────────────────────────────────
-    _last_decision = decision
+    with _last_decision_lock:
+        _last_decision = decision
 
     return decision
+
+
+def reset_last_decision() -> None:
+    """Clear the streaming-debounce cache. Call between independent classify sessions."""
+    global _last_decision
+    with _last_decision_lock:
+        _last_decision = None
 
 
 def _classify_inner(
@@ -192,7 +270,20 @@ def _classify_inner(
     max_tier: ModelTier | None,
     t0: float,
     user_id: str | None,
+    ctx: dict | None = None,
 ) -> ClassificationDecision:
+    from classifier.infra.telemetry import span as _span, set_attribute as _attr
+
+    with _span("dmr.classify", **{"task.length": len(task), "provider": resolved_provider}) as _s:
+        return _classify_inner_traced(
+            task, resolved_provider, history, context_signals, max_tier, t0, user_id, _s, _attr, ctx or {},
+        )
+
+
+def _classify_inner_traced(
+    task, resolved_provider, history, context_signals, max_tier, t0, user_id, _s, _attr, ctx,
+):
+    from classifier.hooks import hook_manager
     # ── Layer 1 ───────────────────────────────────────────────────────────────
     layer_used = "layer1"
     try:
@@ -200,7 +291,12 @@ def _classify_inner(
             task, history=history, provider=resolved_provider
         )
     except Exception as exc:
-        raise ClassificationError(f"Layer 1 classification failed: {exc}") from exc
+        raise ClassificationError(
+            f"Layer 1 classification failed: {exc}",
+            layer="layer1",
+            task=task,
+            suggestion="Check that task text is valid UTF-8 and not excessively long (>32K chars).",
+        ) from exc
 
     # ── Item 11: Apply calibration to L1 confidence ───────────────────────────
     if feature_flags.calibration:
@@ -373,6 +469,17 @@ def _classify_inner(
         " | DISAGREE" if disagreement else "",
     )
 
+    # Annotate trace span with the final outcome (no-op if OTel not installed)
+    _attr(_s, "tier", tier.value)
+    _attr(_s, "model", model_name)
+    _attr(_s, "task_type", task_type.value)
+    _attr(_s, "complexity", complexity.value)
+    _attr(_s, "layer_used", layer_used)
+    _attr(_s, "confidence", confidence)
+    _attr(_s, "latency_ms", round(latency_ms, 2))
+    _attr(_s, "compliance_flag", compliance_flag)
+    _attr(_s, "disagreement", disagreement)
+
     if settings.cache_enabled:
         cache.set(task, resolved_provider, decision)
 
@@ -390,18 +497,107 @@ def _classify_inner(
     return decision
 
 
+from classifier.router import Router, classify
+from classifier.layers.layer1.keyword_pack import KeywordPack
+from classifier.core.registry import register_provider, list_providers, list_models, capabilities_for
+from classifier.infra.cost_tracker import register_model_cost, get_model_cost
+from classifier.ml.embeddings import set_embedding_model, current_embedding_model
+from classifier.hooks import register_hook, unregister_hook, clear_hooks, hook_manager
+
+
+def route_model(
+    provider: str | None = None,
+    *,
+    task_arg: str = "task",
+    fallback_model: str | None = None,
+    inject_as: str = "model_name",
+):
+    """Decorator that classifies the task argument and injects the model name.
+
+    The decorated function receives an extra keyword argument (default: `model_name`)
+    with the router-selected model name. The original positional/keyword args are
+    passed through unchanged.
+
+    Args:
+        provider:       Provider to use ("google" | "anthropic" | "openai").
+        task_arg:       Name of the argument that holds the task text (default "task").
+        fallback_model: Model used if classification fails.
+        inject_as:      Name of the kwarg injected into the function (default "model_name").
+
+    Example:
+        @route_model(provider="anthropic")
+        def call_llm(task: str, model_name: str = "claude-sonnet-4-6"):
+            client = anthropic.Anthropic()
+            return client.messages.create(model=model_name, ...)
+
+        # model_name is auto-filled by the router:
+        result = call_llm("Compare metformin vs GLP-1 agonists")
+    """
+    import functools
+
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            import inspect
+            sig = inspect.signature(fn)
+            params = list(sig.parameters)
+
+            # Resolve task text: check kwargs first, then positional
+            if task_arg in kwargs:
+                task_text = kwargs[task_arg]
+            elif task_arg in params:
+                idx = params.index(task_arg)
+                task_text = args[idx] if idx < len(args) else ""
+            else:
+                task_text = args[0] if args else ""
+
+            # Classify and inject
+            try:
+                decision = classify_task(str(task_text), provider=provider)
+                model = decision.model_name
+            except Exception as exc:
+                if fallback_model:
+                    model = fallback_model
+                else:
+                    raise
+
+            kwargs.setdefault(inject_as, model)
+            return fn(*args, **kwargs)
+
+        return wrapper
+    return decorator
+
+
 __all__ = [
+    # New high-level API
+    "__version__",
+    "Router",
+    "classify",
+    "KeywordPack",
+    "route_model",
+    "reset_last_decision",
+    "MAX_TASK_CHARS",
+    # Extensibility v2
+    "register_provider", "list_providers", "list_models", "capabilities_for",
+    "register_model_cost", "get_model_cost",
+    "set_embedding_model", "current_embedding_model",
+    "register_hook", "unregister_hook", "clear_hooks", "hook_manager",
+    # Free function (kept for backwards compat)
     "classify_task",
+    # Types
     "ClassificationDecision",
     "ContextSignals",
     "ModelTier",
     "TaskType",
     "TaskComplexity",
+    # Registries (for advanced overrides)
     "MODEL_REGISTRY",
     "TIER_MATRIX",
+    # Exceptions
     "ClassificationError",
     "ConfigurationError",
     "UnsupportedProviderError",
     "LayerNotAvailableError",
+    # Misc
     "record_feedback",
 ]

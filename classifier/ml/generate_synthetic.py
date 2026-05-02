@@ -25,8 +25,8 @@ from pathlib import Path
 from classifier.core.types import TaskType, TaskComplexity
 from classifier.infra.config import settings
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 _OUT_FILE = Path(__file__).parent.parent / "data" / "synthetic_tasks.jsonl"
 
@@ -138,6 +138,8 @@ def generate_slot(
 
 
 def main() -> None:
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
     parser = argparse.ArgumentParser(description="Generate synthetic L3 training data")
     parser.add_argument("--per-slot", type=int, default=30, help="examples per (type, complexity) slot")
     parser.add_argument("--domain", type=str, default="", help="optional domain flavoring (healthcare/fintech/legal)")

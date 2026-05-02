@@ -8,17 +8,61 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-COST_PER_1M_TOKENS: dict[str, float] = {
-    "gemini-2.5-flash-lite":     0.05,
-    "gemini-2.5-flash":          0.25,
-    "gemini-2.5-pro":            2.50,
-    "claude-haiku-4-5-20251001": 0.40,
-    "claude-sonnet-4-6":         3.00,
-    "claude-opus-4-7":           15.00,
-    "gpt-4o-mini":               0.15,
-    "gpt-4o":                    2.50,
-    "gpt-4-turbo":               10.00,
+# Cost table: {model_name: {"input": $/1M tokens, "output": $/1M tokens}}.
+# Pricing changes monthly — use register_model_cost() to override or add models.
+COST_TABLE: dict[str, dict[str, float]] = {
+    "gemini-2.5-flash-lite":     {"input": 0.05,  "output": 0.15},
+    "gemini-2.5-flash":          {"input": 0.25,  "output": 0.75},
+    "gemini-2.5-pro":            {"input": 2.50,  "output": 7.50},
+    "claude-haiku-4-5-20251001": {"input": 0.40,  "output": 2.00},
+    "claude-sonnet-4-6":         {"input": 3.00,  "output": 15.00},
+    "claude-opus-4-7":           {"input": 15.00, "output": 75.00},
+    "gpt-4o-mini":               {"input": 0.15,  "output": 0.60},
+    "gpt-4o":                    {"input": 2.50,  "output": 10.00},
+    "gpt-4-turbo":               {"input": 10.00, "output": 30.00},
 }
+
+_DEFAULT_COST = {"input": 0.25, "output": 0.75}
+
+
+def register_model_cost(
+    model: str,
+    *,
+    input_per_1m: float,
+    output_per_1m: float,
+) -> None:
+    """Register or override the cost rates for a model.
+
+    Example:
+        register_model_cost("mistral-large-2", input_per_1m=2.0, output_per_1m=6.0)
+    """
+    COST_TABLE[model] = {"input": float(input_per_1m), "output": float(output_per_1m)}
+
+
+def get_model_cost(model: str) -> dict[str, float]:
+    return COST_TABLE.get(model, _DEFAULT_COST)
+
+
+# Back-compat alias — keeps any external imports working.
+def _legacy_per_1m(model: str) -> float:
+    """Returns the average of input+output rate for legacy callers."""
+    c = get_model_cost(model)
+    return (c["input"] + c["output"]) / 2
+
+
+# Module-level dict that mimics the old flat shape for back-compat
+class _LegacyCostMap(dict):
+    def __getitem__(self, key):
+        return _legacy_per_1m(key)
+    def get(self, key, default=None):
+        if key in COST_TABLE:
+            return _legacy_per_1m(key)
+        return default
+    def __contains__(self, key):
+        return key in COST_TABLE
+
+
+COST_PER_1M_TOKENS = _LegacyCostMap()   # back-compat shim
 
 
 def _is_test_mode() -> bool:
@@ -57,9 +101,8 @@ class CostTracker:
     ) -> float:
         if _is_test_mode():
             return 0.0
-        total_tokens = input_tokens + output_tokens
-        rate = COST_PER_1M_TOKENS.get(model, 0.25)
-        cost = (total_tokens / 1_000_000) * rate
+        rates = get_model_cost(model)
+        cost = (input_tokens / 1_000_000) * rates["input"] + (output_tokens / 1_000_000) * rates["output"]
         with self._lock:
             self._records.append(
                 UsageRecord(

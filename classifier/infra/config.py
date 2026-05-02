@@ -9,7 +9,6 @@ from classifier.core.exceptions import ConfigurationError
 logger = logging.getLogger(__name__)
 
 _ENV_FILE = Path(__file__).parent.parent.parent / ".env"
-_VALID_PROVIDERS = {"google", "openai", "anthropic"}
 
 
 class Settings(BaseSettings):
@@ -42,11 +41,15 @@ class Settings(BaseSettings):
     layer3_zeroshot_threshold: float = 0.85
 
     # ── Layer 2 settings ──────────────────────────────────────────────────────
+    layer2_provider:             str   = ""    # "" = same as default_provider
     layer2_model:                str   = "gemini-2.5-flash-lite"
     layer2_timeout_ms:           int   = 3500
     layer2_max_rpm:              int   = 100
     layer2_fallback_model:       str   = ""
     layer2_monthly_budget_usd:   float = 0.0  # 0 = auto (5% of monthly_budget_usd)
+
+    # ── PII / compliance ──────────────────────────────────────────────────────
+    pii_scrub_strict:            bool  = False  # also scrub all-caps names + addresses
 
     # ── Cache ─────────────────────────────────────────────────────────────────
     cache_enabled:              bool  = True
@@ -71,11 +74,11 @@ class Settings(BaseSettings):
     @field_validator("default_provider")
     @classmethod
     def validate_provider(cls, v: str) -> str:
-        if v not in _VALID_PROVIDERS:
-            raise ValueError(
-                f"DEFAULT_PROVIDER='{v}' is invalid. "
-                f"Must be one of: {sorted(_VALID_PROVIDERS)}"
-            )
+        # Trust the registry — custom providers can be registered via
+        # classifier.register_provider() before this validator runs in user code.
+        # Empty string isn't valid.
+        if not v:
+            raise ValueError("DEFAULT_PROVIDER cannot be empty.")
         return v
 
     def api_key_for(self, provider: str) -> str:

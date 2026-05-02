@@ -161,25 +161,18 @@ def test_strategy_router_dispatches_zeroshot():
     """settings.layer3_strategy='zeroshot' → calls zeroshot implementation."""
     from classifier.layers.layer3 import classify_layer3, zeroshot as zs
     from classifier.core.types import TaskType, TaskComplexity
+    from classifier.infra.config import settings
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.MATH)
     cx_label = next(k for k, v in zs._COMPLEXITY_HYPOTHESES.items() if v == TaskComplexity.SIMPLE)
     zs._pipeline = _make_mock_pipe(tt_label, 0.93, cx_label, 0.91)
 
-    result = classify_layer3("solve x + 2 = 5")
-    assert result is not None
-    assert result[0] == TaskType.MATH
-
-
-def test_strategy_router_skips_unimplemented_head():
-    """'head' strategy not yet implemented → returns None gracefully."""
-    from classifier.layers.layer3 import classify_layer3
-    from classifier.infra.config import settings
-
     original = settings.layer3_strategy
     try:
-        settings.layer3_strategy = "head"
-        assert classify_layer3("any task") is None
+        settings.layer3_strategy = "zeroshot"
+        result = classify_layer3("solve x + 2 = 5")
+        assert result is not None
+        assert result[0] == TaskType.MATH
     finally:
         settings.layer3_strategy = original
 
@@ -225,9 +218,11 @@ def test_cascade_l3_confident_skips_l2():
 
     original_l3 = settings.layer3_enabled
     original_l2 = settings.layer2_enabled
+    original_strategy = settings.layer3_strategy
     try:
         settings.layer3_enabled = True
         settings.layer2_enabled = True
+        settings.layer3_strategy = "zeroshot"
 
         # Use a task with no L1 keyword matches → L1 confidence ~0.3 (DOC_CREATION fallback)
         # This guarantees L3 trigger condition `confidence < 0.75` is met.
@@ -245,6 +240,7 @@ def test_cascade_l3_confident_skips_l2():
     finally:
         settings.layer3_enabled = original_l3
         settings.layer2_enabled = original_l2
+        settings.layer3_strategy = original_strategy
         cache.clear()
 
 

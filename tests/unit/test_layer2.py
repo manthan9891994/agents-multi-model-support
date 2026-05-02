@@ -12,6 +12,19 @@ def reset_rate_limiter():
     rl._rate_limiter = None
 
 
+@pytest.fixture(autouse=True)
+def reset_circuit_breaker_and_client():
+    """Each L2 test starts with a closed breaker and no cached client."""
+    from classifier.layers.layer2 import api as l2api
+    l2api._circuit_breaker._failures = 0
+    l2api._circuit_breaker._opened_at = 0.0
+    l2api._shared_client = None
+    yield
+    l2api._circuit_breaker._failures = 0
+    l2api._circuit_breaker._opened_at = 0.0
+    l2api._shared_client = None
+
+
 def _mock_response(data: dict) -> MagicMock:
     m = MagicMock()
     m.text = json.dumps(data)
@@ -86,7 +99,7 @@ def test_api_exception_returns_none():
 
 def test_timeout_returns_none():
     from concurrent.futures import TimeoutError as FuturesTimeout
-    with patch("classifier.layers.layer2.api._executor") as mock_exec:
+    with patch("classifier.layers.layer2.classify._executor") as mock_exec:
         mock_future = MagicMock()
         mock_future.result.side_effect = FuturesTimeout()
         mock_exec.submit.return_value = mock_future

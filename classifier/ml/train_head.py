@@ -31,8 +31,8 @@ from sklearn.neural_network import MLPClassifier
 from classifier.ml.data_loader import load_examples
 from classifier.ml.embeddings import encode
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 _MODELS_DIR = Path(__file__).parent / "models"
 _MODEL_PATH = _MODELS_DIR / "head_v1.joblib"
@@ -96,6 +96,9 @@ def _threshold_sweep(
 
 
 def main() -> None:
+    # CLI entry point — configure root logger only when run as a script.
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
     _MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. Load labeled data
