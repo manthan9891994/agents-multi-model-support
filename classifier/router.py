@@ -73,6 +73,17 @@ class Router:
         pre_classify_hooks:  Optional[list[Any]] = None,
         post_classify_hooks: Optional[list[Any]] = None,
         on_error_hooks:      Optional[list[Any]] = None,
+        pii_policy: Optional[dict] = None,
+        l2_retry_policy: Optional[dict] = None,
+        l2_circuit_breaker: Optional[dict] = None,
+        l1_weights: Optional[dict] = None,
+        tokenizer: Optional[Any] = None,
+        latency_budget_ms: Optional[float] = None,
+        residency: Optional[str] = None,
+        cache_backend: Optional[Any] = None,
+        decision_logger: Optional[Any] = None,
+        layer2_prompt_template: Optional[str] = None,
+        registry: Optional[Any] = None,    # path / URL / dict to load at construction
     ):
         self.providers           = providers or []
         self.extra_keyword_packs = extra_keyword_packs or []
@@ -96,6 +107,22 @@ class Router:
         self.pre_classify_hooks  = pre_classify_hooks  or []
         self.post_classify_hooks = post_classify_hooks or []
         self.on_error_hooks      = on_error_hooks      or []
+        self.pii_policy          = pii_policy
+        self.l2_retry_policy     = l2_retry_policy
+        self.l2_circuit_breaker  = l2_circuit_breaker
+        self.l1_weights          = l1_weights
+        self.tokenizer           = tokenizer
+        self.latency_budget_ms   = latency_budget_ms
+        self.residency           = residency
+        self.cache_backend       = cache_backend
+        self.decision_logger     = decision_logger
+        self.layer2_prompt_template = layer2_prompt_template
+        self.registry = registry
+
+        # Apply registry override (path / URL / dict) at construction
+        if self.registry is not None:
+            from classifier.core.registry_loader import load_registry
+            load_registry(self.registry)
 
         # Apply extensibility settings at construction
         if self.model_costs:
@@ -131,14 +158,38 @@ class Router:
         context_signals: "Optional[ContextSignals]" = None,
         provider: Optional[str] = None,
         hook_context: Optional[dict] = None,
+        tenant_config: Optional[dict] = None,
     ) -> "ClassificationDecision":
         """Classify a task and return the routing decision.
+
+        Args:
+            tenant_config: Per-call config overrides (multi-tenant deployments).
+                Supported keys: providers, budget_usd, layer1_enabled,
+                layer2_enabled, layer3_enabled, latency_budget_ms,
+                residency, pii_policy, model_registry, tier_matrix.
 
         If `providers` was set at construction, tries each in order on failure.
         """
         from classifier import classify_task
 
+        # Per-call tenant overrides — build a temporary Router for just this call
+        if tenant_config:
+            tenant_router = self.with_overrides(**tenant_config)
+            return tenant_router.classify(
+                task, history=history, context_signals=context_signals,
+                provider=provider, hook_context=hook_context,
+            )
+
         resolved = provider or (self.providers[0] if self.providers else None)
+
+        # Inject Router-level config into hook_context so the cascade can read it
+        merged_ctx: dict = dict(hook_context or {})
+        if self.pii_policy is not None:
+            merged_ctx.setdefault("pii_policy", self.pii_policy)
+        if self.latency_budget_ms is not None:
+            merged_ctx.setdefault("latency_budget_ms", self.latency_budget_ms)
+        if self.residency is not None:
+            merged_ctx.setdefault("residency", self.residency)
 
         with self._apply_overrides():
             with self._apply_hooks():
@@ -148,7 +199,7 @@ class Router:
                         provider=resolved,
                         history=history,
                         context_signals=context_signals,
-                        hook_context=hook_context,
+                        hook_context=merged_ctx,
                         custom_classifier=self.custom_classifier,
                     )
                 except Exception as exc:
@@ -159,7 +210,7 @@ class Router:
                             return classify_task(
                                 task, provider=fallback,
                                 history=history, context_signals=context_signals,
-                                hook_context=hook_context,
+                                hook_context=merged_ctx,
                                 custom_classifier=self.custom_classifier,
                             )
                         except Exception:
@@ -248,15 +299,16 @@ class Router:
             info = router.estimate_cost("Summarise this 2-page document")
             print(info["tier"], info["est_usd_per_call"])
         """
-        from classifier.infra.cost_tracker import COST_PER_1M_TOKENS
+        from classifier.infra.cost_tracker import get_model_cost
+        from classifier.infra.tokenizers import count_tokens
 
         decision = self.classify(task, provider=provider)
         model = decision.model_name
-        input_tokens = max(1, len(task.split()))   # rough word-count proxy
+        input_tokens = count_tokens(task, model=model)
 
-        rate = COST_PER_1M_TOKENS.get(model, 1.0)
-        total_tokens = input_tokens + estimated_output_tokens
-        est_usd = (total_tokens / 1_000_000) * rate
+        rates = get_model_cost(model)
+        est_usd = (input_tokens / 1_000_000) * rates["input"] + \
+                  (estimated_output_tokens / 1_000_000) * rates["output"]
 
         return {
             "tier":               decision.tier.value,
@@ -266,7 +318,8 @@ class Router:
             "input_tokens":       input_tokens,
             "output_tokens":      estimated_output_tokens,
             "est_usd_per_call":   round(est_usd, 8),
-            "rate_per_1m_tokens": rate,
+            "input_rate_per_1m":  rates["input"],
+            "output_rate_per_1m": rates["output"],
         }
 
     def train(
@@ -294,6 +347,95 @@ class Router:
         )
 
     # ── Alternative constructors ─────────────────────────────────────────────
+
+    def with_overrides(self, **kwargs) -> "Router":
+        """Create a new Router that inherits this one's config, with overrides.
+
+        For multi-tenant deployments where a base Router serves many tenants
+        each with their own per-tenant config:
+
+            base = Router(layer3_enabled=True)
+            tenant_a = base.with_overrides(providers=["anthropic"], budget_usd=100)
+            tenant_b = base.with_overrides(layer2_enabled=False)
+        """
+        merged = self.to_dict()
+        merged.update(kwargs)
+        return Router(**merged)
+
+    def merge(self, other: "Router") -> "Router":
+        """Compose two Routers — last-wins semantics on every field.
+
+        Useful when combining a domain preset with custom user overrides:
+
+            base   = Router.from_preset("healthcare")
+            custom = Router(extra_keyword_packs=[my_pack])
+            router = base.merge(custom)
+        """
+        a = self.to_dict()
+        b = other.to_dict()
+        for k, v in b.items():
+            # Lists merge additively; scalars overwrite
+            if isinstance(v, list) and isinstance(a.get(k), list):
+                a[k] = a[k] + [x for x in v if x not in a[k]]
+            elif isinstance(v, dict) and isinstance(a.get(k), dict):
+                a[k] = {**a[k], **v}
+            elif v is not None:
+                a[k] = v
+        return Router(**a)
+
+    def to_dict(self) -> dict:
+        """Serialise constructor args back to a dict (for merge/with_overrides)."""
+        return {
+            "providers":           list(self.providers),
+            "extra_keyword_packs": list(self.extra_keyword_packs),
+            "extra_pii_patterns":  list(self.extra_pii_patterns),
+            "tier_matrix":         dict(self.tier_matrix),
+            "model_registry":      dict(self.model_registry),
+            "layer1_enabled":      self.layer1_enabled,
+            "layer2_enabled":      self.layer2_enabled,
+            "layer3_enabled":      self.layer3_enabled,
+            "escalation_threshold": self.escalation_threshold,
+            "layer3_threshold":    self.layer3_threshold,
+            "budget_usd":          self.budget_usd,
+            "cache_enabled":       self.cache_enabled,
+            "layer2_provider":     self.layer2_provider,
+            "layer2_model":        self.layer2_model,
+            "layer3_embedding_model": self.layer3_embedding_model,
+            "model_costs":         dict(self.model_costs),
+            "custom_classifier":   self.custom_classifier,
+            "pre_classify_hooks":  list(self.pre_classify_hooks),
+            "post_classify_hooks": list(self.post_classify_hooks),
+            "on_error_hooks":      list(self.on_error_hooks),
+            "pii_policy":          self.pii_policy,
+            "l2_retry_policy":     self.l2_retry_policy,
+            "l2_circuit_breaker":  self.l2_circuit_breaker,
+            "l1_weights":          self.l1_weights,
+            "tokenizer":           self.tokenizer,
+            "latency_budget_ms":   self.latency_budget_ms,
+            "residency":           self.residency,
+            "cache_backend":       self.cache_backend,
+            "decision_logger":     self.decision_logger,
+            "layer2_prompt_template": self.layer2_prompt_template,
+        }
+
+    @classmethod
+    def from_registry(cls, source: "str | Path | dict", **router_kwargs) -> "Router":
+        """Construct a Router after loading a model registry.
+
+        Equivalent to:
+            from classifier import load_registry
+            load_registry(source)
+            return Router(**router_kwargs)
+        """
+        from classifier.core.registry_loader import load_registry
+        load_registry(source)
+        return cls(**router_kwargs)
+
+    @staticmethod
+    def load_registry(source: "str | Path | dict") -> dict:
+        """Load (and merge) a model registry into the runtime tables."""
+        from classifier.core.registry_loader import load_registry
+        return load_registry(source)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Router":
@@ -382,6 +524,49 @@ class Router:
                     saved["l2_model"] = settings.layer2_model
                     settings.layer2_model = self.layer2_model
 
+                # Cache backend
+                if self.cache_backend is not None:
+                    from classifier.infra.cache import cache as _cache
+                    saved["cache_backend"] = _cache._backend
+                    _cache.set_backend(self.cache_backend)
+
+                # Decision logger backend
+                if self.decision_logger is not None:
+                    from classifier.infra import decision_logger as _dl_mod
+                    saved["decision_logger"] = getattr(_dl_mod, "_backend", None)
+                    _dl_mod._backend = self.decision_logger
+
+                # L1 weights
+                if self.l1_weights is not None:
+                    from classifier.layers.layer1 import scoring as _scoring
+                    if hasattr(_scoring, "_WEIGHTS"):
+                        saved["l1_weights"] = dict(_scoring._WEIGHTS)
+                        _scoring._WEIGHTS.update(self.l1_weights)
+
+                # L2 prompt template
+                if self.layer2_prompt_template is not None:
+                    from classifier.layers.layer2 import prompt as _prompt
+                    if hasattr(_prompt, "_PROMPT"):
+                        saved["l2_prompt"] = _prompt._PROMPT
+                        _prompt._PROMPT = self.layer2_prompt_template
+
+                # L2 retry policy
+                if self.l2_retry_policy is not None:
+                    from classifier.layers.layer2 import api as l2api
+                    saved["retry_policy"] = dict(l2api._retry_policy)
+                    l2api.configure_retry_policy(**{
+                        k: v for k, v in self.l2_retry_policy.items()
+                        if k in ("max_attempts", "initial_delay", "backoff")
+                    })
+
+                # L2 circuit breaker policy
+                if self.l2_circuit_breaker is not None:
+                    from classifier.layers.layer2 import api as l2api
+                    saved["cb_threshold"] = l2api._circuit_breaker.failure_threshold
+                    saved["cb_cooldown"]  = l2api._circuit_breaker.cooldown_secs
+                    l2api._circuit_breaker.failure_threshold = self.l2_circuit_breaker.get("failure_threshold", 5)
+                    l2api._circuit_breaker.cooldown_secs     = self.l2_circuit_breaker.get("cooldown_secs", 60.0)
+
                 # Budget
                 if self.budget_usd is not None:
                     saved["budget"] = settings.monthly_budget_usd
@@ -413,6 +598,26 @@ class Router:
                 if "budget"    in saved:  settings.monthly_budget_usd = saved["budget"]
                 if "l2_provider" in saved: settings.layer2_provider = saved["l2_provider"]
                 if "l2_model"    in saved: settings.layer2_model = saved["l2_model"]
+                if "cb_threshold" in saved:
+                    from classifier.layers.layer2 import api as l2api
+                    l2api._circuit_breaker.failure_threshold = saved["cb_threshold"]
+                    l2api._circuit_breaker.cooldown_secs     = saved["cb_cooldown"]
+                if "retry_policy" in saved:
+                    from classifier.layers.layer2 import api as l2api
+                    l2api._retry_policy.update(saved["retry_policy"])
+                if "cache_backend" in saved:
+                    from classifier.infra.cache import cache as _cache
+                    _cache.set_backend(saved["cache_backend"])
+                if "decision_logger" in saved:
+                    from classifier.infra import decision_logger as _dl_mod
+                    _dl_mod._backend = saved["decision_logger"]
+                if "l1_weights" in saved:
+                    from classifier.layers.layer1 import scoring as _scoring
+                    _scoring._WEIGHTS.clear()
+                    _scoring._WEIGHTS.update(saved["l1_weights"])
+                if "l2_prompt" in saved:
+                    from classifier.layers.layer2 import prompt as _prompt
+                    _prompt._PROMPT = saved["l2_prompt"]
                 if "tier_matrix" in saved:
                     registry.TIER_MATRIX.clear()
                     registry.TIER_MATRIX.update(saved["tier_matrix"])

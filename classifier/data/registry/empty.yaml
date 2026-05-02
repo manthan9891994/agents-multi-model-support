@@ -1,0 +1,28 @@
+# Empty registry template — copy and fill in for production use.
+#
+# Usage:
+#   cp $(python -c "import classifier, pathlib; print(pathlib.Path(classifier.__file__).parent / 'data/registry/empty.yaml')") my-models.yaml
+#   # Edit my-models.yaml
+#   router = Router.from_registry("my-models.yaml")
+
+version: "your-version-here"
+notes: "Customize this file for your stack. Pricing as of YYYY-MM-DD."
+
+providers:
+  # your_provider:
+  #   api_key_env: YOUR_PROVIDER_API_KEY
+  #   tiers:
+  #     low:    your-cheap-model
+  #     medium: your-mid-model
+  #     high:   your-expensive-model
+
+models:
+  # your-cheap-model:
+  #   cost: { input_per_1m: 0.10, output_per_1m: 0.30 }
+  #   capabilities:
+  #     context_window: 128000
+  #     supports_vision: false
+  #     supports_function_calling: true
+  #     supports_streaming: true
+  #     supports_json_mode: true
+  #     region: null

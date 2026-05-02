@@ -40,16 +40,16 @@ def _is_test_mode() -> bool:
     return os.environ.get("CLASSIFIER_TEST_MODE", "").lower() in ("1", "true", "yes")
 
 
+_backend = None   # set by Router(decision_logger=...) — None falls back to default JSONL
+
+
 def log_decision(
     task: str,
     decision: "ClassificationDecision",
     layer_used: str,
     latency_ms: float,
 ) -> None:
-    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
-
     safe_preview = _redact_pii(task[:200])
-
     entry = {
         "timestamp":       datetime.now(timezone.utc).isoformat(),
         "task_preview":    safe_preview,
@@ -64,6 +64,17 @@ def log_decision(
         "compliance_flag": decision.compliance_flag,
         "disagreement":    decision.disagreement,
     }
+
+    # Pluggable backend takes precedence
+    if _backend is not None:
+        try:
+            _backend.log(entry)
+            return
+        except Exception as exc:
+            logger.warning("decision_logger backend failed, falling back to file: %s", exc)
+
+    # Default: append-only JSONL file
+    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
     try:
         with _lock:
             with open(log_file, "a", encoding="utf-8") as f:

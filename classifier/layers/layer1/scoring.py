@@ -10,6 +10,11 @@ from .constants import (
 )
 from .helpers import _negation_positions, _extract_instruction
 
+
+# Configurable scoring weights — Router(l1_weights={...}) updates this dict.
+# Keys: "primary" (matches in primary keyword group), "secondary", "escalator".
+_WEIGHTS: dict[str, float] = {"primary": 3.0, "secondary": 1.0, "escalator": 2.0}
+
 _CODE_SNIPPET_RE = re.compile(
     r"(^(def |class |import |from |function |const |let |var |public |private |#include)"
     r"|[\{\}];\s*$"
@@ -31,7 +36,7 @@ def _score_task_type(lower: str) -> dict[TaskType, float]:
     negated = _negation_positions(lower) if feature_flags.negation_suppression else set()
 
     for task_type, groups in _TASK_KEYWORDS.items():
-        for weight, group_key in [(3.0, "primary"), (1.0, "secondary")]:
+        for weight, group_key in [(_WEIGHTS["primary"], "primary"), (_WEIGHTS["secondary"], "secondary")]:
             sorted_kws = sorted(groups.get(group_key, []), key=len, reverse=True)
             consumed: set[int] = set()
             for kw in sorted_kws:

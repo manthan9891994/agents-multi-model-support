@@ -56,40 +56,10 @@ TIER_MATRIX = {
     (TaskType.MULTIMODAL,    TaskComplexity.RESEARCH): ModelTier.HIGH,
 }
 
-MODEL_REGISTRY: dict[str, dict[ModelTier, str]] = {
-    "google": {
-        ModelTier.LOW:    "gemini-2.5-flash",       # flash-lite quota exhausted on free tier
-        ModelTier.MEDIUM: "gemini-2.5-flash",
-        ModelTier.HIGH:   "gemini-2.5-pro",
-    },
-    "anthropic": {
-        ModelTier.LOW:    "claude-haiku-4-5-20251001",
-        ModelTier.MEDIUM: "claude-sonnet-4-6",
-        ModelTier.HIGH:   "claude-opus-4-7",
-    },
-    "openai": {
-        ModelTier.LOW:    "gpt-4o-mini",
-        ModelTier.MEDIUM: "gpt-4o",
-        ModelTier.HIGH:   "gpt-4-turbo",
-    },
-}
-
-
-# ── Capability metadata per model ────────────────────────────────────────────
-# Used for context-window escalation and capability filtering.
-# Schema: {"context_window": int, "supports_vision": bool, "supports_function_calling": bool,
-#          "supports_streaming": bool, "supports_json_mode": bool, "region": str | None}
-MODEL_CAPABILITIES: dict[str, dict] = {
-    "gemini-2.5-flash":       {"context_window": 1_000_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-    "gemini-2.5-flash-lite":  {"context_window": 1_000_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-    "gemini-2.5-pro":         {"context_window": 2_000_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-    "claude-haiku-4-5-20251001": {"context_window": 200_000, "supports_vision": True, "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": False, "region": None},
-    "claude-sonnet-4-6":      {"context_window": 200_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": False, "region": None},
-    "claude-opus-4-7":        {"context_window": 200_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": False, "region": None},
-    "gpt-4o-mini":            {"context_window": 128_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-    "gpt-4o":                 {"context_window": 128_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-    "gpt-4-turbo":            {"context_window": 128_000, "supports_vision": True,  "supports_function_calling": True, "supports_streaming": True, "supports_json_mode": True, "region": None},
-}
+# Runtime tables — populated from YAML at import time.
+# The package ships zero hardcoded model names or pricing. See registry_loader.py.
+MODEL_REGISTRY:     dict[str, dict[ModelTier, str]] = {}
+MODEL_CAPABILITIES: dict[str, dict]                 = {}
 
 
 def register_provider(

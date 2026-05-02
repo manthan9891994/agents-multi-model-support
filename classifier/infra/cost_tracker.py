@@ -8,20 +8,12 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# Cost table: {model_name: {"input": $/1M tokens, "output": $/1M tokens}}.
-# Pricing changes monthly — use register_model_cost() to override or add models.
-COST_TABLE: dict[str, dict[str, float]] = {
-    "gemini-2.5-flash-lite":     {"input": 0.05,  "output": 0.15},
-    "gemini-2.5-flash":          {"input": 0.25,  "output": 0.75},
-    "gemini-2.5-pro":            {"input": 2.50,  "output": 7.50},
-    "claude-haiku-4-5-20251001": {"input": 0.40,  "output": 2.00},
-    "claude-sonnet-4-6":         {"input": 3.00,  "output": 15.00},
-    "claude-opus-4-7":           {"input": 15.00, "output": 75.00},
-    "gpt-4o-mini":               {"input": 0.15,  "output": 0.60},
-    "gpt-4o":                    {"input": 2.50,  "output": 10.00},
-    "gpt-4-turbo":               {"input": 10.00, "output": 30.00},
-}
+# Cost table populated from YAML at import time. Empty by default.
+# Use register_model_cost() to add or update.
+COST_TABLE: dict[str, dict[str, float]] = {}
 
+# Used when a model has no registered cost. Conservative midpoint so unknown
+# models don't exhaust the budget instantly. Override with register_model_cost.
 _DEFAULT_COST = {"input": 0.25, "output": 0.75}
 
 
@@ -113,7 +105,7 @@ class CostTracker:
                     category=category,
                 )
             )
-        logger.debug("Recorded %.6f USD for %s (%d tokens) [%s]", cost, model, total_tokens, category)
+        logger.debug("Recorded %.6f USD for %s (%d/%d tokens) [%s]", cost, model, input_tokens, output_tokens, category)
         return cost
 
     @property

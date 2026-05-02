@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "dmr.yaml",
+  "description": "Configuration schema for dynamic-model-router. Add this header to your dmr.yaml for editor autocomplete:\n\n  # yaml-language-server: $schema=https://raw.githubusercontent.com/manthanvaghela/dynamic-model-router/master/classifier/dmr.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "providers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Provider failover order. First provider tried first."
+    },
+    "default_provider": {
+      "type": "string",
+      "description": "Default provider when none specified."
+    },
+    "layer1_enabled": { "type": "boolean", "default": true },
+    "layer2_enabled": { "type": "boolean", "default": false },
+    "layer3_enabled": { "type": "boolean", "default": false },
+    "layer1_threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.75 },
+    "layer3_threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.75 },
+    "layer2_provider": {
+      "type": "string",
+      "description": "Provider used for the L2 LLM classifier. Defaults to default_provider."
+    },
+    "layer2_model": { "type": "string" },
+    "layer3_embedding_model": {
+      "type": "string",
+      "description": "SentenceTransformer model name (e.g. 'BAAI/bge-large-en-v1.5'). Retrain after changing dim."
+    },
+    "budget_usd": { "type": "number", "minimum": 0 },
+    "cache_enabled": { "type": "boolean", "default": true },
+    "tier_matrix": {
+      "type": "object",
+      "description": "Override tier mapping. Keys are 'task_type:complexity', values are tier names."
+    },
+    "model_registry": {
+      "type": "object",
+      "description": "Override or extend provider->tier->model mapping."
+    },
+    "model_costs": {
+      "type": "object",
+      "description": "Override per-model pricing.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "input":  { "type": "number" },
+          "output": { "type": "number" }
+        }
+      }
+    },
+    "keyword_packs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "packs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "pii_policy": {
+      "type": "object",
+      "properties": {
+        "min_tier": { "type": "string", "enum": ["low", "medium", "high"] },
+        "block":    { "type": "boolean", "default": false }
+      }
+    },
+    "l2_retry_policy": {
+      "type": "object",
+      "properties": {
+        "max_attempts":  { "type": "integer", "minimum": 0 },
+        "initial_delay": { "type": "number",  "minimum": 0 },
+        "backoff":       { "type": "number",  "minimum": 1 }
+      }
+    },
+    "l2_circuit_breaker": {
+      "type": "object",
+      "properties": {
+        "failure_threshold": { "type": "integer", "minimum": 1 },
+        "cooldown_secs":     { "type": "number",  "minimum": 0 }
+      }
+    },
+    "l1_weights": {
+      "type": "object",
+      "properties": {
+        "primary":   { "type": "number" },
+        "secondary": { "type": "number" },
+        "escalator": { "type": "number" }
+      }
+    },
+    "latency_budget_ms": { "type": "number", "minimum": 0 },
+    "residency": { "type": "string", "examples": ["EU", "US", "APAC"] }
+  }
+}

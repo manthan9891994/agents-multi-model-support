@@ -2,10 +2,93 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
+class _OpenEnumMeta(type(Enum)):
+    """Metaclass that allows extending an Enum at runtime via cls._add_member_().
+
+    Used to make TaskType and TaskComplexity user-extensible without breaking
+    existing `TaskType.REASONING` member access.
+    """
+    def __call__(cls, value):
+        # Look up dynamic registry first
+        dyn = getattr(cls, "_dynamic_members_", {})
+        if value in dyn:
+            return dyn[value]
+        return super().__call__(value)
+
+
+def _add_member(enum_cls, name: str, value: str):
+    """Register a new member on an Enum-like class at runtime.
+
+    Returns the member-like object. Stored in `enum_cls._dynamic_members_`
+    so `EnumCls(value)` finds it.
+    """
+    dyn = getattr(enum_cls, "_dynamic_members_", None)
+    if dyn is None:
+        dyn = {}
+        enum_cls._dynamic_members_ = dyn
+    if value in dyn:
+        return dyn[value]
+
+    # Build a lightweight member object that quacks like an Enum member
+    class _DynamicMember:
+        __slots__ = ("name", "value")
+        def __init__(self, name, value):
+            self.name  = name
+            self.value = value
+        def __repr__(self):
+            return f"<{enum_cls.__name__}.{self.name}: {self.value!r}>"
+        def __eq__(self, other):
+            return getattr(other, "value", None) == self.value
+        def __hash__(self):
+            return hash((enum_cls.__name__, self.value))
+
+    member = _DynamicMember(name, value)
+    dyn[value] = member
+    setattr(enum_cls, name, member)
+    return member
+
+
 class ModelTier(Enum):
     LOW    = "low"
     MEDIUM = "medium"
     HIGH   = "high"
+
+
+# Configurable tier ordering. Updated by set_tier_levels() to support 4+ tiers.
+# Internal modules import _TIER_ORDER instead of hardcoding [LOW, MEDIUM, HIGH].
+_TIER_ORDER: list = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]
+
+
+def set_tier_levels(names: list[str]) -> list:
+    """Replace the global tier ordering with a custom list of names.
+
+    Existing LOW/MEDIUM/HIGH constants stay valid. New tiers are dynamically
+    added as enum-like members.
+
+    Example:
+        set_tier_levels(["free", "cheap", "standard", "premium", "frontier"])
+
+        router = Router(model_registry={
+            "openai": {
+                "free": "gpt-4o-mini", "cheap": "gpt-4o-mini",
+                "standard": "gpt-4o", "premium": "gpt-4-turbo",
+                "frontier": "o1-pro",
+            },
+        })
+    """
+    global _TIER_ORDER
+    new_order: list = []
+    for n in names:
+        try:
+            new_order.append(ModelTier(n))
+        except ValueError:
+            new_order.append(_add_member(ModelTier, n.upper(), n))
+    _TIER_ORDER = new_order
+    return new_order
+
+
+def list_tier_levels() -> list[str]:
+    return [t.value for t in _TIER_ORDER]
 
 
 class TaskType(Enum):
@@ -14,17 +97,57 @@ class TaskType(Enum):
     ANALYZING     = "analyzing"
     CODE_CREATION = "code_creation"
     DOC_CREATION  = "doc_creation"
-    TRANSLATION   = "translation"   # translate, convert language, localize
-    MATH          = "math"          # calculate, solve, equation, integral
-    CONVERSATION  = "conversation"  # hello, thanks, casual chat → always LOW
-    MULTIMODAL    = "multimodal"    # image/audio/vision tasks
+    TRANSLATION   = "translation"
+    MATH          = "math"
+    CONVERSATION  = "conversation"
+    MULTIMODAL    = "multimodal"
 
 
 class TaskComplexity(Enum):
-    SIMPLE   = "simple"    # < 500 tokens, single question
-    STANDARD = "standard"  # 500-5K tokens, moderate depth
-    COMPLEX  = "complex"   # 5K-15K tokens, multi-step
-    RESEARCH = "research"  # > 15K tokens, comprehensive
+    SIMPLE   = "simple"
+    STANDARD = "standard"
+    COMPLEX  = "complex"
+    RESEARCH = "research"
+
+
+def task_type_for(value: str):
+    """Look up a TaskType by string value, including dynamically registered ones.
+
+    Use this instead of `TaskType(value)` when value may be a custom registered type.
+    """
+    dyn = getattr(TaskType, "_dynamic_members_", {})
+    if value in dyn:
+        return dyn[value]
+    return TaskType(value)
+
+
+def complexity_for(value: str):
+    """Look up a TaskComplexity by string value, including dynamic ones."""
+    dyn = getattr(TaskComplexity, "_dynamic_members_", {})
+    if value in dyn:
+        return dyn[value]
+    return TaskComplexity(value)
+
+
+def register_task_type(value: str, *, name: str | None = None) -> "TaskType":
+    """Register a new task type at runtime. Returns a member-like object.
+
+    The new type can be used wherever TaskType members are expected. The
+    user is responsible for adding tier matrix entries for any new types
+    they want routed.
+
+    Example:
+        ct = register_task_type("clinical_note")
+        # Then:
+        from classifier import TIER_MATRIX, TaskComplexity, ModelTier
+        TIER_MATRIX[(ct, TaskComplexity.STANDARD)] = ModelTier.HIGH
+    """
+    return _add_member(TaskType, name or value.upper(), value)
+
+
+def register_complexity(value: str, *, name: str | None = None) -> "TaskComplexity":
+    """Register a new complexity level at runtime."""
+    return _add_member(TaskComplexity, name or value.upper(), value)
 
 
 @dataclass

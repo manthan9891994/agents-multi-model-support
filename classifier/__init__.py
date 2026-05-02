@@ -10,9 +10,20 @@ from classifier.core.exceptions import (
     LayerNotAvailableError,
     UnsupportedProviderError,
 )
-from classifier.core.types import ClassificationDecision, ContextSignals, TaskComplexity, TaskType, ModelTier
+from classifier.core.types import (
+    ClassificationDecision, ContextSignals, TaskComplexity, TaskType, ModelTier,
+    register_task_type, register_complexity, set_tier_levels, list_tier_levels,
+)
 from classifier.infra.feedback import record_feedback
 from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX
+
+# Auto-load the bundled / configured registry at import time.
+# Honors DMR_REGISTRY env var and DMR_NO_DEFAULT_REGISTRY=1 to opt out.
+from classifier.core.registry_loader import (
+    _auto_load_at_import as _registry_auto_load,
+    load_registry, clear_registry, export_registry, export_to_yaml,
+)
+_registry_auto_load()
 from classifier.layers.layer1 import classify_layer1, detect_pii  # noqa: F401 — re-exported
 from classifier.infra.config import settings
 from classifier.infra.cache import cache
@@ -25,7 +36,15 @@ logger = logging.getLogger(__name__)
 # doesn't configure logging itself.
 logger.addHandler(logging.NullHandler())
 
-_TIER_ORDER = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]
+# Use the dynamic tier order from core.types so set_tier_levels() takes effect.
+from classifier.core.types import _TIER_ORDER as _DYN_TIER_ORDER
+
+def _tier_order():
+    """Always return the latest tier order (live reference, not snapshot)."""
+    return _DYN_TIER_ORDER
+
+# Keep _TIER_ORDER as a module-level name for back-compat but route through helper.
+_TIER_ORDER = _DYN_TIER_ORDER
 
 # Maximum input length — guards L3 OOM, L2 timeout, runaway costs.
 # Override via DMR_MAX_TASK_CHARS env var if you really need longer inputs.
@@ -284,26 +303,36 @@ def _classify_inner_traced(
     task, resolved_provider, history, context_signals, max_tier, t0, user_id, _s, _attr, ctx,
 ):
     from classifier.hooks import hook_manager
-    # ── Layer 1 ───────────────────────────────────────────────────────────────
-    layer_used = "layer1"
-    try:
-        task_type, complexity, tier, confidence, reasoning = classify_layer1(
-            task, history=history, provider=resolved_provider
-        )
-    except Exception as exc:
-        raise ClassificationError(
-            f"Layer 1 classification failed: {exc}",
-            layer="layer1",
-            task=task,
-            suggestion="Check that task text is valid UTF-8 and not excessively long (>32K chars).",
-        ) from exc
+    from classifier.layers.plugin import run_layers_at as _run_plugins
+
+    # Pre-cascade plugins — first non-None tuple short-circuits the cascade.
+    # The decision is built at the end (after PII bumps, capability filtering, etc).
+    plugin_pre = _run_plugins("pre", task, history)
+    plugin_pre_used = plugin_pre is not None
+    # ── Layer 1 (or pre-plugin) ──────────────────────────────────────────────
+    if plugin_pre_used:
+        task_type, complexity, tier, confidence, reasoning = plugin_pre
+        layer_used = "plugin:pre"
+    else:
+        layer_used = "layer1"
+        try:
+            task_type, complexity, tier, confidence, reasoning = classify_layer1(
+                task, history=history, provider=resolved_provider
+            )
+        except Exception as exc:
+            raise ClassificationError(
+                f"Layer 1 classification failed: {exc}",
+                layer="layer1",
+                task=task,
+                suggestion="Check that task text is valid UTF-8 and not excessively long (>32K chars).",
+            ) from exc
 
     # ── Item 11: Apply calibration to L1 confidence ───────────────────────────
     if feature_flags.calibration:
         confidence = _apply_calibration("layer1", confidence)
 
     # ── Layer 3 (between L1 and L2 — fast ML classifier with abstain) ─────────
-    if settings.layer3_enabled and confidence < settings.layer2_confidence_threshold:
+    if not plugin_pre_used and settings.layer3_enabled and confidence < settings.layer2_confidence_threshold:
         try:
             from classifier.layers.layer3 import classify_layer3
             l3 = classify_layer3(task, history=history)
@@ -319,7 +348,7 @@ def _classify_inner_traced(
 
     # ── Layer 2 (Item 10: check L2 budget before firing) ──────────────────────
     l2_result = None
-    l2_fired = settings.layer2_enabled and not cost_tracker.is_exhausted_for("layer2")
+    l2_fired = (not plugin_pre_used) and settings.layer2_enabled and not cost_tracker.is_exhausted_for("layer2")
     if l2_fired and (
         confidence < settings.layer2_confidence_threshold
         or settings.debug_ab_mode
@@ -435,15 +464,102 @@ def _classify_inner_traced(
     latency_ms = (time.perf_counter() - t0) * 1000
     model_name = MODEL_REGISTRY[resolved_provider][tier]
 
-    # ── Item 1: PII detection → force MEDIUM+ and set compliance_flag ─────────
+    # ── Item 1: PII detection → policy-driven tier bump and compliance_flag ──
     compliance_flag = feature_flags.pii_detection and detect_pii(task)
     if compliance_flag:
-        idx = _TIER_ORDER.index(tier)
-        if idx < 1:
-            tier = ModelTier.MEDIUM
+        # Default policy: bump to MEDIUM minimum, no block
+        policy = (ctx or {}).get("pii_policy") or {"min_tier": ModelTier.MEDIUM, "block": False}
+        if policy.get("block"):
+            raise ClassificationError(
+                "PII detected and pii_policy.block=True", layer="pii", task=task,
+                suggestion="Disable pii_policy.block, scrub upstream, or use a different model.",
+            )
+        min_tier = policy.get("min_tier", ModelTier.MEDIUM)
+        if isinstance(min_tier, str):
+            min_tier = ModelTier(min_tier)
+        idx_now = _TIER_ORDER.index(tier)
+        idx_min = _TIER_ORDER.index(min_tier)
+        if idx_now < idx_min:
+            tier = min_tier
             model_name = MODEL_REGISTRY[resolved_provider][tier]
-            reasoning += " [PII/PHI detected → bumped to MEDIUM minimum]"
+            reasoning += f" [PII/PHI detected → bumped to {tier.value.upper()} minimum]"
         logger.warning("PII/PHI detected in task — compliance_flag=True")
+
+    # Post-cascade plugins — last-wins
+    plugin_post = _run_plugins("post", task, history)
+    if plugin_post is not None:
+        task_type, complexity, tier, confidence, reasoning = plugin_post
+        layer_used = "plugin:post"
+
+    # ── Context window escalation (#19) ───────────────────────────────────────
+    # If the picked model's context window is smaller than estimated total
+    # tokens, escalate to a tier whose model has more headroom.
+    from classifier.core.registry import capabilities_for as _caps
+    from classifier.infra.tokenizers import count_tokens as _count_tokens
+    candidate_model = MODEL_REGISTRY[resolved_provider][tier]
+    candidate_caps  = _caps(candidate_model)
+    total_input_tokens = _count_tokens(task, model=candidate_model)
+    if history:
+        for h in history:
+            total_input_tokens += _count_tokens(h, model=candidate_model)
+    cw = candidate_caps.get("context_window")
+    if cw and total_input_tokens > cw * 0.9:   # 10% headroom for output
+        for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1:]:
+            higher_model = MODEL_REGISTRY[resolved_provider].get(higher)
+            higher_cw = _caps(higher_model).get("context_window") if higher_model else None
+            if higher_cw and total_input_tokens <= higher_cw * 0.9:
+                tier = higher
+                reasoning += f" [context {total_input_tokens} > {cw} → escalated to {higher.value.upper()}]"
+                break
+
+    # ── Capability filtering (#20) ────────────────────────────────────────────
+    # If the request needs vision / function-calling and the picked model
+    # doesn't support it, escalate within the same provider.
+    needed: list[str] = []
+    if context_signals is not None and context_signals.has_multimodal:
+        needed.append("supports_vision")
+    if context_signals is not None and getattr(context_signals, "available_tools", 0) > 0:
+        needed.append("supports_function_calling")
+    if needed:
+        candidate_model = MODEL_REGISTRY[resolved_provider][tier]
+        c = _caps(candidate_model)
+        if not all(c.get(flag, True) for flag in needed):
+            for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1:]:
+                hm = MODEL_REGISTRY[resolved_provider].get(higher)
+                if hm and all(_caps(hm).get(flag, True) for flag in needed):
+                    tier = higher
+                    reasoning += f" [needed {needed} → escalated to {higher.value.upper()}]"
+                    break
+
+    # ── Latency SLA budget (#21) ──────────────────────────────────────────────
+    sla_ms = (ctx or {}).get("latency_budget_ms")
+    if sla_ms and feature_flags.health_tracker:
+        try:
+            from classifier.infra.health_tracker import health_tracker
+            # If the chosen model's recent p95 exceeds SLA, drop a tier
+            current_model = MODEL_REGISTRY[resolved_provider][tier]
+            p95 = getattr(health_tracker, "get_p95", lambda *_: 0)(resolved_provider, tier)
+            if p95 and p95 > sla_ms:
+                idx = _TIER_ORDER.index(tier)
+                if idx > 0:
+                    tier = _TIER_ORDER[idx - 1]
+                    reasoning += f" [p95={p95}ms > SLA={sla_ms}ms → demoted]"
+        except Exception:
+            pass
+
+    # ── Data residency (#22) ──────────────────────────────────────────────────
+    residency = (ctx or {}).get("residency")
+    if residency:
+        candidate_model = MODEL_REGISTRY[resolved_provider][tier]
+        c = _caps(candidate_model)
+        if c.get("region") and c["region"] != residency:
+            # Find any model in this provider that matches the residency
+            for try_tier in _TIER_ORDER:
+                try_model = MODEL_REGISTRY[resolved_provider].get(try_tier)
+                if try_model and _caps(try_model).get("region") in (None, residency):
+                    tier = try_tier
+                    reasoning += f" [residency={residency} → {try_tier.value.upper()}]"
+                    break
 
     model_name = MODEL_REGISTRY[resolved_provider][tier]
 
@@ -503,6 +619,10 @@ from classifier.core.registry import register_provider, list_providers, list_mod
 from classifier.infra.cost_tracker import register_model_cost, get_model_cost
 from classifier.ml.embeddings import set_embedding_model, current_embedding_model
 from classifier.hooks import register_hook, unregister_hook, clear_hooks, hook_manager
+from classifier.experiments import ABTest, ShadowMode
+from classifier.layers.plugin import register_layer, unregister_layer, list_layers
+from classifier.layers.layer3 import register_strategy as register_l3_strategy
+from classifier.infra.tokenizers import register_tokenizer, count_tokens
 
 
 def route_model(
@@ -579,9 +699,15 @@ __all__ = [
     "MAX_TASK_CHARS",
     # Extensibility v2
     "register_provider", "list_providers", "list_models", "capabilities_for",
+    "register_task_type", "register_complexity",
+    "set_tier_levels", "list_tier_levels",
     "register_model_cost", "get_model_cost",
     "set_embedding_model", "current_embedding_model",
     "register_hook", "unregister_hook", "clear_hooks", "hook_manager",
+    "ABTest", "ShadowMode",
+    "register_layer", "unregister_layer", "list_layers",
+    "register_l3_strategy",
+    "register_tokenizer", "count_tokens",
     # Free function (kept for backwards compat)
     "classify_task",
     # Types

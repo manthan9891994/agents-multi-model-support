@@ -110,9 +110,21 @@ def _retry_after_seconds(exc) -> float | None:
     return None
 
 
-def _call_with_retry(fn, *args, max_attempts: int = 3, **kwargs):
+# Retry policy can be overridden via Router(l2_retry_policy={...}) — module global.
+_retry_policy: dict = {"max_attempts": 3, "initial_delay": 0.2, "backoff": 3.0}
+
+
+def configure_retry_policy(*, max_attempts: int = 3, initial_delay: float = 0.2, backoff: float = 3.0) -> None:
+    _retry_policy["max_attempts"]  = max_attempts
+    _retry_policy["initial_delay"] = initial_delay
+    _retry_policy["backoff"]       = backoff
+
+
+def _call_with_retry(fn, *args, max_attempts: int | None = None, **kwargs):
     """Exponential backoff retry for retryable HTTP errors. Honors Retry-After."""
-    delay    = 0.2
+    max_attempts = max_attempts or _retry_policy["max_attempts"]
+    delay        = _retry_policy["initial_delay"]
+    backoff      = _retry_policy["backoff"]
     last_exc = None
     for attempt in range(max_attempts):
         try:
@@ -130,7 +142,7 @@ def _call_with_retry(fn, *args, max_attempts: int = 3, **kwargs):
                     status, attempt + 1, sleep_for,
                 )
                 time.sleep(sleep_for)
-                delay *= 3
+                delay *= backoff
     raise last_exc
 
 

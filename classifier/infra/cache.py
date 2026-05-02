@@ -12,13 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 class ClassificationCache:
-    def __init__(self, max_size: int = 10_000, ttl_seconds: int = 3600):
+    def __init__(self, max_size: int = 10_000, ttl_seconds: int = 3600, backend=None):
         self._cache: OrderedDict[str, tuple[ClassificationDecision, float]] = OrderedDict()
         self._max_size  = max_size
         self._ttl       = ttl_seconds
         self._lock      = threading.Lock()
         self._hits      = 0
         self._misses    = 0
+        # Pluggable backend (e.g. RedisCacheBackend). When set, the in-process
+        # OrderedDict is bypassed.
+        self._backend   = backend
+
+    def set_backend(self, backend) -> None:
+        """Swap the underlying cache backend. None = use in-process OrderedDict."""
+        with self._lock:
+            self._backend = backend
 
     def _key(self, task: str, provider: str) -> str:
         normalized = " ".join(task.lower().split())
@@ -26,6 +34,13 @@ class ClassificationCache:
 
     def get(self, task: str, provider: str) -> Optional[ClassificationDecision]:
         key = self._key(task, provider)
+        if self._backend is not None:
+            value = self._backend.get(key)
+            if value is None:
+                self._misses += 1
+            else:
+                self._hits += 1
+            return value
         with self._lock:
             entry = self._cache.get(key)
             if entry is None:
@@ -43,6 +58,9 @@ class ClassificationCache:
 
     def set(self, task: str, provider: str, decision: ClassificationDecision) -> None:
         key = self._key(task, provider)
+        if self._backend is not None:
+            self._backend.set(key, decision, self._ttl)
+            return
         with self._lock:
             if key in self._cache:
                 self._cache.move_to_end(key)

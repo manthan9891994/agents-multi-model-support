@@ -1,0 +1,123 @@
+# dynamic-model-router — bundled model registry
+#
+# THIS IS A SNAPSHOT, NOT A SOURCE OF TRUTH.
+#
+# Pricing and model availability change frequently. For production, override
+# entirely with your own registry file:
+#
+#   router = Router.from_registry("my-models.yaml")
+#
+# Or pull a community-maintained registry:
+#
+#   dmr models pull https://example.com/registry.yaml
+#
+# Or register programmatically:
+#
+#   from classifier import register_provider, register_model_cost
+#   register_provider("groq", {"low": "llama-3.3-8b", "high": "llama-3.3-70b"})
+#   register_model_cost("llama-3.3-70b", input_per_1m=0.59, output_per_1m=0.79)
+
+version: "2026.04.01"
+notes: "Snapshot taken 2026-04-01. Verify before production use."
+
+providers:
+  google:
+    api_key_env: GOOGLE_API_KEY
+    tiers:
+      low:    gemini-2.5-flash
+      medium: gemini-2.5-flash
+      high:   gemini-2.5-pro
+  anthropic:
+    api_key_env: ANTHROPIC_API_KEY
+    tiers:
+      low:    claude-haiku-4-5-20251001
+      medium: claude-sonnet-4-6
+      high:   claude-opus-4-7
+  openai:
+    api_key_env: OPENAI_API_KEY
+    tiers:
+      low:    gpt-4o-mini
+      medium: gpt-4o
+      high:   gpt-4-turbo
+
+models:
+  gemini-2.5-flash-lite:
+    cost: { input_per_1m: 0.05, output_per_1m: 0.15 }
+    capabilities:
+      context_window: 1000000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
+
+  gemini-2.5-flash:
+    cost: { input_per_1m: 0.25, output_per_1m: 0.75 }
+    capabilities:
+      context_window: 1000000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
+
+  gemini-2.5-pro:
+    cost: { input_per_1m: 2.50, output_per_1m: 7.50 }
+    capabilities:
+      context_window: 2000000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
+
+  claude-haiku-4-5-20251001:
+    cost: { input_per_1m: 0.40, output_per_1m: 2.00 }
+    capabilities:
+      context_window: 200000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: false
+
+  claude-sonnet-4-6:
+    cost: { input_per_1m: 3.00, output_per_1m: 15.00 }
+    capabilities:
+      context_window: 200000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: false
+
+  claude-opus-4-7:
+    cost: { input_per_1m: 15.00, output_per_1m: 75.00 }
+    capabilities:
+      context_window: 200000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: false
+
+  gpt-4o-mini:
+    cost: { input_per_1m: 0.15, output_per_1m: 0.60 }
+    capabilities:
+      context_window: 128000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
+
+  gpt-4o:
+    cost: { input_per_1m: 2.50, output_per_1m: 10.00 }
+    capabilities:
+      context_window: 128000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
+
+  gpt-4-turbo:
+    cost: { input_per_1m: 10.00, output_per_1m: 30.00 }
+    capabilities:
+      context_window: 128000
+      supports_vision: true
+      supports_function_calling: true
+      supports_streaming: true
+      supports_json_mode: true
