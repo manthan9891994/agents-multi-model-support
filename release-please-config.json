@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "packages": {
+    ".": {
+      "package-name": "dynamic-model-router",
+      "include-component-in-tag": false,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "classifier/__init__.py"
+        }
+      ],
+      "changelog-sections": [
+        { "type": "feat",     "section": "Features" },
+        { "type": "fix",      "section": "Bug Fixes" },
+        { "type": "perf",     "section": "Performance" },
+        { "type": "refactor", "section": "Refactoring" },
+        { "type": "docs",     "section": "Documentation" },
+        { "type": "test",     "section": "Tests", "hidden": false },
+        { "type": "chore",    "section": "Chore", "hidden": true },
+        { "type": "ci",       "section": "CI",    "hidden": true }
+      ]
+    }
+  }
+}

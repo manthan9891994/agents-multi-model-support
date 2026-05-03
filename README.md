@@ -3,401 +3,436 @@
 [![CI](https://github.com/manthanvaghela/dynamic-model-router/actions/workflows/ci.yml/badge.svg)](https://github.com/manthanvaghela/dynamic-model-router/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
 [![Python versions](https://img.shields.io/pypi/pyversions/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Downloads](https://static.pepy.tech/badge/dynamic-model-router/month)](https://pepy.tech/project/dynamic-model-router)
-[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
+[![Coverage](https://img.shields.io/badge/coverage-70%25%2B-brightgreen.svg)](#)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/tests-287%20passing-brightgreen.svg)](#)
 
-**Table of Contents:** [Problem & Solution](#the-problem) • [Install](#install) • [Quickstart](#quickstart) • [Features](#features) • [CLI](#cli) • [Model Tiers](#model-tiers) • [Layer 3 ML](#layer-3--what-the-ml-classifier-actually-is) • [Integrations](#adk-integration) • [Customization](#customization-hooks) • [PII Scrubbing](#pii-scrubbing) • [Status](#status)
-
-A 3-layer cascade classifier that routes each task to **the cheapest model that can handle it well** — before the agent makes an API call.
-
-One classifier, three providers, zero framework changes. Drop it into Google ADK, CrewAI, LangChain, AutoGen, or any Python agent.
-
-> **No telemetry.** This package never phones home. `dmr doctor` and `dmr stats` only read local files.
+> A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — **before** the agent makes an API call.
 
 ```python
-from dynamic_model_router import classify
+from classifier import classify
 
-decision = classify("Implement a binary search")
-print(decision.tier, decision.model_name, decision.layer_used)
-# medium  gemini-2.5-flash  layer3
+decision = classify("What is 2+2?")                    # → low tier (cheap)
+decision = classify("Design a CQRS architecture for…") # → high tier (capable)
+print(decision.tier, decision.model_name)
 ```
+
+That's the whole pitch. Cost goes down 60–80% on real workloads with no quality loss.
 
 ---
 
-## The problem
+## 📚 Table of contents
 
-Every agent is hardcoded to one model. "Write a README" and "design a distributed fault-tolerant system" both hit `gemini-2.5-pro` — wasting money and adding latency where it isn't needed.
+- [Why](#why)
+- [How it works](#how-it-works)
+- [Install](#install)
+- [Step-by-step quickstart](#step-by-step-quickstart)
+- [Configuration — layer by layer](#configuration--layer-by-layer)
+- [The model registry](#the-model-registry)
+- [Integrations](#integrations)
+- [CLI reference](#cli-reference)
+- [Telemetry](#telemetry)
+- [Production checklist](#production-checklist)
+- [License](#license)
 
-## The solution
+---
 
-Classify the task **before** the model call. Route to the cheapest model that can handle it.
+## Why
+
+You're paying for `gpt-4o` or `claude-opus-4-7` to answer "Hello, how are you?". An LLM router should pick the right model per task. Existing routers are either:
+
+- **Hardcoded** ("if `len(prompt) > X` use big model") — too dumb
+- **LLM-based** (every routing decision is itself an LLM call) — adds latency + cost
+- **Single-vendor** (LiteLLM, etc.) — locked in
+
+`dynamic-model-router` is **3 cascading classifiers** that get progressively more accurate but more expensive, stopping at the first one that's confident. Most calls never leave Layer 1 (free, <1ms).
+
+## How it works
 
 ```
-User message
-  → Layer 1: keyword + heuristic     (<1ms,    free,    always runs)
-      └─ conf < 0.75 → Layer 3: ML classifier  (~15ms, free, abstain-capable)
-          └─ conf < 0.75 → Layer 2: Gemini Flash Lite  (~500ms, $0.0001, LLM fallback)
-  → Tier: LOW / MEDIUM / HIGH → model name for chosen provider
+┌─────────┐   high confidence   ┌──────────┐
+│ Layer 1 │ ──────────────────▶ │  Pick    │
+│ keyword │                     │  model   │
+│  <1ms   │                     │  & GO    │
+└────┬────┘                     └──────────┘
+     │ low confidence
+     ▼
+┌─────────┐   high confidence
+│ Layer 3 │ ──────────────────▶ (same)
+│   ML    │
+│ ~15ms   │
+└────┬────┘
+     │ low confidence
+     ▼
+┌─────────┐
+│ Layer 2 │ ──────────────────▶ (same)
+│   LLM   │
+│ ~500ms  │
+└─────────┘
 ```
+
+Each layer outputs `(task_type, complexity, confidence)` — together those map to `(provider, tier, model)` via a configurable matrix.
 
 ---
 
 ## Install
 
 ```bash
-pip install dynamic-model-router                  # core (L1 + L2 only)
-pip install 'dynamic-model-router[ml]'            # add Layer 3 ML classifier
-pip install 'dynamic-model-router[adk]'           # add Google ADK integration
-pip install 'dynamic-model-router[all]'           # everything
-```
+# Core (Layer 1 only — keyword router, no ML, no LLM fallback)
+pip install dynamic-model-router
 
-Set provider API key in `.env`:
+# With Layer 3 (ML head) — recommended
+pip install 'dynamic-model-router[ml]'
 
-```env
-GOOGLE_API_KEY=your_key_here
-DEFAULT_PROVIDER=google         # or anthropic, openai
+# With one or more providers
+pip install 'dynamic-model-router[google,anthropic,openai]'
+
+# With agent framework integrations
+pip install 'dynamic-model-router[ml,crewai]'         # CrewAI
+pip install 'dynamic-model-router[ml,adk,google]'     # Google ADK
+
+# Production extras
+pip install 'dynamic-model-router[redis,kafka,s3,otel,tokenizers]'
+
+# Everything
+pip install 'dynamic-model-router[all_extensions]'
 ```
 
 ---
 
-## Quickstart
+## Step-by-step quickstart
 
-### Zero-config
+### 1️⃣ Install + set an API key
 
-```python
-from dynamic_model_router import classify
-decision = classify("Compare microservices vs monolith for a 10-engineer team")
-print(decision.tier.value, decision.model_name)
+```bash
+pip install 'dynamic-model-router[ml,google]'
+
+# Choose any provider — Google's free tier is the easiest start.
+echo 'GOOGLE_API_KEY=your-key-here' > .env
 ```
 
-### Customized router
+### 2️⃣ Verify your install
 
-```python
-from dynamic_model_router import Router, KeywordPack, TaskType
-
-# Add domain vocabulary
-legal_pack = (KeywordPack.builder("legal")
-              .add(TaskType.DOC_CREATION, ["clause", "indemnification", "non-compete"])
-              .add(TaskType.REASONING,    ["precedent", "statute", "doctrine"])
-              .escalator("constitutional", weight=2)
-              .build())
-
-router = Router(
-    providers=["anthropic", "google"],     # failover order
-    extra_keyword_packs=[legal_pack],
-    layer3_enabled=True,
-    escalation_threshold=0.75,
-)
-
-decision = router.classify("Draft a non-compete clause with reasonable scope")
+```bash
+dmr doctor
 ```
 
-### Domain presets
+You should see all green / yellow checks. Any red `[FAIL]` should be fixed before going further.
+
+### 3️⃣ Classify your first task
 
 ```python
-from dynamic_model_router import Router
+from classifier import classify
 
+decision = classify("Write a Python function to merge two sorted lists.")
+print(f"Use model: {decision.model_name}")
+print(f"Tier:      {decision.tier.value}")
+print(f"Why:       {decision.reasoning}")
+```
+
+### 4️⃣ Route an actual LLM call
+
+```python
+from classifier import Router
+from google import genai
+
+router = Router()
+
+def smart_completion(task: str) -> str:
+    decision = router.classify(task)
+    client   = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    response = client.models.generate_content(model=decision.model_name, contents=task)
+    return response.text
+
+print(smart_completion("Hi"))                            # gemini-2.5-flash
+print(smart_completion("Design a distributed lock…"))    # gemini-2.5-pro
+```
+
+### 5️⃣ Train Layer 3 on your domain (optional but recommended)
+
+```bash
+# Generate sample data (or bring your own JSONL with task/task_type/complexity)
+dmr generate-data --domain healthcare --per-slot 50 --out healthcare.jsonl
+
+# Train a domain-specific classifier head (~30 seconds on CPU)
+dmr train --data healthcare.jsonl
+```
+
+### 6️⃣ Customize per-domain
+
+```python
+from classifier import Router, KeywordPack, TaskType
+
+# Healthcare keywords + HIPAA PII patterns
 router = Router.from_preset("healthcare")
-decision = router.classify("Patient MRN: 12345678 has elevated AST")
-print(decision.compliance_flag)   # True — PII detected, MEDIUM tier minimum
+
+# Or build your own
+legal_pack = (
+    KeywordPack.builder("legal")
+    .add(TaskType.REASONING, ["precedent", "tort", "indemnification"])
+    .add(TaskType.DOC_CREATION, ["clause", "agreement", "NDA"])
+    .build()
+)
+router = Router(extra_keyword_packs=[legal_pack])
 ```
 
-Available: `healthcare`, `legal`, `fintech`. The healthcare preset ships fully populated; legal and fintech are skeletons you extend with your domain vocab.
+### 7️⃣ Production: drop in a `dmr.yaml`
 
-### YAML config
-
-```yaml
-# dmr.yaml
-providers: [anthropic, google]
-layer3_enabled: true
-escalation_threshold: 0.75
-
-keyword_packs:
-  - name: my_domain
-    packs:
-      reasoning: [my_term_1, my_term_2]
-      doc_creation: [report_type_a]
+```bash
+dmr init                    # scaffolds dmr.yaml in cwd
+$EDITOR dmr.yaml            # tweak providers, layers, thresholds, costs
 ```
 
 ```python
 router = Router.from_yaml("dmr.yaml")
 ```
 
-### Train on your own data
+---
+
+## Configuration — layer by layer
+
+The package ships **zero hardcoded** model names, prices, or capabilities — everything is overridable. Below is the cheat sheet, organised by layer.
+
+### 🔵 Layer 1 — Keyword Heuristics (always on, <1ms)
+
+| What | How |
+|------|-----|
+| Add domain keywords | `Router(extra_keyword_packs=[KeywordPack.builder("…").add(...).build()])` |
+| Tune scoring weights | `Router(l1_weights={"primary": 5.0, "secondary": 1.0, "escalator": 2.0})` |
+| Disable entirely | `Router(layer1_enabled=False)` |
+| Set escalation threshold | `Router(escalation_threshold=0.75)` (below this, fall through to L3/L2) |
 
 ```python
-from dynamic_model_router import Router
-
-router = Router()
-metadata = router.train(data="my_domain_examples.jsonl")
-print(metadata["geo_mean_accuracy"])
+pack = (KeywordPack.builder("biotech")
+        .add(TaskType.REASONING, ["protein", "CRISPR", "in-vitro"])
+        .escalator("genome-wide", weight=2)
+        .build())
+router = Router(extra_keyword_packs=[pack])
 ```
 
-The JSONL must have `{"task": str, "task_type": str, "complexity": str}` per line. Need at least 50 examples; 1,500+ recommended.
+### 🟢 Layer 3 — ML Classifier (frozen MiniLM + MLP head, ~15ms)
+
+| What | How |
+|------|-----|
+| Train on your data | `router.train(data="my_examples.jsonl")` or `dmr train --data ...` |
+| Swap the embedding model | `Router(layer3_embedding_model="BAAI/bge-large-en-v1.5")` |
+| Plug in a custom strategy | `register_l3_strategy("my_pipeline", lambda task, hist: ...)` |
+| Set abstain threshold | `Router(layer3_threshold=0.85)` |
+| Disable | `Router(layer3_enabled=False)` |
+
+JSONL format for training:
+
+```jsonl
+{"task": "Implement Dijkstra in Python", "task_type": "code_creation", "complexity": "standard"}
+{"task": "Hello", "task_type": "conversation", "complexity": "simple"}
+```
+
+### 🟡 Layer 2 — LLM Fallback (Gemini Flash by default, ~500ms)
+
+| What | How |
+|------|-----|
+| Switch provider | `Router(layer2_provider="anthropic", layer2_model="claude-haiku-4-5-20251001")` |
+| Custom prompt | `Router(layer2_prompt_template=open("my_prompt.txt").read())` |
+| Retry policy | `Router(l2_retry_policy={"max_attempts": 5, "initial_delay": 0.5, "backoff": 2.0})` |
+| Circuit breaker | `Router(l2_circuit_breaker={"failure_threshold": 3, "cooldown_secs": 120})` |
+| Disable | `Router(layer2_enabled=False)` |
+| Budget cap | `Router(budget_usd=100)` (auto-downgrades to MEDIUM at 80%, halts at 100%) |
+
+### ⚙️ Cross-cutting
+
+| What | How |
+|------|-----|
+| Per-instance overrides | `Router(provider=..., tier_matrix=..., model_registry=...)` |
+| Hooks | `Router(pre_classify_hooks=[…], post_classify_hooks=[…], on_error_hooks=[…])` |
+| Custom router escape hatch | `Router(custom_classifier=lambda task, ctx: my_decision)` |
+| Cache backend | `Router(cache_backend=RedisCacheBackend(host="…"))` |
+| Decision logger | `Router(decision_logger=KafkaLoggerBackend(brokers=[…], topic="…"))` |
+| Multi-tenant per-call | `router.classify(task, tenant_config={"providers":["anthropic"], …})` |
+| A/B testing | `ABTest(control=Router(), treatment=Router(...), split=0.05)` |
+| Shadow mode | `ShadowMode(primary=current, shadow=new, on_diff=log_diff)` |
+| PII policy | `Router(pii_policy={"min_tier": ModelTier.HIGH, "block": False})` |
+| Latency SLA | `Router(latency_budget_ms=1500)` |
+| Data residency | `Router(residency="EU")` |
+| Custom tokenizer | `register_tokenizer("model-name", lambda t: my_count(t))` |
+| Layer plugin | `register_layer(MyCustomLayer())` |
 
 ---
 
-## CLI
+## The model registry
+
+**No model name or price is hardcoded.** All of it lives in YAML — bundled `default.yaml` is a snapshot you should override in production.
+
+### Inspect what's registered
 
 ```bash
-dmr classify "Implement a REST API endpoint with input validation"
-dmr classify "Patient MRN: 12345 has elevated AST" --preset healthcare
-
-dmr train --data my_examples.jsonl
-dmr generate-data --domain healthcare --per-slot 30   # synthetic data via Gemini
-
-dmr stats --since 24h
-dmr presets               # list available presets
-dmr init                  # scaffold dmr.yaml
+dmr models                    # list providers + models + costs + capabilities
 ```
 
----
+### Override entirely with your own YAML
 
-## Model Tiers
+```bash
+dmr models load my-models.yaml --replace
+```
 
-| Tier   | Google                | Anthropic           | OpenAI       | When                                              |
-|--------|-----------------------|---------------------|--------------|---------------------------------------------------|
-| LOW    | gemini-2.5-flash-lite | claude-haiku-4-5    | gpt-4o-mini  | Conversation, simple docs, trivial code           |
-| MEDIUM | gemini-2.5-flash      | claude-sonnet-4-6   | gpt-4o       | Reasoning, standard APIs, analysis                |
-| HIGH   | gemini-2.5-pro        | claude-opus-4-7     | gpt-4-turbo  | Complex architecture, research, hard code         |
+```yaml
+# my-models.yaml
+version: "2026.05.01"
+providers:
+  groq:
+    api_key_env: GROQ_API_KEY
+    tiers:
+      low:    llama-3.3-8b-instant
+      medium: llama-3.3-70b-versatile
+      high:   llama-3.3-70b-versatile
+  bedrock:
+    api_key_env: AWS_ACCESS_KEY_ID
+    tiers:
+      low:    anthropic.claude-haiku-4-5-20251001
+      high:   anthropic.claude-opus-4-7
 
-Override per-instance:
+models:
+  llama-3.3-8b-instant:
+    cost: { input_per_1m: 0.05, output_per_1m: 0.08 }
+    capabilities:
+      context_window: 128000
+      supports_function_calling: true
+  llama-3.3-70b-versatile:
+    cost: { input_per_1m: 0.59, output_per_1m: 0.79 }
+    capabilities:
+      context_window: 128000
+      supports_function_calling: true
+```
+
+### Or programmatically
 
 ```python
-router = Router(model_registry={
-    "google": {ModelTier.LOW: "gemini-1.5-flash"}
+from classifier import register_provider, register_model_cost, ModelTier
+
+register_provider("groq", {
+    ModelTier.LOW:    "llama-3.3-8b-instant",
+    ModelTier.HIGH:   "llama-3.3-70b-versatile",
 })
+register_model_cost("llama-3.3-70b-versatile", input_per_1m=0.59, output_per_1m=0.79)
+```
+
+### Override sources (priority order)
+
+1. `Router(registry="path-or-url")`
+2. `Router.from_registry("path-or-url")`
+3. `DMR_REGISTRY=/path/to/my-models.yaml` env var (loaded at import)
+4. `DMR_NO_DEFAULT_REGISTRY=1` env var (start completely empty)
+5. Bundled `default.yaml` (snapshot — verify before production!)
+
+---
+
+## Integrations
+
+| Framework | Module | Pattern |
+|-----------|--------|---------|
+| **LangChain** | `classifier.integrations.langchain` | `get_chat_model(task)` or `DynamicChatModel()` |
+| **CrewAI** | `classifier.integrations.crewai` | `pick_llm_for_task(task)` or `DynamicLLM()` |
+| **AutoGen** | `classifier.integrations.autogen` | `get_autogen_llm_config(task)` |
+| **OpenAI Agents SDK** | `classifier.integrations.autogen` | `get_openai_agent_model(task)` |
+| **Google ADK** | `classifier.integrations.adk` | `before_model_callback=dynamic_model_selector` |
+
+```python
+# CrewAI example
+from crewai import Agent
+from classifier.integrations.crewai import DynamicLLM
+
+agent = Agent(role="Analyst", goal="...", llm=DynamicLLM())
+# Each call this agent makes is routed to the right tier dynamically.
+```
+
+```python
+# Decorator — any function gets dynamic model selection
+from classifier import route_model
+
+@route_model(provider="anthropic")
+def call_claude(task: str, model_name: str = "claude-haiku-4-5-20251001"):
+    # model_name is auto-injected by the router
+    ...
 ```
 
 ---
 
-## Cascade Architecture
-
-| Layer | What it does | Latency | Cost | Coverage |
-|---|---|---|---|---|
-| **L1** Keyword + heuristic | Regex / keyword matching, structural signals | <1ms | $0 | ~33% |
-| **L3** ML classifier (frozen MiniLM + sklearn MLPs) | Real classification model | ~15ms | $0 | ~25% |
-| **L2** Gemini Flash Lite | LLM with structured JSON output | ~500ms | $0.0001 | ~42% |
-
-L1 → L3 → L2: L1 catches obvious cases for free, L3 catches the next slice without paying for an LLM call, L2 is the fallback for anything ambiguous to both.
-
----
-
-## Features
-
-### Core Routing
-- **3-layer cascade**: Keyword (L1) → ML head (L3) → LLM fallback (L2)
-- **Multi-provider**: Google (Gemini), Anthropic (Claude), OpenAI (GPT) with automatic failover
-- **Cost optimization**: Routes LOW/MEDIUM/HIGH tasks to cheapest models (2–10× savings vs. fixed-tier)
-- **PII/PHI scrubbing**: Redacts healthcare/personal identifiers before external API calls
-- **Confidence calibration**: Plausibility-checked outputs per layer
-
-### Performance & Efficiency
-- **L1 latency**: <1ms keyword matching (no API calls)
-- **Caching**: LRU + TTL exact-match cache; optional semantic cache (embeddings)
-- **Single-flight**: Deduplicates concurrent identical requests (cache stampede prevention)
-- **Circuit breaker**: Auto-trip on 5 failures in 30s; trip OPEN 60s (L2 LLM protection)
-- **Health tracking**: p95 latency SLO per (provider, tier) with auto-downgrade on breach
-
-### Budget & Cost Control
-- **Monthly budget caps**: Global + per-category (L1, L2, L3) limits
-- **Cost tracking**: Real token counts from API responses (not word proxies)
-- **Downgrade signals**: Auto-demote tier if budget nears 80% utilization
-- **Cost estimation**: `router.estimate_cost()` for dry-run pricing before API calls
-
-### Extensibility
-- **Custom tier levels**: Support 4+ tiers beyond LOW/MEDIUM/HIGH via `set_tier_levels()`
-- **Custom task types**: Register new task types at runtime (`register_task_type()`)
-- **Domain presets**: Healthcare (full), Legal/Fintech (extensible skeletons)
-- **Keyword packs**: Builder API for domain-specific L1 vocabulary; YAML config support
-- **Hook system**: Pre/post-classify hooks + error handlers for custom logic
-- **Model registry overrides**: Per-instance provider/tier/model mappings
-
-### Integration & Framework Support
-- **Zero framework changes**: Works in ADK, CrewAI, LangChain, AutoGen, plain Python
-- **Decorator API**: `@route_model` auto-injects selected model name
-- **Async support**: `await router.aclassify()` and `aclassify_batch()`
-- **YAML config**: Load router config from `dmr.yaml` files
-
-### Observability & Operations
-- **OpenTelemetry spans**: Emit traces to any OTEL exporter (no-op if not installed)
-- **CLI tools**: `dmr classify`, `dmr eval`, `dmr benchmark`, `dmr doctor`, `dmr stats`
-- **Decision logging**: JSONL routing log with optional PII redaction
-- **Feedback recording**: Capture user feedback for L3 retraining
-- **Test mode**: Deterministic output for CI without API calls
-- **Version/health checks**: `dmr version`, `dmr doctor` for diagnostics
-
-### Data & Training
-- **L3 ML classifier**: Supervised multi-class (not cosine search) with frozen embeddings
-- **In-house training**: `router.train()` on custom JSONL data
-- **Synthetic data generation**: `dmr generate-data` via Gemini (healthcare, legal, fintech)
-- **Confidence signals**: Per-layer confidence scores (0–1) + layer attribution
-
-### Security & Compliance
-- **No telemetry**: Package never phones home; local-only stats
-- **PII patterns**: MRN, SSN, DOB, phone, email, names, addresses
-- **Regex DoS protection**: Validates user patterns for catastrophic backtracking
-- **Input size guard**: `DMR_MAX_TASK_CHARS` (default 32K) prevents OOM/timeout
-- **Configuration validation**: Pydantic-driven env parsing with actionable errors
-
----
-
-## Layer 3 — what the ML classifier actually is
-
-Not cosine similarity, not KNN, not vector search. A real **supervised multi-class classifier** with two heads.
-
-```
-User task: "What are contraindications for ACE inhibitors?"
-         │
-         ▼
-┌──────────────────────────────────────────────┐
-│ STEP 1 — Sentence Embedder (FROZEN)          │
-│   Model: all-MiniLM-L6-v2 (22M params)       │
-│   Output: 384-dim dense vector               │
-└──────────────────────────────────────────────┘
-         │
-         ├──────────────────────┬───────────────┐
-         ▼                      ▼               │
-┌──────────────────┐   ┌──────────────────┐     │
-│ HEAD 1 — MLP     │   │ HEAD 2 — MLP     │     │
-│ task_type        │   │ complexity       │     │
-│ 384 → 256 → 9    │   │ 384 → 256 → 4    │     │
-└──────────────────┘   └──────────────────┘     │
-         │                      │               │
-         └──────────┬───────────┘               │
-                    ▼                           │
-       confidence = √(p_tt × p_cx)              │
-                    │                           │
-                    ▼                           │
-          if conf >= 0.75: return  ─────────────┘
-          else: abstain → cascade to L2
-```
-
-| Component | Type | Trainable? |
-|---|---|---|
-| MiniLM encoder | Pre-trained transformer | ❌ Frozen |
-| Task type head | sklearn MLPClassifier (256) | ✅ On your data |
-| Complexity head | sklearn MLPClassifier (256) | ✅ On your data |
-| Sigmoid calibrator | Platt scaling | ✅ On held-out cal set |
-
-**Why two heads:** predicting `(task_type × complexity)` jointly = 36 sparse classes. Two heads (9 + 4) need far less data per class. Geometric mean of probabilities penalizes asymmetric confidence.
-
-**Why abstain:** L3 returns `None` when confidence < threshold. Better to spend $0.0001 on L2 than to misroute. L3 wins by being **conservative and confident**, not by intercepting everything.
-
-### Training pipeline
+## CLI reference
 
 ```bash
-dmr generate-data --domain healthcare --per-slot 30   # bootstrap (~$0.05 Gemini)
-dmr train --data classifier/data/synthetic_tasks.jsonl
-```
+dmr classify "task text"            # one-shot classification
+dmr classify --preset healthcare "Patient MRN 12345 has chest pain"
 
-The training script:
-1. Encodes all examples with frozen MiniLM
-2. Three-way split: 70% train / 15% calibration / 15% test
-3. Trains MLPs on train set
-4. Wraps each MLP with `CalibratedClassifierCV(method="sigmoid")` on calibration set
-5. Sweeps thresholds [0.50–0.95] on test, reports (intercept_rate, precision)
-6. Saves bundle to `classifier/ml/models/head_v1.joblib`
+dmr train --data examples.jsonl     # train Layer 3 on your data
+dmr eval  --data test.jsonl         # accuracy + tier distribution
+dmr generate-data --domain legal --per-slot 50    # synthetic training data via Gemini
 
-### Strategies (`LAYER3_STRATEGY` env var)
+dmr models                          # list registered providers/models/costs
+dmr models load my-models.yaml --replace
+dmr models export --output snapshot.yaml
+dmr models pull https://example.com/community-registry.yaml
 
-| Strategy | Latency | Accuracy | Training data | Status |
-|---|---|---|---|---|
-| `zeroshot` | ~80ms | ~80% | None | ✅ Built |
-| `head` | ~15ms | ~80% (calibrated) | 1,500+ | ✅ Built — **default** |
-| `distilbert` | ~12ms | ~95% target | 5,000+ | ⏳ Roadmap |
+dmr stats                           # routing distribution from decision log
+dmr stats cost --since 7d           # cost breakdown over last week
 
----
-
-## ADK integration
-
-```python
-from google.adk.agents import LlmAgent
-from classifier.integrations.adk import dynamic_model_selector
-
-agent = LlmAgent(
-    name="MyAgent",
-    model="gemini-2.5-flash",   # placeholder — replaced per-request
-    before_model_callback=dynamic_model_selector,
-)
-```
-
-That's the entire integration surface. The callback inspects each request, classifies the user's task, and overwrites `llm_request.model` before the API call.
-
-See [`examples/adk_healthcare/`](examples/adk_healthcare/README.md) for four working healthcare agents (clinical Q&A, prior auth, lab analyzer, clinical note) and an `adk web` runner.
-
----
-
-## Customization Hooks
-
-| Hook | Constructor arg | Example |
-|---|---|---|
-| Layer toggle | `layer1_enabled` / `layer2_enabled` / `layer3_enabled` | `Router(layer3_enabled=False)` |
-| Custom keywords | `extra_keyword_packs` | `Router(extra_keyword_packs=[my_pack])` |
-| Custom PII patterns | `extra_pii_patterns` | `Router(extra_pii_patterns=[(regex, "[ACCT]")])` |
-| Tier matrix override | `tier_matrix` | `Router(tier_matrix={(REASONING, SIMPLE): LOW})` |
-| Model registry override | `model_registry` | `Router(model_registry={"google": {LOW: "..."}})` |
-| Provider failover | `providers` | `Router(providers=["anthropic", "google"])` |
-| Abstain threshold | `layer3_threshold` | `Router(layer3_threshold=0.85)` |
-| Escalation threshold | `escalation_threshold` | `Router(escalation_threshold=0.65)` |
-| Domain preset | `Router.from_preset(name)` | `Router.from_preset("healthcare")` |
-
-All overrides are **per-instance**. Multiple Router instances with different configs coexist without polluting global state.
-
----
-
-## PII Scrubbing
-
-Patient data, account numbers, and personal identifiers must never leak to external LLMs. Layer 2 scrubs before every API call.
-
-Built-in patterns: MRN, SSN, DOB, phone, email, names with title (Dr./Mr./Mrs.). Strict mode adds all-caps names and addresses.
-
-Add your own:
-
-```python
-import re
-
-router = Router(extra_pii_patterns=[
-    (re.compile(r"\bACCT-\d{6}\b"),     "[ACCT]"),
-    (re.compile(r"\bMyAppUserID:\d+"),  "[USERID]"),
-])
-```
-
-The healthcare preset adds NPI and encounter number patterns. The fintech preset adds credit card and IBAN patterns.
-
----
-
-## Project structure
-
-```
-classifier/                 # the package (also exported as `dynamic_model_router`)
-├── router.py               # Router class — main API
-├── core/                   # types, registry, exceptions
-├── layers/                 # L1, L2, L3
-│   └── layer1/keyword_pack.py    # KeywordPack builder
-├── ml/                     # training pipeline (optional [ml] extra)
-├── infra/                  # cache, config, pii_scrubber, decision_logger
-├── presets/                # healthcare / legal / fintech
-├── integrations/
-│   └── adk.py              # Google ADK callback
-└── cli.py                  # `dmr` command
-
-examples/adk_healthcare/    # NOT installed — demo agents
-tests/                      # 180 passing tests
-plan_docs/                  # design docs
+dmr doctor                          # diagnose env / config / dependencies
+dmr version                         # package + Python + dep versions
+dmr benchmark                       # local p50/p95/p99 latency
+dmr init                            # scaffold dmr.yaml in cwd
+dmr presets                         # list domain presets
 ```
 
 ---
 
-## Status
+## Telemetry
 
-- 180 passing tests
-- Stage 2 ML classifier (frozen MiniLM + calibrated sklearn MLPs) trained on 2,026 examples → 79% accuracy
-- 3 domain presets (healthcare populated, legal/fintech skeletons)
-- Google ADK integration shipped; CrewAI/LangChain on roadmap
-- Stage 3 fine-tuned DistilBERT not yet built — frozen-MLP approach is sufficient at current data scale
+> **`dynamic-model-router` does not collect any telemetry. No usage data, no model names, no error reports leave your machine. Ever.**
+
+The package never makes a network call you didn't ask for. The only network calls happen when:
+
+1. You explicitly construct a `Router` and call `.classify()` with `layer2_enabled=True` — then Layer 2 calls the provider you chose.
+2. You explicitly call `Router.load_registry("https://...")` — then we fetch that URL.
+3. Your decision-logger backend is configured to forward (e.g. `WebhookLoggerBackend`).
+
+If you discover any unexpected outbound traffic, **that is a security bug** — please file a [security advisory](SECURITY.md).
+
+---
+
+## Production checklist
+
+Before going live with serious traffic:
+
+- [ ] **Override the bundled registry.** `dmr models export > my-models.yaml`, edit, then `Router.from_registry("my-models.yaml")`. Bundled prices go stale fast.
+- [ ] **Set up secrets properly.** Use a secret manager — not `.env` in your repo. Rotate quarterly.
+- [ ] **Train Layer 3 on your data.** A `head_v1.joblib` trained on your domain reduces L2 (LLM) calls by another 60–80%.
+- [ ] **Pin a small budget initially** (`Router(budget_usd=100)`) and watch `dmr stats cost`.
+- [ ] **Enable strict PII scrubbing** (`pii_scrub_strict=true` in settings, plus domain-specific `extra_pii_patterns`).
+- [ ] **Set a tight L2 circuit breaker** (`failure_threshold=3, cooldown_secs=120`) so a provider outage doesn't drain your wallet.
+- [ ] **Configure decision logging** to an immutable backend (S3 with object lock, or a write-only Kafka topic) for audit trails.
+- [ ] **Run `dmr doctor`** in CI — fail the build if any check is FAIL.
+- [ ] **Use `ShadowMode`** to validate every routing change before flipping the switch.
+- [ ] **Subscribe to the [security advisory](SECURITY.md)** for vulnerability notifications.
+- [ ] **Pin the package version** in your lock file. The package follows semver; minor bumps may include behaviour changes for unset config defaults.
+
+---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+## Security
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md). Please **do not** open a public issue.
+
+## Contributing
+
+PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). All contributors agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for upcoming features and the path from 0.1 → 1.0.

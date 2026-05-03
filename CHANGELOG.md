@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- YAML-driven model registry: providers, models, costs, and capabilities live in `classifier/data/registry/default.yaml`. Zero hardcoded model names or prices in Python.
+- `dmr models {list, export, load, pull, clear}` CLI for runtime registry management.
+- `Router.from_registry(path | URL | dict)` and `Router.load_registry(...)` classmethods.
+- `Router(registry=...)` constructor argument.
+- Environment overrides: `DMR_REGISTRY=<path>` and `DMR_NO_DEFAULT_REGISTRY=1`.
 - Async API: `await router.aclassify(task)` and `await router.aclassify_batch([...])`
 - `Router.estimate_cost(task)` — dry-run cost preview before any API call
 - `route_model` decorator — wrap existing functions with dynamic model selection

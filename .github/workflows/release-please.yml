@@ -1,0 +1,23 @@
+name: Release Please
+
+# Auto-generates release PRs and Git tags from Conventional Commits.
+# https://github.com/googleapis/release-please-action
+on:
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          release-type: python
+          package-name: dynamic-model-router
+          # Synced version files: bump these on every release
+          extra-files: |
+            classifier/__init__.py

@@ -1,0 +1,96 @@
+name: Release to PyPI
+
+# Triggers on a published GitHub Release. Uses PyPI's trusted publishing (OIDC):
+#   no API token needed — register the repo at https://pypi.org/manage/account/publishing/
+#   under PyPI project name `dynamic-model-router`.
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write    # required for OIDC trusted publishing
+  contents: read
+
+jobs:
+  build:
+    name: Build wheel + sdist
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Verify tag matches package version
+        id: version
+        run: |
+          PKG_VERSION=$(python -c "import classifier; print(classifier.__version__)")
+          TAG=${GITHUB_REF#refs/tags/}
+          TAG_VERSION=${TAG#v}
+          echo "Package version: $PKG_VERSION"
+          echo "Tag version: $TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match classifier.__version__=$PKG_VERSION"
+            exit 1
+          fi
+          echo "value=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build
+        run: python -m build
+
+      - name: Twine check
+        run: twine check dist/*
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/dynamic-model-router
+    permissions:
+      id-token: write
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: publish-testpypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dynamic-model-router
+    permissions:
+      id-token: write
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true   # PEP 740 attestations
