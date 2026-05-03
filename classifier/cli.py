@@ -214,6 +214,63 @@ def _cmd_eval(args) -> int:
     return 0
 
 
+def _cmd_models(args) -> int:
+    """Manage the model/cost/capability registry.
+
+    Subcommands:
+      list   — show currently registered providers, models, costs, capabilities
+      export — write the active registry to a YAML file
+      load   — load a registry from a path / URL into the runtime
+      pull   — alias for `load <URL>` with progress output
+      clear  — wipe all registered providers and models (start empty)
+    """
+    sub = (args.action or "list").lower()
+
+    if sub == "list":
+        from classifier.core.registry import MODEL_REGISTRY, MODEL_CAPABILITIES
+        from classifier.infra.cost_tracker import COST_TABLE
+        if not MODEL_REGISTRY:
+            print("No providers registered. Try: dmr models load default")
+            return 0
+        print(f"Providers ({len(MODEL_REGISTRY)}):")
+        for prov, tier_map in sorted(MODEL_REGISTRY.items()):
+            print(f"  {prov}:")
+            for tier, model in tier_map.items():
+                t = tier.value if hasattr(tier, "value") else str(tier)
+                cost = COST_TABLE.get(model, {})
+                caps = MODEL_CAPABILITIES.get(model, {})
+                cw   = caps.get("context_window", "?")
+                cstr = f"${cost.get('input', '?')}/${cost.get('output', '?')} per 1M" if cost else "(no cost)"
+                print(f"    {t:8} -> {model:35} | {cstr} | ctx={cw}")
+        return 0
+
+    if sub == "export":
+        from classifier.core.registry_loader import export_to_yaml
+        out = args.output or "models.yaml"
+        export_to_yaml(out)
+        print(f"Wrote runtime registry to {out}.")
+        return 0
+
+    if sub in ("load", "pull"):
+        from classifier.core.registry_loader import load_registry, clear_registry
+        if args.replace:
+            clear_registry()
+        source = args.source or "default"
+        meta = load_registry(source)
+        print(f"Loaded {meta['providers']} providers, {meta['models']} models "
+              f"(version={meta['version']}).")
+        return 0
+
+    if sub == "clear":
+        from classifier.core.registry_loader import clear_registry
+        clear_registry()
+        print("Registry cleared.")
+        return 0
+
+    print(f"Unknown action: {sub}. Use one of: list, export, load, pull, clear", file=sys.stderr)
+    return 1
+
+
 def _cmd_presets(args) -> int:
     from classifier.presets import available
     print("Available domain presets:")
@@ -425,6 +482,18 @@ def main(argv: list[str] | None = None) -> int:
     # presets
     p = sub.add_parser("presets", help="List available domain presets")
     p.set_defaults(func=_cmd_presets)
+
+    # models — registry management
+    p = sub.add_parser("models", help="Manage the model/cost/capability registry")
+    p.add_argument("action", nargs="?", default="list",
+                   choices=["list", "export", "load", "pull", "clear"],
+                   help="What to do (default: list)")
+    p.add_argument("source",  nargs="?", default=None,
+                   help="Registry source for load/pull (path, URL, or 'default'/'empty')")
+    p.add_argument("--output", default=None, help="Output path for export (default: models.yaml)")
+    p.add_argument("--replace", action="store_true",
+                   help="Clear runtime registry before loading (instead of merging)")
+    p.set_defaults(func=_cmd_models)
 
     # version
     p = sub.add_parser("version", help="Print package version + dependencies")

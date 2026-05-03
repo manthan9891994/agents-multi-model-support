@@ -169,7 +169,12 @@ def export_registry() -> dict:
     for m in sorted(all_models):
         entry: dict[str, Any] = {}
         if m in COST_TABLE:
-            entry["cost"] = dict(COST_TABLE[m])
+            c = COST_TABLE[m]
+            # Re-emit in registry-YAML schema (input_per_1m / output_per_1m)
+            entry["cost"] = {
+                "input_per_1m":  c.get("input", 0.0),
+                "output_per_1m": c.get("output", 0.0),
+            }
         if m in MODEL_CAPABILITIES:
             entry["capabilities"] = dict(MODEL_CAPABILITIES[m])
         models_out[m] = entry

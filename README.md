@@ -7,6 +7,8 @@
 [![Downloads](https://static.pepy.tech/badge/dynamic-model-router/month)](https://pepy.tech/project/dynamic-model-router)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
+**Table of Contents:** [Problem & Solution](#the-problem) • [Install](#install) • [Quickstart](#quickstart) • [Features](#features) • [CLI](#cli) • [Model Tiers](#model-tiers) • [Layer 3 ML](#layer-3--what-the-ml-classifier-actually-is) • [Integrations](#adk-integration) • [Customization](#customization-hooks) • [PII Scrubbing](#pii-scrubbing) • [Status](#status)
+
 A 3-layer cascade classifier that routes each task to **the cheapest model that can handle it well** — before the agent makes an API call.
 
 One classifier, three providers, zero framework changes. Drop it into Google ADK, CrewAI, LangChain, AutoGen, or any Python agent.
@@ -179,6 +181,65 @@ router = Router(model_registry={
 | **L2** Gemini Flash Lite | LLM with structured JSON output | ~500ms | $0.0001 | ~42% |
 
 L1 → L3 → L2: L1 catches obvious cases for free, L3 catches the next slice without paying for an LLM call, L2 is the fallback for anything ambiguous to both.
+
+---
+
+## Features
+
+### Core Routing
+- **3-layer cascade**: Keyword (L1) → ML head (L3) → LLM fallback (L2)
+- **Multi-provider**: Google (Gemini), Anthropic (Claude), OpenAI (GPT) with automatic failover
+- **Cost optimization**: Routes LOW/MEDIUM/HIGH tasks to cheapest models (2–10× savings vs. fixed-tier)
+- **PII/PHI scrubbing**: Redacts healthcare/personal identifiers before external API calls
+- **Confidence calibration**: Plausibility-checked outputs per layer
+
+### Performance & Efficiency
+- **L1 latency**: <1ms keyword matching (no API calls)
+- **Caching**: LRU + TTL exact-match cache; optional semantic cache (embeddings)
+- **Single-flight**: Deduplicates concurrent identical requests (cache stampede prevention)
+- **Circuit breaker**: Auto-trip on 5 failures in 30s; trip OPEN 60s (L2 LLM protection)
+- **Health tracking**: p95 latency SLO per (provider, tier) with auto-downgrade on breach
+
+### Budget & Cost Control
+- **Monthly budget caps**: Global + per-category (L1, L2, L3) limits
+- **Cost tracking**: Real token counts from API responses (not word proxies)
+- **Downgrade signals**: Auto-demote tier if budget nears 80% utilization
+- **Cost estimation**: `router.estimate_cost()` for dry-run pricing before API calls
+
+### Extensibility
+- **Custom tier levels**: Support 4+ tiers beyond LOW/MEDIUM/HIGH via `set_tier_levels()`
+- **Custom task types**: Register new task types at runtime (`register_task_type()`)
+- **Domain presets**: Healthcare (full), Legal/Fintech (extensible skeletons)
+- **Keyword packs**: Builder API for domain-specific L1 vocabulary; YAML config support
+- **Hook system**: Pre/post-classify hooks + error handlers for custom logic
+- **Model registry overrides**: Per-instance provider/tier/model mappings
+
+### Integration & Framework Support
+- **Zero framework changes**: Works in ADK, CrewAI, LangChain, AutoGen, plain Python
+- **Decorator API**: `@route_model` auto-injects selected model name
+- **Async support**: `await router.aclassify()` and `aclassify_batch()`
+- **YAML config**: Load router config from `dmr.yaml` files
+
+### Observability & Operations
+- **OpenTelemetry spans**: Emit traces to any OTEL exporter (no-op if not installed)
+- **CLI tools**: `dmr classify`, `dmr eval`, `dmr benchmark`, `dmr doctor`, `dmr stats`
+- **Decision logging**: JSONL routing log with optional PII redaction
+- **Feedback recording**: Capture user feedback for L3 retraining
+- **Test mode**: Deterministic output for CI without API calls
+- **Version/health checks**: `dmr version`, `dmr doctor` for diagnostics
+
+### Data & Training
+- **L3 ML classifier**: Supervised multi-class (not cosine search) with frozen embeddings
+- **In-house training**: `router.train()` on custom JSONL data
+- **Synthetic data generation**: `dmr generate-data` via Gemini (healthcare, legal, fintech)
+- **Confidence signals**: Per-layer confidence scores (0–1) + layer attribution
+
+### Security & Compliance
+- **No telemetry**: Package never phones home; local-only stats
+- **PII patterns**: MRN, SSN, DOB, phone, email, names, addresses
+- **Regex DoS protection**: Validates user patterns for catastrophic backtracking
+- **Input size guard**: `DMR_MAX_TASK_CHARS` (default 32K) prevents OOM/timeout
+- **Configuration validation**: Pydantic-driven env parsing with actionable errors
 
 ---
 
