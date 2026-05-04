@@ -7,7 +7,7 @@ can handle it) are very welcome.
 ## Quick start
 
 ```bash
-git clone https://github.com/manthanvaghela/dynamic-model-router.git
+git clone https://github.com/manthan9891994/dynamic-model-router.git
 cd dynamic-model-router
 python -m venv .venv && source .venv/bin/activate    # or .venv\Scripts\activate on Windows
 pip install -e ".[ml,dev,google,anthropic,openai]"

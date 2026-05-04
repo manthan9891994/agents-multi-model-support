@@ -102,21 +102,70 @@ class DynamicLLM:
         agent = Agent(role="Researcher", goal="...", llm=DynamicLLM())
     """
 
-    def __init__(self, *, provider: Optional[str] = None, fallback_model: str = "gemini/gemini-2.5-flash"):
+    def __init__(
+        self,
+        *,
+        provider: Optional[str] = None,
+        fallback_model: str = "gemini/gemini-2.5-flash",
+        report_outcomes: bool = True,
+    ):
         self._provider = provider
         self._fallback_model = fallback_model
+        self._report_outcomes = report_outcomes
         self._cache: dict[str, Any] = {}
+
+    def _classify_and_build(self, task_text: str):
+        """Returns (llm, decision) so we can report outcome after the call."""
+        from classifier import classify_task
+        from classifier.core.exceptions import ClassificationError
+        from classifier.infra.config import settings
+        try:
+            from crewai import LLM
+        except ImportError as exc:
+            raise ImportError("CrewAI is not installed. Install with: pip install crewai") from exc
+
+        provider = self._provider or settings.default_provider
+        try:
+            decision = classify_task(task_text, provider=provider)
+            model = decision.model_name
+        except ClassificationError:
+            if not self._fallback_model:
+                raise
+            decision = None
+            model = self._fallback_model
+        return LLM(model=_qualify_model(model, provider)), decision
 
     def call(self, messages, *args, **kwargs):
         """Entry point CrewAI uses. Inspects messages, classifies, dispatches."""
-        # Extract task text from the conversation
+        import time
         task_text = self._extract_task_text(messages)
-        llm = pick_llm_for_task(
-            task_text,
-            provider=self._provider,
-            fallback_model=self._fallback_model,
-        )
-        return llm.call(messages, *args, **kwargs)
+        llm, decision = self._classify_and_build(task_text)
+        t0 = time.perf_counter()
+        try:
+            response = llm.call(messages, *args, **kwargs)
+            if self._report_outcomes and decision is not None:
+                from classifier import log_outcome, OutcomeRecord
+                # CrewAI's LLM.call typically returns a string; we don't have token counts.
+                # Approximate with tokenizer for analytics.
+                from classifier.infra.tokenizers import count_tokens
+                tokens_in  = count_tokens(task_text, model=decision.model_name)
+                tokens_out = count_tokens(str(response), model=decision.model_name)
+                log_outcome(OutcomeRecord(
+                    decision_id=decision.decision_id,
+                    tokens_in=tokens_in, tokens_out=tokens_out,
+                    wall_ms=(time.perf_counter() - t0) * 1000,
+                    success=True,
+                ))
+            return response
+        except Exception as exc:
+            if self._report_outcomes and decision is not None:
+                from classifier import log_outcome, OutcomeRecord
+                log_outcome(OutcomeRecord(
+                    decision_id=decision.decision_id,
+                    wall_ms=(time.perf_counter() - t0) * 1000,
+                    success=False, error_message=str(exc),
+                ))
+            raise
 
     @staticmethod
     def _extract_task_text(messages) -> str:

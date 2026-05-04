@@ -83,7 +83,8 @@ class Router:
         cache_backend: Optional[Any] = None,
         decision_logger: Optional[Any] = None,
         layer2_prompt_template: Optional[str] = None,
-        registry: Optional[Any] = None,    # path / URL / dict to load at construction
+        registry: Optional[Any] = None,
+        outcome_logger: Optional[Any] = None,    # pluggable outcome backend (Kafka / S3 / Redis / …)
     ):
         self.providers           = providers or []
         self.extra_keyword_packs = extra_keyword_packs or []
@@ -118,11 +119,17 @@ class Router:
         self.decision_logger     = decision_logger
         self.layer2_prompt_template = layer2_prompt_template
         self.registry = registry
+        self.outcome_logger = outcome_logger
 
         # Apply registry override (path / URL / dict) at construction
         if self.registry is not None:
             from classifier.core.registry_loader import load_registry
             load_registry(self.registry)
+
+        # Wire outcome logger backend (process-wide setting)
+        if self.outcome_logger is not None:
+            from classifier.infra import outcome_logger as _ol
+            _ol._backend = self.outcome_logger
 
         # Apply extensibility settings at construction
         if self.model_costs:
@@ -236,6 +243,58 @@ class Router:
         finally:
             for kind, fn in registered:
                 hook_manager.unregister(kind, fn)
+
+    def report_outcome(
+        self,
+        decision_id: str,
+        *,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        wall_ms: float = 0.0,
+        success: bool = True,
+        cost_usd: Optional[float] = None,
+        user_retried: bool = False,
+        user_escalated_model: Optional[str] = None,
+        user_feedback: Optional[str] = None,   # "up" | "down" | None
+        edit_distance: Optional[int] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Report what happened after a routing decision was acted upon.
+
+        This is the key feedback signal for continual learning. The auto-labeler
+        joins these outcomes with the corresponding decision (by `decision_id`)
+        and derives weak labels for retraining Layer 3.
+
+        Call this AFTER your LLM call completes. Most users won't call it
+        directly — the framework wrappers (LangChain `DynamicChatModel`,
+        CrewAI `DynamicLLM`, ADK callback, etc.) call it for you.
+
+        Example:
+            decision = router.classify("Summarise this contract")
+            t0 = time.perf_counter()
+            response = call_my_llm(model=decision.model_name, prompt=task)
+            router.report_outcome(
+                decision.decision_id,
+                tokens_in=response.usage.input_tokens,
+                tokens_out=response.usage.output_tokens,
+                wall_ms=(time.perf_counter() - t0) * 1000,
+                success=True,
+            )
+        """
+        from classifier.infra.outcome_logger import OutcomeRecord, log_outcome
+        log_outcome(OutcomeRecord(
+            decision_id          = decision_id,
+            tokens_in            = int(tokens_in),
+            tokens_out           = int(tokens_out),
+            wall_ms              = float(wall_ms),
+            success              = bool(success),
+            cost_usd             = cost_usd,
+            user_retried         = bool(user_retried),
+            user_escalated_model = user_escalated_model,
+            user_feedback        = user_feedback,
+            edit_distance        = edit_distance,
+            error_message        = error_message,
+        ))
 
     async def aclassify(
         self,

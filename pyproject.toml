@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["llm", "router", "classifier", "agents", "adk", "gemini", "claude", "openai", "cost-optimization"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -44,6 +44,12 @@ ml = [
 ]
 adk = ["google-adk>=1.31.0", "google-genai>=1.14.0"]
 crewai = ["crewai>=0.80.0"]
+llamaindex = ["llama-index>=0.11.0"]
+pydanticai = ["pydantic-ai>=0.0.14"]
+dspy_ext = ["dspy>=2.5.0"]
+haystack = ["haystack-ai>=2.6.0"]
+semantickernel = ["semantic-kernel>=1.0.0"]
+smolagents = ["smolagents>=1.0.0"]
 all = [
     "dynamic-model-router[google,anthropic,openai,ml,adk,crewai]",
 ]
@@ -78,9 +84,9 @@ all_extensions = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/manthanvaghela/dynamic-model-router"
-Repository = "https://github.com/manthanvaghela/dynamic-model-router"
-Issues = "https://github.com/manthanvaghela/dynamic-model-router/issues"
+Homepage = "https://github.com/manthan9891994/dynamic-model-router"
+Repository = "https://github.com/manthan9891994/dynamic-model-router"
+Issues = "https://github.com/manthan9891994/dynamic-model-router/issues"
 
 [project.scripts]
 dmr = "classifier.cli:main"

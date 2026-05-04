@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 _call_counter: dict[str, int] = {}
 _ERROR_SIGNALS = {"error", "exception", "traceback", "failed", "failure", "timeout", "refused"}
 
+# Per-callback-context decision tracking (key: id(callback_context))
+# Pairs `before_model_callback` (which routes) with `after_model_callback`
+# (which reports the outcome) for continual-learning telemetry.
+_pending_decisions: dict[int, dict] = {}
+
 
 def _extract_context_signals(llm_request, agent_name: str):
     """Inspect an ADK LlmRequest and produce ContextSignals for the router."""
@@ -106,6 +111,15 @@ def dynamic_model_selector(callback_context, llm_request):
     original = llm_request.model
     llm_request.model = decision.model_name
 
+    # Stash the decision so the paired after_model_callback can report the outcome
+    import time
+    _pending_decisions[id(callback_context)] = {
+        "decision_id": decision.decision_id,
+        "model":       decision.model_name,
+        "task":        task,
+        "t0":          time.perf_counter(),
+    }
+
     logger.info(
         "Model selected | %s => %s [%s | %s | %s | call=%d | ctx_tokens=%d%s%s]",
         original, decision.model_name,
@@ -115,6 +129,56 @@ def dynamic_model_selector(callback_context, llm_request):
         " | PII" if decision.compliance_flag else "",
         f" | tools={ctx_signals.available_tools}" if ctx_signals.available_tools else "",
     )
+    return None
+
+
+def report_model_outcome(callback_context, llm_response):
+    """ADK `after_model_callback` — fires after every LLM API call.
+
+    Pair with `dynamic_model_selector` to feed continual-learning telemetry:
+
+        agent = LlmAgent(
+            name="MyAgent",
+            model="gemini-2.5-flash",
+            before_model_callback=dynamic_model_selector,
+            after_model_callback=report_model_outcome,
+        )
+    """
+    import time
+    pending = _pending_decisions.pop(id(callback_context), None)
+    if pending is None:
+        return None
+
+    from classifier import log_outcome, OutcomeRecord
+    from classifier.infra.tokenizers import count_tokens
+
+    wall_ms = (time.perf_counter() - pending["t0"]) * 1000
+
+    # Try to extract usage / response text from various ADK response shapes
+    tokens_in  = count_tokens(pending["task"], model=pending["model"])
+    tokens_out = 0
+    success    = True
+    error      = None
+    try:
+        usage = getattr(llm_response, "usage_metadata", None) or {}
+        if hasattr(usage, "get"):
+            tokens_in  = int(usage.get("prompt_token_count", tokens_in))
+            tokens_out = int(usage.get("candidates_token_count", 0))
+        else:
+            tokens_in  = int(getattr(usage, "prompt_token_count", tokens_in))
+            tokens_out = int(getattr(usage, "candidates_token_count", 0))
+    except Exception:
+        # Fall through with the heuristic count
+        for content in (getattr(llm_response, "content", None) or []):
+            for part in getattr(content, "parts", []) or []:
+                if getattr(part, "text", None):
+                    tokens_out += count_tokens(part.text, model=pending["model"])
+
+    log_outcome(OutcomeRecord(
+        decision_id=pending["decision_id"],
+        tokens_in=tokens_in, tokens_out=tokens_out,
+        wall_ms=wall_ms, success=success, error_message=error,
+    ))
     return None
 
 

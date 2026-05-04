@@ -52,7 +52,9 @@ def log_decision(
     safe_preview = _redact_pii(task[:200])
     entry = {
         "timestamp":       datetime.now(timezone.utc).isoformat(),
+        "decision_id":     getattr(decision, "decision_id", ""),   # join key for outcome log
         "task_preview":    safe_preview,
+        "task_length":     len(task or ""),
         "layer":           layer_used,
         "model":           decision.model_name,
         "tier":            decision.tier.value,
@@ -63,6 +65,7 @@ def log_decision(
         "provider":        decision.provider,
         "compliance_flag": decision.compliance_flag,
         "disagreement":    decision.disagreement,
+        "exploration":     getattr(decision, "exploration", False),
     }
 
     # Pluggable backend takes precedence

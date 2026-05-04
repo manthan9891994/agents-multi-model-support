@@ -125,27 +125,77 @@ class DynamicChatModel:
         *,
         provider: Optional[str] = None,
         fallback_model: Optional[str] = None,
+        report_outcomes: bool = True,
         **model_kwargs: Any,
     ) -> None:
         self._provider = provider
         self._fallback_model = fallback_model
         self._model_kwargs = model_kwargs
+        self._report_outcomes = report_outcomes
 
-    def _get_llm(self, task_text: str) -> Any:
-        return get_chat_model(
-            task_text,
-            provider=self._provider,
-            fallback_model=self._fallback_model,
-            **self._model_kwargs,
-        )
+    def _classify_and_build(self, task_text: str):
+        """Returns (llm, decision) so we can report outcome after the call."""
+        from classifier import classify_task
+        from classifier.core.exceptions import ClassificationError
+        from classifier.infra.config import settings
+
+        provider = self._provider or settings.default_provider
+        try:
+            decision = classify_task(task_text, provider=provider)
+            model = decision.model_name
+        except ClassificationError:
+            if not self._fallback_model:
+                raise
+            decision = None
+            model = self._fallback_model
+        llm = _build_chat_model(model, provider, **self._model_kwargs)
+        return llm, decision
+
+    def _report(self, decision, response, wall_ms: float, success: bool, error: str | None = None):
+        if not self._report_outcomes or decision is None:
+            return
+        from classifier import log_outcome, OutcomeRecord
+        usage = getattr(response, "usage_metadata", None) or {}
+        if hasattr(usage, "get"):
+            tokens_in  = int(usage.get("input_tokens",  usage.get("prompt_tokens",     0)) or 0)
+            tokens_out = int(usage.get("output_tokens", usage.get("completion_tokens", 0)) or 0)
+        else:
+            tokens_in  = int(getattr(usage, "input_tokens",  0) or 0)
+            tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
+        log_outcome(OutcomeRecord(
+            decision_id=decision.decision_id,
+            tokens_in=tokens_in, tokens_out=tokens_out,
+            wall_ms=wall_ms, success=success, error_message=error,
+        ))
 
     def invoke(self, input, **kwargs) -> Any:
+        import time
         task_text = self._extract_text(input)
-        return self._get_llm(task_text).invoke(input, **kwargs)
+        llm, decision = self._classify_and_build(task_text)
+        t0 = time.perf_counter()
+        try:
+            response = llm.invoke(input, **kwargs)
+            self._report(decision, response, (time.perf_counter() - t0) * 1000, success=True)
+            return response
+        except Exception as exc:
+            self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
+            raise
 
     def stream(self, input, **kwargs) -> Iterator:
+        # Streaming: report outcome after the generator is fully consumed
+        import time
         task_text = self._extract_text(input)
-        yield from self._get_llm(task_text).stream(input, **kwargs)
+        llm, decision = self._classify_and_build(task_text)
+        t0 = time.perf_counter()
+        last_chunk = None
+        try:
+            for chunk in llm.stream(input, **kwargs):
+                last_chunk = chunk
+                yield chunk
+            self._report(decision, last_chunk, (time.perf_counter() - t0) * 1000, success=True)
+        except Exception as exc:
+            self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
+            raise
 
     def batch(self, inputs: List, **kwargs) -> List:
         return [self.invoke(inp, **kwargs) for inp in inputs]

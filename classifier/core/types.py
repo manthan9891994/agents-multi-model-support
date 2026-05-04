@@ -150,6 +150,12 @@ def register_complexity(value: str, *, name: str | None = None) -> "TaskComplexi
     return _add_member(TaskComplexity, name or value.upper(), value)
 
 
+def _new_decision_id() -> str:
+    """UUID4-based decision id used to join decisions ⨝ outcomes."""
+    import uuid
+    return uuid.uuid4().hex[:16]
+
+
 @dataclass
 class ClassificationDecision:
     model_name:      str
@@ -163,6 +169,8 @@ class ClassificationDecision:
     latency_ms:      float = 0.0
     compliance_flag: bool  = False  # PII/PHI/secret detected in task
     disagreement:    bool  = False  # L1 and L2 disagreed on classification
+    decision_id:     str   = field(default_factory=_new_decision_id)
+    exploration:     bool  = False  # set True by Explorer when this call is a random sample
 
     def to_dict(self) -> dict:
         """Serialise to a JSON-safe dict (enums → string values)."""
@@ -178,6 +186,8 @@ class ClassificationDecision:
             "latency_ms":      self.latency_ms,
             "compliance_flag": self.compliance_flag,
             "disagreement":    self.disagreement,
+            "decision_id":     self.decision_id,
+            "exploration":     self.exploration,
         }
 
     def to_json(self) -> str:
@@ -199,6 +209,8 @@ class ClassificationDecision:
             latency_ms      = float(data.get("latency_ms", 0.0)),
             compliance_flag = bool(data.get("compliance_flag", False)),
             disagreement    = bool(data.get("disagreement", False)),
+            decision_id     = data.get("decision_id") or _new_decision_id(),
+            exploration     = bool(data.get("exploration", False)),
         )
 
     @classmethod

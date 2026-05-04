@@ -104,17 +104,16 @@ def test_get_chat_model_unsupported_provider():
 
 def test_dynamic_chat_model_invoke():
     from classifier.integrations.langchain import DynamicChatModel
-    with patch("classifier.integrations.langchain.get_chat_model") as mock_get:
-        inner_llm = MagicMock()
-        inner_llm.invoke.return_value = "response"
-        mock_get.return_value = inner_llm
+    inner_llm = MagicMock()
+    inner_llm.invoke.return_value = "response"
+    with patch("classifier.integrations.langchain._build_chat_model", return_value=inner_llm) as mock_build:
+        with patch("classifier.classify_task", return_value=_mock_decision()):
+            llm = DynamicChatModel(provider="google", report_outcomes=False)
+            result = llm.invoke("What is 2+2?")
 
-        llm = DynamicChatModel(provider="google")
-        result = llm.invoke("What is 2+2?")
-
-        assert result == "response"
-        mock_get.assert_called_once()
-        inner_llm.invoke.assert_called_once()
+            assert result == "response"
+            mock_build.assert_called_once()
+            inner_llm.invoke.assert_called_once()
 
 
 def test_dynamic_chat_model_extract_text_string():
@@ -140,12 +139,11 @@ def test_dynamic_chat_model_extract_text_object():
 
 def test_dynamic_chat_model_batch():
     from classifier.integrations.langchain import DynamicChatModel
-    with patch("classifier.integrations.langchain.get_chat_model") as mock_get:
-        inner_llm = MagicMock()
-        inner_llm.invoke.side_effect = ["r1", "r2", "r3"]
-        mock_get.return_value = inner_llm
+    inner_llm = MagicMock()
+    inner_llm.invoke.side_effect = ["r1", "r2", "r3"]
+    with patch("classifier.integrations.langchain._build_chat_model", return_value=inner_llm):
+        with patch("classifier.classify_task", return_value=_mock_decision()):
+            llm = DynamicChatModel(provider="google", report_outcomes=False)
+            results = llm.batch(["task1", "task2", "task3"])
 
-        llm = DynamicChatModel(provider="google")
-        results = llm.batch(["task1", "task2", "task3"])
-
-        assert results == ["r1", "r2", "r3"]
+            assert results == ["r1", "r2", "r3"]

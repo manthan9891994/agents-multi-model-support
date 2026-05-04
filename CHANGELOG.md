@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Continual learning — PR 1 of 4 (outcome logger):**
+  - `decision_id: str` (UUID4 hex prefix) field on `ClassificationDecision` — joins decision ⨝ outcome streams.
+  - `Router.report_outcome(decision_id, tokens_in, tokens_out, wall_ms, success, user_retried, user_escalated_model, user_feedback, edit_distance, error_message)` API.
+  - `OutcomeRecord` dataclass with append-only JSONL storage at `routing_outcomes.jsonl`.
+  - Pluggable backend via `Router(outcome_logger=KafkaLoggerBackend(...))` — same backends as `decision_logger`.
+  - `read_outcomes(since=, until=, decision_ids=)` and `join_decisions_outcomes(decisions, outcomes)` helpers.
+  - **Auto-instrumentation** of three integrations — outcomes are reported automatically:
+    - `DynamicChatModel` (LangChain) — wraps `invoke` / `stream` with token-count + wall-time capture.
+    - `DynamicLLM` (CrewAI) — wraps `call` with success/error reporting.
+    - ADK — `report_model_outcome` paired with `dynamic_model_selector` via `after_model_callback`.
+  - 13 new unit tests proving the join logic, pluggable backends, and auto-instrumentation.
+- `examples/benchmark_cost_savings.ipynb` — runs 1,000 representative prompts and produces a cost-comparison bar chart + tier-distribution pie. No live LLM calls in default mode.
+- `CITATION.cff` — academic citation metadata (CFF 1.2.0 spec).
+- Six new agent-framework integrations:
+  - **LlamaIndex** (`classifier.integrations.llamaindex`) — `get_llm(task)` + `DynamicLLM`
+  - **Pydantic AI** (`classifier.integrations.pydantic_ai`) — `get_model_string(task)` + `get_agent(task, **kw)`
+  - **DSPy** (`classifier.integrations.dspy`) — `get_lm(task)` + `with route(task): …` context manager
+  - **Haystack** (`classifier.integrations.haystack`) — `get_generator(task)`
+  - **Semantic Kernel** (`classifier.integrations.semantic_kernel`) — `get_chat_service(task)`
+  - **smolagents** (`classifier.integrations.smolagents`) — `get_model(task)` + `DynamicModel`
+- Optional extras: `[llamaindex]`, `[pydanticai]`, `[dspy_ext]`, `[haystack]`, `[semantickernel]`, `[smolagents]`
+- 24 new mocked unit tests proving each integration honors `provider=`, `fallback_model=`, and DSPy's context-manager restore.
 - YAML-driven model registry: providers, models, costs, and capabilities live in `classifier/data/registry/default.yaml`. Zero hardcoded model names or prices in Python.
 - `dmr models {list, export, load, pull, clear}` CLI for runtime registry management.
 - `Router.from_registry(path | URL | dict)` and `Router.load_registry(...)` classmethods.

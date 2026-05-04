@@ -620,6 +620,9 @@ from classifier.infra.cost_tracker import register_model_cost, get_model_cost
 from classifier.ml.embeddings import set_embedding_model, current_embedding_model
 from classifier.hooks import register_hook, unregister_hook, clear_hooks, hook_manager
 from classifier.experiments import ABTest, ShadowMode
+from classifier.infra.outcome_logger import (
+    OutcomeRecord, log_outcome, read_outcomes, join_decisions_outcomes,
+)
 from classifier.layers.plugin import register_layer, unregister_layer, list_layers
 from classifier.layers.layer3 import register_strategy as register_l3_strategy
 from classifier.infra.tokenizers import register_tokenizer, count_tokens
@@ -705,6 +708,7 @@ __all__ = [
     "set_embedding_model", "current_embedding_model",
     "register_hook", "unregister_hook", "clear_hooks", "hook_manager",
     "ABTest", "ShadowMode",
+    "OutcomeRecord", "log_outcome", "read_outcomes", "join_decisions_outcomes",
     "register_layer", "unregister_layer", "list_layers",
     "register_l3_strategy",
     "register_tokenizer", "count_tokens",

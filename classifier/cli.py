@@ -87,7 +87,7 @@ def _cmd_init(args) -> int:
         print(f"Refusing to overwrite existing {target}. Use --force to replace.", file=sys.stderr)
         return 1
 
-    template = """# yaml-language-server: $schema=https://raw.githubusercontent.com/manthanvaghela/dynamic-model-router/master/classifier/dmr.schema.json
+    template = """# yaml-language-server: $schema=https://raw.githubusercontent.com/manthan9891994/dynamic-model-router/master/classifier/dmr.schema.json
 
 # dmr.yaml — Dynamic Model Router configuration
 # Load with: Router.from_yaml("dmr.yaml")

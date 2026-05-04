@@ -1,6 +1,6 @@
 # dynamic-model-router
 
-[![CI](https://github.com/manthanvaghela/dynamic-model-router/actions/workflows/ci.yml/badge.svg)](https://github.com/manthanvaghela/dynamic-model-router/actions/workflows/ci.yml)
+[![CI](https://github.com/manthan9891994/dynamic-model-router/actions/workflows/ci.yml/badge.svg)](https://github.com/manthan9891994/dynamic-model-router/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
 [![Python versions](https://img.shields.io/pypi/pyversions/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -336,6 +336,12 @@ register_model_cost("llama-3.3-70b-versatile", input_per_1m=0.59, output_per_1m=
 | **AutoGen** | `classifier.integrations.autogen` | `get_autogen_llm_config(task)` |
 | **OpenAI Agents SDK** | `classifier.integrations.autogen` | `get_openai_agent_model(task)` |
 | **Google ADK** | `classifier.integrations.adk` | `before_model_callback=dynamic_model_selector` |
+| **LlamaIndex** | `classifier.integrations.llamaindex` | `get_llm(task)` or `DynamicLLM()` |
+| **Pydantic AI** | `classifier.integrations.pydantic_ai` | `get_model_string(task)` or `get_agent(task, **kw)` |
+| **DSPy** | `classifier.integrations.dspy` | `get_lm(task)` or `with route(task): ...` |
+| **Haystack** | `classifier.integrations.haystack` | `get_generator(task)` |
+| **Semantic Kernel** | `classifier.integrations.semantic_kernel` | `get_chat_service(task)` |
+| **smolagents (HF)** | `classifier.integrations.smolagents` | `get_model(task)` or `DynamicModel()` |
 
 ```python
 # CrewAI example
