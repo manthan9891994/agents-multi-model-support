@@ -301,6 +301,60 @@ def _cmd_version(args) -> int:
     return 0
 
 
+def _cmd_relabel(args) -> int:
+    """Run weak-supervision over the decision ⨝ outcome stream and emit labeled JSONL.
+
+    Args:
+        --since      ISO timestamp or relative window like "30d", "7d", "24h".
+        --until      ISO timestamp upper bound (default: now).
+        --min-confidence  Drop labels whose aggregated confidence is below this.
+        --include-cached  Don't skip cache-hit rows (default: skip).
+        --include-exploration  Don't skip exploration rows (default: skip).
+        --out        Output JSONL path (default: labeled_from_telemetry.jsonl).
+    """
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    from classifier.ml.auto_labeler import AutoLabeler
+
+    # Resolve --since to ISO if it's a relative window
+    since = args.since
+    if since:
+        since = since.strip().lower()
+        units = {"h": "hours", "d": "days", "w": "weeks"}
+        if since[-1] in units and since[:-1].isdigit():
+            now = datetime.now(timezone.utc)
+            kwargs = {units[since[-1]]: int(since[:-1])}
+            since = (now - timedelta(**kwargs)).isoformat()
+
+    labeler = AutoLabeler(
+        min_confidence    = float(args.min_confidence),
+        skip_cached       = not args.include_cached,
+        skip_exploration  = not args.include_exploration,
+    )
+    rows = labeler.run(since=since, until=args.until)
+
+    out_path = Path(args.out or "labeled_from_telemetry.jsonl")
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    print(f"Wrote {len(rows)} labeled rows to {out_path}")
+    print()
+    print("AutoLabeler stats:")
+    for k, v in sorted(labeler.stats.items()):
+        print(f"  {k:24} {v}")
+    return 0
+
+
+def _cmd_prune(args) -> int:
+    """Delete outcome rows older than --days from routing_outcomes.jsonl."""
+    from classifier.infra.outcome_logger import prune_old_outcomes
+    days = int(args.days)
+    pruned = prune_old_outcomes(days=days)
+    print(f"Pruned {pruned} outcome row(s) older than {days} days.")
+    return 0
+
+
 def _cmd_doctor(args) -> int:
     """Diagnose configuration issues. Reports OK/WARN/FAIL for each check."""
     import importlib
@@ -502,6 +556,26 @@ def main(argv: list[str] | None = None) -> int:
     # doctor
     p = sub.add_parser("doctor", help="Diagnose configuration and dependency issues")
     p.set_defaults(func=_cmd_doctor)
+
+    # prune — outcome log retention
+    p = sub.add_parser("prune", help="Delete outcome rows older than N days")
+    p.add_argument("--days", type=int, default=90, help="Retention window in days (default: 90)")
+    p.set_defaults(func=_cmd_prune)
+
+    # relabel — auto-label decision ⨝ outcome stream → training JSONL
+    p = sub.add_parser("relabel", help="Weak-supervised auto-label production telemetry")
+    p.add_argument("--since", default=None,
+                   help="Relative window (e.g. 30d, 7d, 24h) or ISO timestamp")
+    p.add_argument("--until", default=None, help="ISO upper bound (default: now)")
+    p.add_argument("--min-confidence", type=float, default=0.7,
+                   help="Drop labels below this aggregated confidence (default 0.7)")
+    p.add_argument("--include-cached", action="store_true",
+                   help="Include cache-hit rows (default: skipped)")
+    p.add_argument("--include-exploration", action="store_true",
+                   help="Include exploration rows (default: skipped)")
+    p.add_argument("--out", default=None,
+                   help="Output JSONL path (default: labeled_from_telemetry.jsonl)")
+    p.set_defaults(func=_cmd_relabel)
 
     # benchmark
     p = sub.add_parser("benchmark", help="Measure routing latency p50/p95/p99")

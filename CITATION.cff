@@ -6,7 +6,7 @@ authors:
   - given-names: Manthan
     family-names: Vaghela
     email: manthansinhvaghela@gmail.com
-    orcid: "https://orcid.org/0009-0000-0000-0000"
+    # Add your real ORCID iD here once registered: https://orcid.org/register
 abstract: >-
   A 3-layer cascade classifier (keyword heuristics, frozen-encoder ML head,
   LLM fallback) that routes each task to the cheapest model that can handle
@@ -33,12 +33,3 @@ repository-code: "https://github.com/manthan9891994/agents-multi-model-support"
 url: "https://github.com/manthan9891994/agents-multi-model-support"
 version: "0.1.0"
 date-released: "2026-04-15"
-preferred-citation:
-  type: software
-  title: "dynamic-model-router: A Cascade Classifier for Cost-Efficient LLM Routing"
-  authors:
-    - given-names: Manthan
-      family-names: Vaghela
-  year: 2026
-  url: "https://github.com/manthan9891994/agents-multi-model-support"
-  version: "0.1.0"

@@ -56,10 +56,15 @@ class OutcomeRecord:
     Joins to ClassificationDecision via `decision_id`. Fields beyond the
     required tokens/wall_ms are optional signals — the auto-labeler uses
     whichever ones are populated.
+
+    `tokens_estimated`: True when token counts came from a heuristic
+    tokenizer (e.g. word count) rather than the provider's `usage_metadata`.
+    The auto-labeler can downweight or skip estimated rows.
     """
     decision_id:    str
     tokens_in:      int                  = 0
     tokens_out:     int                  = 0
+    tokens_estimated: bool               = False
     wall_ms:        float                = 0.0
     success:        bool                 = True
     cost_usd:       float | None         = None
@@ -73,9 +78,29 @@ class OutcomeRecord:
     )
 
 
+def _redact_outcome(entry: dict) -> dict:
+    """Redact PII from string fields before writing.
+
+    Same patterns as `decision_logger._redact_pii` (SSN, credit card, email,
+    phone, API keys, JWT, MRN, DOB). Applied to free-form string fields:
+    `error_message`, `user_escalated_model`. Numeric/bool/timestamp fields
+    are passed through unchanged.
+    """
+    from classifier.infra.decision_logger import _redact_pii
+    redacted = dict(entry)
+    for key in ("error_message", "user_escalated_model"):
+        val = redacted.get(key)
+        if isinstance(val, str) and val:
+            redacted[key] = _redact_pii(val)
+    return redacted
+
+
 def log_outcome(rec: OutcomeRecord) -> None:
-    """Append an outcome to the configured backend (or the JSONL fallback)."""
-    entry = asdict(rec)
+    """Append an outcome to the configured backend (or the JSONL fallback).
+
+    String fields are PII-redacted via `_redact_outcome` before writing.
+    """
+    entry = _redact_outcome(asdict(rec))
 
     if _backend is not None:
         try:
@@ -99,13 +124,36 @@ def read_outcomes(
     until: str | None = None,
     decision_ids: set[str] | None = None,
 ) -> list[dict]:
-    """Read outcomes from the JSONL fallback log. Returns a list of dicts.
+    """Read outcomes — from the configured backend if it implements `.read()`,
+    else from the local JSONL fallback.
 
     Args:
         since: ISO 8601 — only return outcomes at-or-after this time.
         until: ISO 8601 — only return outcomes strictly before this time.
         decision_ids: if set, only return outcomes whose decision_id is in here.
+
+    Backend protocol:
+        Any backend with a `.read(*, since, until, decision_ids) -> list[dict]`
+        method is consulted first. If absent, the local JSONL is read instead.
+        Backends explicitly opting out of read should set `read = None`.
     """
+    # Try the configured backend first (if it supports read)
+    if _backend is not None:
+        backend_read = getattr(_backend, "read", None)
+        if callable(backend_read):
+            try:
+                rows = backend_read(since=since, until=until, decision_ids=decision_ids)
+                if rows is not None:
+                    return list(rows)
+            except Exception as exc:
+                logger.warning(
+                    "outcome_logger backend.read() failed (%s) — falling back to local JSONL",
+                    exc,
+                )
+        elif backend_read is None:
+            # Backend explicitly opted out (read=None). Fall through to local JSONL.
+            pass
+
     log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
     if not log_file.exists():
         return []
@@ -128,6 +176,48 @@ def read_outcomes(
                 continue
             out.append(rec)
     return out
+
+
+def prune_old_outcomes(*, days: int = 90) -> int:
+    """Delete outcome rows older than `days`. Returns count of rows pruned.
+
+    Operates on the local JSONL fallback only — for cloud-backed pipelines
+    (Kafka / S3 with object lock), enforce retention at the infra layer.
+
+    Wire this to a cron / scheduler for ongoing housekeeping:
+
+        # crontab
+        0 4 * * * dmr stats prune --days 90
+    """
+    from datetime import datetime, timedelta, timezone
+    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
+    if not log_file.exists():
+        return 0
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    pruned = 0
+    kept_lines: list[str] = []
+    with log_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                kept_lines.append(line)   # keep malformed lines for debugging
+                continue
+            ts = rec.get("timestamp", "")
+            if ts and ts < cutoff:
+                pruned += 1
+            else:
+                kept_lines.append(line)
+
+    with _lock:
+        with log_file.open("w", encoding="utf-8") as f:
+            for line in kept_lines:
+                f.write(line + "\n")
+    return pruned
 
 
 def join_decisions_outcomes(

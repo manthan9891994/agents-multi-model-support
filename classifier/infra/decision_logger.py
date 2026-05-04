@@ -43,6 +43,55 @@ def _is_test_mode() -> bool:
 _backend = None   # set by Router(decision_logger=...) — None falls back to default JSONL
 
 
+def read_decisions(
+    *,
+    since: str | None = None,
+    until: str | None = None,
+) -> list[dict]:
+    """Read decision rows — from the configured backend if it implements `.read()`,
+    else from the local JSONL fallback.
+
+    Args:
+        since: ISO 8601 — only return decisions at-or-after this time.
+        until: ISO 8601 — only return decisions strictly before this time.
+
+    Used by the AutoLabeler to feed weak supervision over real production traffic.
+    """
+    if _backend is not None:
+        backend_read = getattr(_backend, "read", None)
+        if callable(backend_read):
+            try:
+                rows = backend_read(since=since, until=until)
+                if rows is not None:
+                    return list(rows)
+            except Exception as exc:
+                logger.warning(
+                    "decision_logger backend.read() failed (%s) — falling back to local JSONL",
+                    exc,
+                )
+
+    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
+    if not log_file.exists():
+        return []
+
+    out: list[dict] = []
+    with log_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if since and rec.get("timestamp", "") < since:
+                continue
+            if until and rec.get("timestamp", "") >= until:
+                continue
+            out.append(rec)
+    return out
+
+
 def log_decision(
     task: str,
     decision: "ClassificationDecision",
@@ -66,6 +115,8 @@ def log_decision(
         "compliance_flag": decision.compliance_flag,
         "disagreement":    decision.disagreement,
         "exploration":     getattr(decision, "exploration", False),
+        "cached":          getattr(decision, "cached", False),
+        "cached_from":     getattr(decision, "cached_from", ""),
     }
 
     # Pluggable backend takes precedence

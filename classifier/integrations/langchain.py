@@ -182,20 +182,56 @@ class DynamicChatModel:
             raise
 
     def stream(self, input, **kwargs) -> Iterator:
-        # Streaming: report outcome after the generator is fully consumed
+        """Stream chunks; accumulate via AIMessageChunk addition for accurate
+        usage reporting at the end. Most LangChain providers attach
+        usage_metadata only to the final aggregated message — accumulating
+        with `+` produces a single combined message we can read tokens from.
+        """
         import time
         task_text = self._extract_text(input)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
-        last_chunk = None
+        accumulator = None
         try:
             for chunk in llm.stream(input, **kwargs):
-                last_chunk = chunk
+                accumulator = chunk if accumulator is None else _try_add(accumulator, chunk)
                 yield chunk
-            self._report(decision, last_chunk, (time.perf_counter() - t0) * 1000, success=True)
+            self._report(decision, accumulator, (time.perf_counter() - t0) * 1000, success=True)
         except Exception as exc:
             self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
             raise
+
+    async def ainvoke(self, input, **kwargs) -> Any:
+        import time
+        task_text = self._extract_text(input)
+        llm, decision = self._classify_and_build(task_text)
+        t0 = time.perf_counter()
+        try:
+            response = await llm.ainvoke(input, **kwargs)
+            self._report(decision, response, (time.perf_counter() - t0) * 1000, success=True)
+            return response
+        except Exception as exc:
+            self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
+            raise
+
+    async def astream(self, input, **kwargs):
+        import time
+        task_text = self._extract_text(input)
+        llm, decision = self._classify_and_build(task_text)
+        t0 = time.perf_counter()
+        accumulator = None
+        try:
+            async for chunk in llm.astream(input, **kwargs):
+                accumulator = chunk if accumulator is None else _try_add(accumulator, chunk)
+                yield chunk
+            self._report(decision, accumulator, (time.perf_counter() - t0) * 1000, success=True)
+        except Exception as exc:
+            self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
+            raise
+
+    async def abatch(self, inputs: List, **kwargs) -> List:
+        import asyncio
+        return await asyncio.gather(*[self.ainvoke(inp, **kwargs) for inp in inputs])
 
     def batch(self, inputs: List, **kwargs) -> List:
         return [self.invoke(inp, **kwargs) for inp in inputs]
@@ -212,7 +248,6 @@ class DynamicChatModel:
             return input
         if isinstance(input, list):
             for msg in reversed(input):
-                # LangChain message objects
                 if hasattr(msg, "content"):
                     return str(msg.content)
                 if isinstance(msg, dict) and msg.get("role") == "user":
@@ -221,3 +256,11 @@ class DynamicChatModel:
         if hasattr(input, "content"):
             return str(input.content)
         return str(input)
+
+
+def _try_add(a, b):
+    """Try `a + b` (LangChain AIMessageChunk supports __add__); fall back to b."""
+    try:
+        return a + b
+    except Exception:
+        return b

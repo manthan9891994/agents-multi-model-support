@@ -171,6 +171,8 @@ class ClassificationDecision:
     disagreement:    bool  = False  # L1 and L2 disagreed on classification
     decision_id:     str   = field(default_factory=_new_decision_id)
     exploration:     bool  = False  # set True by Explorer when this call is a random sample
+    cached:          bool  = False  # True when returned from in-process or pluggable cache
+    cached_from:     str   = ""     # decision_id of the original (uncached) decision
 
     def to_dict(self) -> dict:
         """Serialise to a JSON-safe dict (enums → string values)."""
@@ -188,6 +190,8 @@ class ClassificationDecision:
             "disagreement":    self.disagreement,
             "decision_id":     self.decision_id,
             "exploration":     self.exploration,
+            "cached":          self.cached,
+            "cached_from":     self.cached_from,
         }
 
     def to_json(self) -> str:
@@ -196,7 +200,17 @@ class ClassificationDecision:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ClassificationDecision":
-        """Deserialise from a dict (string values → enums)."""
+        """Deserialise from a dict (string values → enums).
+
+        Emits a logger warning if `decision_id` is missing — a fresh one is
+        minted but this breaks decision ⨝ outcome joins for the row.
+        """
+        import logging as _log
+        if not data.get("decision_id"):
+            _log.getLogger(__name__).warning(
+                "ClassificationDecision.from_dict: missing decision_id — "
+                "minting a new one. Joins against outcome logs will fail for this row."
+            )
         return cls(
             model_name      = data["model_name"],
             tier            = ModelTier(data["tier"]),
@@ -211,6 +225,8 @@ class ClassificationDecision:
             disagreement    = bool(data.get("disagreement", False)),
             decision_id     = data.get("decision_id") or _new_decision_id(),
             exploration     = bool(data.get("exploration", False)),
+            cached          = bool(data.get("cached", False)),
+            cached_from     = data.get("cached_from", "") or "",
         )
 
     @classmethod

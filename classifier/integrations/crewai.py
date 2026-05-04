@@ -115,25 +115,30 @@ class DynamicLLM:
         self._cache: dict[str, Any] = {}
 
     def _classify_and_build(self, task_text: str):
-        """Returns (llm, decision) so we can report outcome after the call."""
+        """Returns (llm, decision) so we can report outcome after the call.
+
+        Reuses `pick_llm_for_task` for the routing logic; we only need to also
+        capture the underlying ClassificationDecision for telemetry.
+        """
         from classifier import classify_task
         from classifier.core.exceptions import ClassificationError
         from classifier.infra.config import settings
-        try:
-            from crewai import LLM
-        except ImportError as exc:
-            raise ImportError("CrewAI is not installed. Install with: pip install crewai") from exc
 
         provider = self._provider or settings.default_provider
         try:
             decision = classify_task(task_text, provider=provider)
-            model = decision.model_name
         except ClassificationError:
             if not self._fallback_model:
                 raise
             decision = None
-            model = self._fallback_model
-        return LLM(model=_qualify_model(model, provider)), decision
+
+        # Delegate LLM construction to pick_llm_for_task to keep one routing path
+        llm = pick_llm_for_task(
+            task_text,
+            provider=self._provider,
+            fallback_model=self._fallback_model,
+        )
+        return llm, decision
 
     def call(self, messages, *args, **kwargs):
         """Entry point CrewAI uses. Inspects messages, classifies, dispatches."""
@@ -153,6 +158,7 @@ class DynamicLLM:
                 log_outcome(OutcomeRecord(
                     decision_id=decision.decision_id,
                     tokens_in=tokens_in, tokens_out=tokens_out,
+                    tokens_estimated=True,    # CrewAI returns text only; counts are heuristic
                     wall_ms=(time.perf_counter() - t0) * 1000,
                     success=True,
                 ))

@@ -170,7 +170,7 @@ def classify_task(
     if not task_stable:
         with _last_decision_lock:
             if _last_decision is not None:
-                return _last_decision
+                return _stamp_cache_hit(_last_decision)
 
     resolved_provider = provider or settings.default_provider
 
@@ -232,7 +232,7 @@ def classify_task(
     if settings.cache_enabled:
         cached = cache.get(task, resolved_provider)
         if cached is not None:
-            return cached
+            return _stamp_cache_hit(cached)
 
     # ── Semantic cache lookup (Item 5) ────────────────────────────────────────
     if settings.semantic_cache_enabled:
@@ -240,7 +240,7 @@ def classify_task(
             from classifier.infra.semantic_cache import semantic_cache
             sem_hit = semantic_cache.get(task)
             if sem_hit is not None:
-                return sem_hit
+                return _stamp_cache_hit(sem_hit)
         except Exception:
             pass
 
@@ -279,6 +279,24 @@ def reset_last_decision() -> None:
     global _last_decision
     with _last_decision_lock:
         _last_decision = None
+
+
+def _stamp_cache_hit(original: ClassificationDecision) -> ClassificationDecision:
+    """Return a copy of `original` with a fresh decision_id + cached=True.
+
+    Cache hits represent real LLM-call events (each one needs its own outcome
+    row), but the *routing decision* didn't run again. So we mint a new
+    decision_id, point `cached_from` at the original, and let the auto-labeler
+    decide whether to dedupe by `cached_from` during training.
+    """
+    from dataclasses import replace
+    from classifier.core.types import _new_decision_id
+    return replace(
+        original,
+        decision_id=_new_decision_id(),
+        cached=True,
+        cached_from=original.decision_id,
+    )
 
 
 def _classify_inner(
@@ -622,6 +640,11 @@ from classifier.hooks import register_hook, unregister_hook, clear_hooks, hook_m
 from classifier.experiments import ABTest, ShadowMode
 from classifier.infra.outcome_logger import (
     OutcomeRecord, log_outcome, read_outcomes, join_decisions_outcomes,
+    prune_old_outcomes,
+)
+from classifier.infra.decision_logger import read_decisions
+from classifier.ml.auto_labeler import (
+    AutoLabeler, Label, LabelingFunction, DEFAULT_LFS,
 )
 from classifier.layers.plugin import register_layer, unregister_layer, list_layers
 from classifier.layers.layer3 import register_strategy as register_l3_strategy
@@ -709,6 +732,8 @@ __all__ = [
     "register_hook", "unregister_hook", "clear_hooks", "hook_manager",
     "ABTest", "ShadowMode",
     "OutcomeRecord", "log_outcome", "read_outcomes", "join_decisions_outcomes",
+    "prune_old_outcomes", "read_decisions",
+    "AutoLabeler", "Label", "LabelingFunction", "DEFAULT_LFS",
     "register_layer", "unregister_layer", "list_layers",
     "register_l3_strategy",
     "register_tokenizer", "count_tokens",

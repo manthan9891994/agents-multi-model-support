@@ -26,10 +26,52 @@ logger = logging.getLogger(__name__)
 _call_counter: dict[str, int] = {}
 _ERROR_SIGNALS = {"error", "exception", "traceback", "failed", "failure", "timeout", "refused"}
 
-# Per-callback-context decision tracking (key: id(callback_context))
-# Pairs `before_model_callback` (which routes) with `after_model_callback`
-# (which reports the outcome) for continual-learning telemetry.
-_pending_decisions: dict[int, dict] = {}
+# Per-callback decision tracking. Pairs before_model_callback (routing) with
+# after_model_callback (outcome reporting). Key strategy:
+#   1. callback_context.invocation_id   (preferred — stable across the request)
+#   2. callback_context.state["_dmr_decision"]  (preferred — survives GC)
+#   3. id(callback_context)             (fallback — bounded by an LRU)
+# Bounded so unmatched decisions (after_model_callback never fires) don't leak.
+import collections as _collections
+_PENDING_MAX = 1024
+_pending_decisions: "_collections.OrderedDict[str, dict]" = _collections.OrderedDict()
+import threading as _threading
+_pending_lock = _threading.Lock()
+
+
+def _pending_key(callback_context) -> str:
+    """Pick the most stable key available on a callback_context."""
+    # Prefer stable ADK-provided IDs over object identity
+    inv_id = getattr(callback_context, "invocation_id", None)
+    if inv_id:
+        return f"inv:{inv_id}"
+    # callback_context.state is a dict in current ADK — store the key there too
+    return f"obj:{id(callback_context)}"
+
+
+def _store_pending(callback_context, payload: dict) -> None:
+    key = _pending_key(callback_context)
+    # Also stash on state so the after-callback can find it even if id() recycles.
+    state = getattr(callback_context, "state", None)
+    if isinstance(state, dict):
+        state["_dmr_decision_key"] = key
+    with _pending_lock:
+        _pending_decisions[key] = payload
+        _pending_decisions.move_to_end(key)
+        # Bound the dict — drop oldest unmatched entries
+        while len(_pending_decisions) > _PENDING_MAX:
+            _pending_decisions.popitem(last=False)
+
+
+def _pop_pending(callback_context) -> dict | None:
+    state = getattr(callback_context, "state", None)
+    state_key = state.get("_dmr_decision_key") if isinstance(state, dict) else None
+    keys = [state_key, _pending_key(callback_context)]
+    with _pending_lock:
+        for k in keys:
+            if k and k in _pending_decisions:
+                return _pending_decisions.pop(k)
+    return None
 
 
 def _extract_context_signals(llm_request, agent_name: str):
@@ -111,14 +153,16 @@ def dynamic_model_selector(callback_context, llm_request):
     original = llm_request.model
     llm_request.model = decision.model_name
 
-    # Stash the decision so the paired after_model_callback can report the outcome
+    # Stash the decision so the paired after_model_callback can report the outcome.
+    # Bounded LRU + stable key via invocation_id / callback_context.state to
+    # prevent leaks if after_model_callback never fires (agent crash).
     import time
-    _pending_decisions[id(callback_context)] = {
+    _store_pending(callback_context, {
         "decision_id": decision.decision_id,
         "model":       decision.model_name,
         "task":        task,
         "t0":          time.perf_counter(),
-    }
+    })
 
     logger.info(
         "Model selected | %s => %s [%s | %s | %s | call=%d | ctx_tokens=%d%s%s]",
@@ -145,7 +189,7 @@ def report_model_outcome(callback_context, llm_response):
         )
     """
     import time
-    pending = _pending_decisions.pop(id(callback_context), None)
+    pending = _pop_pending(callback_context)
     if pending is None:
         return None
 
