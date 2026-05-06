@@ -236,28 +236,35 @@ def test_label_one_below_confidence_returns_none():
 # ── End-to-end run() tests ─────────────────────────────────────────────────
 
 def test_run_with_supplied_lists():
-    """End-to-end with hand-built decision + outcome lists (no log files)."""
+    """End-to-end with hand-built decision + outcome lists (no log files).
+
+    Each row picks up multiple LFs so the aggregated confidence clears the
+    threshold (single-LF rows have share=1.0 on the dimension they vote, but
+    only 0.5 average if the other dimension was empty).
+    """
     decisions = [
-        # Will fire lf_user_escalated → reasoning/complex
-        _decision(decision_id="esc-1"),
-        # Will fire lf_short_short → simple
-        _decision(decision_id="short-1", task_length=15, task_type="conversation",
-                  complexity="simple"),
-        # Will fire lf_thumbs_down → complex
-        _decision(decision_id="down-1"),
+        # esc-1: lf_user_escalated → both dims voted (reasoning, complex)
+        _decision(decision_id="esc-1", layer="layer1"),
+        # code-1: lf_code_keywords_strong → both dims voted (code_creation, standard)
+        _decision(decision_id="code-1", task_type="code_creation",
+                  complexity="standard", confidence=0.9, layer="layer1"),
+        # l2-1: lf_l2_ground_truth → both dims voted
+        _decision(decision_id="l2-1", layer="layer2", task_type="reasoning",
+                  complexity="complex", confidence=0.8),
     ]
     outcomes = [
         _outcome(decision_id="esc-1", user_escalated_model="gpt-4-turbo"),
-        _outcome(decision_id="short-1", tokens_out=10),
-        _outcome(decision_id="down-1", user_feedback="down"),
+        _outcome(decision_id="code-1"),
+        _outcome(decision_id="l2-1"),
     ]
     labeler = AutoLabeler(min_confidence=0.5)
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
-    assert len(rows) >= 2   # at least 2 with confident labels
+    assert len(rows) == 3
     by_id = {r["_decision_id"]: r for r in rows}
-    if "esc-1" in by_id:
-        assert by_id["esc-1"]["task_type"] == "reasoning"
-        assert by_id["esc-1"]["complexity"] == "complex"
+    assert by_id["esc-1"]["task_type"]   == "reasoning"
+    assert by_id["esc-1"]["complexity"]  == "complex"
+    assert by_id["code-1"]["task_type"]  == "code_creation"
+    assert by_id["l2-1"]["task_type"]    == "reasoning"
 
 
 def test_run_skips_cache_hits_by_default():
