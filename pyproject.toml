@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — before the agent makes an API call."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "Manthan Vaghela", email = "manthansinhvaghela@gmail.com" }
 ]
@@ -16,7 +16,6 @@ keywords = ["llm", "router", "classifier", "agents", "adk", "gemini", "claude", 
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -84,9 +83,9 @@ all_extensions = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/manthan9891994/dynamic-model-router"
-Repository = "https://github.com/manthan9891994/dynamic-model-router"
-Issues = "https://github.com/manthan9891994/dynamic-model-router/issues"
+Homepage = "https://github.com/manthan9891994/agents-multi-model-support"
+Repository = "https://github.com/manthan9891994/agents-multi-model-support"
+Issues = "https://github.com/manthan9891994/agents-multi-model-support/issues"
 
 [project.scripts]
 dmr = "classifier.cli:main"

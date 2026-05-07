@@ -2,6 +2,7 @@ name: Release to PyPI
 
 # Triggers on a published GitHub Release. Uses PyPI's trusted publishing (OIDC):
 #   no API token needed — register the repo at https://pypi.org/manage/account/publishing/
+#   Repo: manthan9891994/agents-multi-model-support, workflow: release.yml
 #   under PyPI project name `dynamic-model-router`.
 on:
   release:
