@@ -1,12 +1,13 @@
 # Claude Code internal files
 .claude/
 
-# Python project ignores
+# Internal-only directories (drafts, archives — never shipped)
 /plan_docs
 /archieve_Do_Not_Read
 
-# Auto-generated logs
-routing_decisions.jsonl
+# Auto-generated runtime telemetry (decisions + outcomes, prod + test)
+routing_decisions*.jsonl
+routing_outcomes*.jsonl
 __pycache__/
 *.py[cod]
 *$py.class

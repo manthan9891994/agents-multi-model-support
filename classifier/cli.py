@@ -811,7 +811,7 @@ def _cmd_config_show(args) -> int:
     from classifier import __version__
     from classifier.core import registry as _reg
     from classifier.infra.config import settings
-    from classifier.layers.layer1.keyword_pack import list_registered as _list_registered
+    from classifier.layers.layer1.pack_registry import list_registered as _list_registered
     from classifier.router import _l3_model_available
 
     print(f"\n  dynamic-model-router  v{__version__}\n")

@@ -8,13 +8,13 @@ from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 from .constants import _TASK_KEYWORDS, _TIER_ORDER
 from .helpers import _CONTINUATION_RE, _count_tokens, _detect_language, _is_trivial
-from .keyword_packs import _load_keyword_packs
+from .pack_loaders import load_bundled_packs
 from .scoring import _detect_complexity, _detect_task_type, _domain_min_tier
 
 logger = logging.getLogger(__name__)
 
 if feature_flags.keyword_packs:
-    _load_keyword_packs()
+    load_bundled_packs()
 
 
 def classify_layer1(

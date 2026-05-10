@@ -182,16 +182,16 @@ class Router:
         # in L1 — this is documented (see Router.classify docstring); use
         # `Router.from_preset()` if you want isolation per use case.
         if self.extra_keyword_packs:
-            from classifier.layers.layer1.keyword_pack import register_extra_packs
+            from classifier.layers.layer1.pack_registry import register_extra_packs
 
             register_extra_packs(self.extra_keyword_packs)
 
         # Auto-load user-authored packs from ~/.dmr/keywords/ — lets users
         # add keywords via `dmr keywords add` and have them take effect on the
         # next Router() with no code change. Idempotent across instances.
-        from classifier.layers.layer1.keyword_pack import auto_load_user_packs
+        from classifier.layers.layer1.pack_loaders import load_user_packs
 
-        auto_load_user_packs()
+        load_user_packs()
 
         if self.extra_pii_patterns:
             from classifier.infra import pii_scrubber
