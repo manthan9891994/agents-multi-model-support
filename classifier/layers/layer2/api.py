@@ -103,6 +103,7 @@ def _get_client():
                 raise ImportError(
                     "google-genai not installed. Install with: pip install 'dynamic-model-router[google]'"
                 )
+            settings.api_key_for("google")  # validate before constructing client
             _shared_client = genai.Client(api_key=settings.google_api_key)
         return _shared_client
 

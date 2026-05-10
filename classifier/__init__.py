@@ -217,15 +217,10 @@ def classify_task(
             ),
         )
 
-    # Item: API key validation — only validate the GOOGLE key when L2 is enabled
-    # (L2 always uses Gemini Flash Lite regardless of `provider`). The package
-    # itself never calls Anthropic/OpenAI — it only returns model names that
-    # the user's own SDK will use, so we don't validate those keys here.
-    if settings.layer2_enabled:
-        try:
-            settings.api_key_for("google")
-        except ConfigurationError:
-            raise
+    # API key validation is deferred to the actual L2 call site — that way L1
+    # and L3 (which never touch the network) work without any keys configured.
+    # If escalation to L2 happens and the key is missing, the L2 caller raises
+    # a ConfigurationError from there with the same install-hint message.
 
     # ── Budget guard ──────────────────────────────────────────────────────────
     if cost_tracker.is_exhausted():
