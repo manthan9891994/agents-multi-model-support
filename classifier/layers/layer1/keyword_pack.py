@@ -122,3 +122,61 @@ def list_registered() -> list[str]:
 def clear_registered() -> None:
     """Test helper — wipe all registered packs (does NOT undo their effect on L1 dicts)."""
     _registered_packs.clear()
+
+
+def _load_pack_from_yaml(path) -> KeywordPack | None:
+    """Build a KeywordPack from a YAML file written by `dmr keywords add`."""
+    import yaml
+
+    from classifier.core.types import task_type_for
+
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return None
+    name = data.get("name") or path.stem
+    builder = KeywordPack.builder(name)
+    for tt_str, groups in (data.get("task_keywords") or {}).items():
+        try:
+            tt = task_type_for(tt_str)
+        except Exception:
+            continue
+        for grp, kws in (groups or {}).items():
+            if kws:
+                builder.add(tt, list(kws), group=grp or "primary")
+    for kw, w in (data.get("escalators") or {}).items():
+        try:
+            builder.escalator(kw, weight=int(w))
+        except Exception:
+            continue
+    return builder.build()
+
+
+def auto_load_user_packs() -> list[str]:
+    """Auto-discover and register packs from ~/.dmr/keywords/*.yaml.
+
+    Called once on Router() construction. Idempotent — re-registration is a
+    no-op (packs dedupe by name).
+
+    Honors $DMR_KEYWORDS_DIR for test/CI isolation.
+    """
+    import os
+    from pathlib import Path
+
+    env = os.environ.get("DMR_KEYWORDS_DIR")
+    base = Path(env) if env else Path.home() / ".dmr" / "keywords"
+    if not base.exists():
+        return []
+    loaded: list[str] = []
+    packs: list[KeywordPack] = []
+    for yml in sorted(base.glob("*.yaml")):
+        pack = _load_pack_from_yaml(yml)
+        if pack is None:
+            continue
+        if any(p.name == pack.name for p in _registered_packs):
+            continue
+        packs.append(pack)
+        loaded.append(pack.name)
+    if packs:
+        register_extra_packs(packs)
+    return loaded

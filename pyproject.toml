@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dynamic-model-router"
-version = "0.1.1"
+version = "0.2.0"
 description = "A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — before the agent makes an API call."
 readme = "README.md"
 requires-python = ">=3.10"

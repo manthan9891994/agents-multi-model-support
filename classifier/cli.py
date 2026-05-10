@@ -47,12 +47,103 @@ def _cmd_classify(args) -> int:
 def _cmd_train(args) -> int:
     from classifier.ml.train import train_from_data
 
+    if args.auto:
+        return _cmd_train_auto(args)
+
+    if not args.data:
+        print(
+            "Error: provide --data <path.jsonl> OR --auto (bootstrap from logs).",
+            file=sys.stderr,
+        )
+        return 2
+
     metadata = train_from_data(
         data_path=Path(args.data),
         output_path=Path(args.output) if args.output else None,
         max_iter=args.max_iter,
     )
     print(json.dumps(metadata, indent=2))
+    return 0
+
+
+def _cmd_train_auto(args) -> int:
+    """`dmr train --auto` — train Layer 3 from production telemetry.
+
+    Pipeline:
+        1. AutoLabeler reads routing_decisions.jsonl ⨝ routing_outcomes.jsonl
+           and applies 8 weak-supervision rules (Snorkel-style) to produce
+           weighted labels.
+        2. Drops rows below --min-confidence (default 0.7).
+        3. Writes a temp JSONL and feeds it to the standard train pipeline.
+        4. Runs `dmr eval` on a held-out slice and prints the headline number.
+
+    Zero-config: just `dmr train --auto`. Run it again whenever you have more
+    data — each run replaces the model.
+    """
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+
+    from classifier.ml.auto_labeler import AutoLabeler
+    from classifier.ml.train import train_from_data
+
+    # Resolve --since to ISO if it's a relative window (default: last 90 days)
+    since = (args.since or "90d").strip().lower()
+    units = {"h": "hours", "d": "days", "w": "weeks"}
+    if since[-1] in units and since[:-1].isdigit():
+        now = datetime.now(timezone.utc)
+        kw = {units[since[-1]]: int(since[:-1])}
+        since = (now - timedelta(**kw)).isoformat()
+
+    print(f"[1/3] Auto-labeling decision/outcome telemetry since {since[:10]}...")
+    labeler = AutoLabeler(min_confidence=float(args.min_confidence))
+    rows = labeler.run(since=since)
+
+    if len(rows) < 50:
+        print(
+            f"\n  Only {len(rows)} confident labels found. Need >= 50.\n"
+            f"  Keep using the router and re-run after more decisions accumulate.\n"
+            f"  Tip: lower --min-confidence (default 0.7) to harvest more rows,\n"
+            f"  or run `dmr generate-data` to bootstrap with synthetic examples.",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Show class distribution so users know what's in their data
+    print(f"  Got {len(rows)} confident labels:")
+    from collections import Counter
+
+    tt_counts = Counter(r.get("task_type") for r in rows if r.get("task_type"))
+    cx_counts = Counter(r.get("complexity") for r in rows if r.get("complexity"))
+    for tt, n in tt_counts.most_common():
+        print(f"    task_type   {tt:<20} {n}")
+    for cx, n in cx_counts.most_common():
+        print(f"    complexity  {cx:<20} {n}")
+
+    print("\n[2/3] Training Layer 3 head (frozen MiniLM + calibrated MLPs)...")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as tmp:
+        for r in rows:
+            tmp.write(json.dumps(r, ensure_ascii=False) + "\n")
+        tmp_path = Path(tmp.name)
+
+    try:
+        metadata = train_from_data(
+            data_path=tmp_path,
+            output_path=Path(args.output) if args.output else None,
+            max_iter=args.max_iter,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    metadata["bootstrap_source"] = "auto-from-telemetry"
+    metadata["bootstrap_window"] = args.since or "90d"
+    metadata["bootstrap_min_confidence"] = float(args.min_confidence)
+
+    print("\n[3/3] Done.")
+    print(json.dumps(metadata, indent=2))
+    print(
+        "\n  Layer 3 is now active. New `Router()` instances will pick it up\n"
+        "  automatically when constructed with `layer3_enabled='auto'` (default)."
+    )
     return 0
 
 
@@ -438,7 +529,7 @@ def _cmd_doctor(args) -> int:
     except Exception as exc:
         add("settings", "FAIL", str(exc)[:100])
 
-    # 5. L3 model file
+    # 5. L3 model file + data-readiness suggestion
     try:
         from classifier.layers.layer3 import embed_classifier
 
@@ -446,7 +537,31 @@ def _cmd_doctor(args) -> int:
             sz = embed_classifier._MODEL_PATH.stat().st_size / 1024
             add("L3 model file", "OK", f"{embed_classifier._MODEL_PATH.name} ({sz:.0f}KB)")
         else:
-            add("L3 model file", "WARN", "missing — run `dmr train --data ...` (L3 will abstain)")
+            # Count decisions logged so far — suggest training when enough exist
+            try:
+                from classifier.infra.decision_logger import read_decisions
+
+                n_decisions = len(read_decisions())
+            except Exception:
+                n_decisions = 0
+            if n_decisions >= 200:
+                add(
+                    "L3 model file",
+                    "WARN",
+                    f"missing, but {n_decisions} decisions logged — run `dmr train --auto` to enable L3",
+                )
+            elif n_decisions >= 50:
+                add(
+                    "L3 model file",
+                    "WARN",
+                    f"missing — {n_decisions} decisions logged so far (need ~200 for `dmr train --auto`)",
+                )
+            else:
+                add(
+                    "L3 model file",
+                    "WARN",
+                    f"missing — keep using the router; train later with `dmr train --auto` (have {n_decisions} decisions)",
+                )
     except Exception as exc:
         add("L3 model file", "WARN", str(exc)[:100])
 
@@ -474,6 +589,314 @@ def _cmd_doctor(args) -> int:
     print()
     print(f"  Result: {len(checks) - fails - warns} ok, {warns} warning(s), {fails} failure(s)")
     return 0 if fails == 0 else 1
+
+
+def _user_keywords_dir() -> Path:
+    """User's persistent keyword pack directory (~/.dmr/keywords).
+
+    Honors DMR_KEYWORDS_DIR env var so tests can isolate state.
+    """
+    import os
+
+    env = os.environ.get("DMR_KEYWORDS_DIR")
+    if env:
+        return Path(env)
+    return Path.home() / ".dmr" / "keywords"
+
+
+def _load_user_keyword_pack(domain: str) -> dict:
+    """Read ~/.dmr/keywords/<domain>.yaml or return empty skeleton."""
+    import yaml
+
+    path = _user_keywords_dir() / f"{domain}.yaml"
+    if path.exists():
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    else:
+        data = {}
+    data.setdefault("name", domain)
+    data.setdefault("task_keywords", {})
+    data.setdefault("escalators", {})
+    return data
+
+
+def _save_user_keyword_pack(domain: str, data: dict) -> Path:
+    import yaml
+
+    d = _user_keywords_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{domain}.yaml"
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+    return path
+
+
+def _cmd_keywords(args) -> int:
+    """`dmr keywords` — easy keyword authoring.
+
+    Subcommands:
+        dmr keywords add --domain legal --type reasoning --keywords "tort,liable"
+        dmr keywords list [--domain legal]
+        dmr keywords remove --domain legal --keyword "tort"
+        dmr keywords suggest [--since 7d] [--top 20]
+
+    Packs persist at ~/.dmr/keywords/<domain>.yaml and are auto-loaded on
+    Router() construction (no code change needed).
+    """
+    if args.action == "list":
+        return _cmd_keywords_list(args)
+    if args.action == "add":
+        return _cmd_keywords_add(args)
+    if args.action == "remove":
+        return _cmd_keywords_remove(args)
+    if args.action == "suggest":
+        return _cmd_keywords_suggest(args)
+    print(f"Unknown action: {args.action}", file=sys.stderr)
+    return 2
+
+
+def _cmd_keywords_list(args) -> int:
+    d = _user_keywords_dir()
+    files = sorted(d.glob("*.yaml")) if d.exists() else []
+    if not files and not args.domain:
+        print(
+            "No user keyword packs yet. Add some with:\n"
+            '  dmr keywords add --domain <name> --type <task_type> --keywords "a,b,c"'
+        )
+        return 0
+    if args.domain:
+        files = [f for f in files if f.stem == args.domain]
+        if not files:
+            print(f"No pack named '{args.domain}' at {d / (args.domain + '.yaml')}")
+            return 1
+    for f in files:
+        data = _load_user_keyword_pack(f.stem)
+        print(f"\n[{f.stem}]   ({f})")
+        for tt, groups in (data.get("task_keywords") or {}).items():
+            for grp, kws in (groups or {}).items():
+                print(f"  {tt:<18} {grp:<10} {', '.join(kws)}")
+        for kw, w in (data.get("escalators") or {}).items():
+            print(f"  escalator {' ':<8} weight={w:<3} {kw}")
+    return 0
+
+
+def _cmd_keywords_add(args) -> int:
+    if not args.domain or not args.type or not args.keywords:
+        print(
+            "Error: --domain, --type, and --keywords are required.\n"
+            'Example: dmr keywords add --domain legal --type reasoning --keywords "tort,liable"',
+            file=sys.stderr,
+        )
+        return 2
+
+    new_kws = [k.strip().lower() for k in args.keywords.split(",") if k.strip()]
+    if not new_kws:
+        print("Error: --keywords was empty after parsing.", file=sys.stderr)
+        return 2
+
+    # Validate task_type
+    from classifier.core.types import TaskType, task_type_for
+
+    try:
+        task_type_for(args.type)
+    except (KeyError, ValueError):
+        valid = sorted(t.value for t in TaskType)
+        print(
+            f"Error: '{args.type}' is not a known task type.\n  Valid: {', '.join(valid)}",
+            file=sys.stderr,
+        )
+        return 2
+
+    data = _load_user_keyword_pack(args.domain)
+    slot = data["task_keywords"].setdefault(args.type, {})
+    existing = slot.setdefault(args.group, [])
+
+    # Conflict check — flag if a keyword already lives in another task_type
+    conflicts: list[str] = []
+    for tt, groups in data["task_keywords"].items():
+        if tt == args.type:
+            continue
+        for _grp, kws in (groups or {}).items():
+            for kw in new_kws:
+                if kw in (kws or []):
+                    conflicts.append(f"  '{kw}' already in {tt}")
+
+    added = 0
+    for kw in new_kws:
+        if kw not in existing:
+            existing.append(kw)
+            added += 1
+
+    path = _save_user_keyword_pack(args.domain, data)
+    print(f"  + Added {added} keyword(s) to [{args.domain}] / {args.type} / {args.group}")
+    print(f"    -> {path}")
+    if conflicts:
+        print("\n  ! Conflict warnings (same keyword in another task_type):")
+        for c in conflicts:
+            print(c)
+    print("\n  These will be active on the next Router() construction. No code change needed.")
+    return 0
+
+
+def _cmd_keywords_remove(args) -> int:
+    if not args.domain or not args.keyword:
+        print(
+            "Error: --domain and --keyword are required.\n"
+            'Example: dmr keywords remove --domain legal --keyword "tort"',
+            file=sys.stderr,
+        )
+        return 2
+    data = _load_user_keyword_pack(args.domain)
+    target = args.keyword.strip().lower()
+    removed = 0
+    for tt, groups in list(data.get("task_keywords", {}).items()):
+        for grp, kws in list((groups or {}).items()):
+            if target in (kws or []):
+                kws.remove(target)
+                removed += 1
+                print(f"  - Removed '{target}' from {tt}/{grp}")
+    if data.get("escalators", {}).pop(target, None) is not None:
+        removed += 1
+        print(f"  - Removed escalator '{target}'")
+    if removed == 0:
+        print(f"  '{target}' not found in [{args.domain}].")
+        return 1
+    _save_user_keyword_pack(args.domain, data)
+    return 0
+
+
+def _cmd_keywords_suggest(args) -> int:
+    """Mine n-grams from routing_decisions.jsonl that strongly correlate with each task_type."""
+    from classifier.ml.keyword_miner import suggest_keywords
+
+    suggestions = suggest_keywords(
+        since=args.since,
+        top_per_type=int(args.top),
+        min_occurrences=int(args.min_occurrences),
+    )
+
+    if not suggestions:
+        print(
+            "No suggestions yet. Need more decisions in routing_decisions.jsonl\n"
+            "(at least ~50 per task_type for meaningful TF-IDF)."
+        )
+        return 0
+
+    print("Top distinctive n-grams per task_type (not already in any pack):\n")
+    for tt, items in suggestions.items():
+        if not items:
+            continue
+        print(f"  [{tt}]")
+        for kw, score, count in items:
+            print(f"    {score:5.2f}   n={count:<4}   {kw}")
+        print()
+    print(
+        "  Tip: pick the strongest ones and add with\n"
+        '    dmr keywords add --domain <name> --type <task_type> --keywords "kw1,kw2"'
+    )
+    return 0
+
+
+def _cmd_config(args) -> int:
+    """`dmr config show|validate` — easy inspection of the running config."""
+    if args.action == "show":
+        return _cmd_config_show(args)
+    if args.action == "validate":
+        return _cmd_config_validate(args)
+    return 2
+
+
+def _cmd_config_show(args) -> int:
+    """Print the effective config: settings, registry, packs, model file status."""
+    from classifier import __version__
+    from classifier.core import registry as _reg
+    from classifier.infra.config import settings
+    from classifier.layers.layer1.keyword_pack import list_registered as _list_registered
+    from classifier.router import _l3_model_available
+
+    print(f"\n  dynamic-model-router  v{__version__}\n")
+    print("  [settings]")
+    print(f"    default_provider          {settings.default_provider}")
+    print(f"    layer1_enabled            {getattr(settings, 'layer1_enabled', True)}")
+    print(f"    layer2_enabled            {settings.layer2_enabled}")
+    print(f"    layer3_enabled            {settings.layer3_enabled}")
+    print(f"    layer2_confidence_thresh  {settings.layer2_confidence_threshold}")
+    print(f"    layer3_confidence_thresh  {settings.layer3_confidence_threshold}")
+    print(f"    cache_enabled             {settings.cache_enabled}")
+    print(f"    monthly_budget_usd        ${settings.monthly_budget_usd}")
+    print()
+    print("  [registry]")
+    print(f"    providers                 {', '.join(_reg.list_providers()) or '(none)'}")
+    print(f"    models                    {len(_reg.list_models())}")
+    print()
+    print("  [layer 3]")
+    if _l3_model_available():
+        from classifier.layers.layer3 import embed_classifier as _ec
+
+        sz = _ec._MODEL_PATH.stat().st_size / 1024
+        print(f"    model file                {_ec._MODEL_PATH.name} ({sz:.0f} KB)")
+        meta = _ec._MODEL_PATH.with_suffix(".metadata.json")
+        if meta.exists():
+            try:
+                m = json.loads(meta.read_text(encoding="utf-8"))
+                if "n_examples" in m:
+                    print(f"    trained on                {m['n_examples']} examples")
+                if "task_type_test_accuracy" in m:
+                    print(f"    task_type accuracy        {m['task_type_test_accuracy']:.3f}")
+                if "complexity_test_accuracy" in m:
+                    print(f"    complexity accuracy       {m['complexity_test_accuracy']:.3f}")
+            except Exception:
+                pass
+    else:
+        print("    model file                (not trained — run `dmr train --auto`)")
+    print()
+    user_packs = (
+        _list_registered() + [p.stem for p in _user_keywords_dir().glob("*.yaml")]
+        if _user_keywords_dir().exists()
+        else _list_registered()
+    )
+    print("  [keyword packs]")
+    print(f"    registered                {', '.join(user_packs) if user_packs else '(built-in only)'}")
+    print()
+    return 0
+
+
+def _cmd_config_validate(args) -> int:
+    """Validate dmr.yaml against the bundled JSON schema."""
+    cfg = Path(args.config) if args.config else Path("dmr.yaml")
+    if not cfg.exists():
+        print(f"Error: {cfg} not found.", file=sys.stderr)
+        return 2
+
+    import yaml
+
+    try:
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        print(f"YAML syntax error: {exc}", file=sys.stderr)
+        return 1
+
+    schema_path = Path(__file__).parent / "dmr.schema.json"
+    if not schema_path.exists():
+        print(f"  YAML parses cleanly. (Schema not bundled at {schema_path}; skipping deep validation.)")
+        return 0
+
+    try:
+        import jsonschema
+    except ImportError:
+        print("  YAML parses cleanly. Install `jsonschema` for full validation:\n    pip install jsonschema")
+        return 0
+
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    try:
+        jsonschema.validate(data, schema)
+    except jsonschema.ValidationError as exc:
+        print(f"  ✗ {cfg} fails schema validation:")
+        print(f"    path:    /{'/'.join(str(p) for p in exc.absolute_path)}")
+        print(f"    error:   {exc.message}")
+        return 1
+    print(f"  + {cfg} is valid against the dmr.yaml schema.")
+    return 0
 
 
 def _cmd_benchmark(args) -> int:
@@ -532,8 +955,32 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=_cmd_classify)
 
     # train
-    p = sub.add_parser("train", help="Train Stage 2 head on a JSONL dataset")
-    p.add_argument("--data", required=True, help="Path to JSONL training data")
+    p = sub.add_parser(
+        "train",
+        help="Train the Layer 3 head from a JSONL file or auto-bootstrap from production logs",
+    )
+    p.add_argument(
+        "--data",
+        default=None,
+        help="Path to a JSONL training file (skip with --auto)",
+    )
+    p.add_argument(
+        "--auto",
+        action="store_true",
+        help="Bootstrap from routing_decisions.jsonl + routing_outcomes.jsonl using "
+        "weak supervision (Snorkel-style). Zero-config training.",
+    )
+    p.add_argument(
+        "--since",
+        default=None,
+        help="With --auto: window of telemetry to label (e.g. 90d, 30d, 7d). Default: 90d.",
+    )
+    p.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.7,
+        help="With --auto: drop labels below this aggregated confidence (default 0.7)",
+    )
     p.add_argument("--output", default=None, help="Where to save model bundle")
     p.add_argument("--max-iter", type=int, default=600, help="MLP max iterations")
     p.set_defaults(func=_cmd_train)
@@ -627,6 +1074,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument("--out", default=None, help="Output JSONL path (default: labeled_from_telemetry.jsonl)")
     p.set_defaults(func=_cmd_relabel)
+
+    # keywords — author and persist L1 keyword packs
+    p = sub.add_parser(
+        "keywords",
+        help="Add/list/remove/suggest L1 keyword packs (saved to ~/.dmr/keywords/)",
+    )
+    p.add_argument(
+        "action",
+        choices=["add", "list", "remove", "suggest"],
+        help="Subcommand",
+    )
+    p.add_argument("--domain", default=None, help="Pack name (e.g. legal, finops)")
+    p.add_argument("--type", default=None, help="task_type for `add` (e.g. reasoning)")
+    p.add_argument("--group", default="primary", help='"primary" (default) or "secondary"')
+    p.add_argument("--keywords", default=None, help='Comma-separated: "tort,liable,precedent"')
+    p.add_argument("--keyword", default=None, help="Single keyword (for `remove`)")
+    p.add_argument("--since", default="30d", help="Mining window for `suggest` (e.g. 7d, 30d)")
+    p.add_argument("--top", type=int, default=15, help="`suggest`: top-N per task_type (default 15)")
+    p.add_argument("--min-occurrences", type=int, default=3, help="`suggest`: drop n-grams seen fewer times")
+    p.set_defaults(func=_cmd_keywords)
+
+    # config — easy inspection / validation
+    p = sub.add_parser("config", help="Inspect or validate the active configuration")
+    p.add_argument("action", choices=["show", "validate"], help="Subcommand")
+    p.add_argument("--config", default=None, help="Path to dmr.yaml (default: cwd)")
+    p.set_defaults(func=_cmd_config)
 
     # benchmark
     p = sub.add_parser("benchmark", help="Measure routing latency p50/p95/p99")

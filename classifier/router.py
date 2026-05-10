@@ -33,6 +33,21 @@ if TYPE_CHECKING:
 _router_lock = threading.RLock()
 
 
+def _l3_model_available() -> bool:
+    """True if a trained L3 head bundle is on disk and loadable.
+
+    Used by `Router(layer3_enabled='auto')` so the cascade gracefully runs
+    L1→L2 only when no model is trained yet, then auto-enables L3 the
+    moment the user runs `dmr train --auto`.
+    """
+    try:
+        from classifier.layers.layer3 import embed_classifier
+
+        return embed_classifier._MODEL_PATH.exists()
+    except Exception:
+        return False
+
+
 class Router:
     """Configurable cascade router. Each instance has its own overrides.
 
@@ -46,7 +61,10 @@ class Router:
         model_registry:      Override default {provider: {tier: model_name}} mapping.
         layer1_enabled:      Disable L1 keyword/heuristic layer.
         layer2_enabled:      Disable L2 LLM fallback layer.
-        layer3_enabled:      Disable L3 ML head layer.
+        layer3_enabled:      True/False to force; "auto" (recommended) enables L3
+                             only when a trained model bundle is on disk. Lets
+                             you start with L1+L2 and add L3 later via
+                             `dmr train --auto` without changing your code.
         layer1_threshold:    Confidence below which L1 escalates (default 0.75).
         layer3_threshold:    Confidence below which L3 abstains (default 0.75).
         budget_usd:          Monthly budget cap (USD).
@@ -63,7 +81,7 @@ class Router:
         model_registry: dict | None = None,
         layer1_enabled: bool | None = None,
         layer2_enabled: bool | None = None,
-        layer3_enabled: bool | None = None,
+        layer3_enabled: bool | str | None = None,
         escalation_threshold: float | None = None,
         layer3_threshold: float | None = None,
         budget_usd: float | None = None,
@@ -97,7 +115,13 @@ class Router:
         self.model_registry = model_registry or {}
         self.layer1_enabled = layer1_enabled
         self.layer2_enabled = layer2_enabled
-        self.layer3_enabled = layer3_enabled
+        # Resolve "auto" → True/False based on whether a trained L3 model exists.
+        # Lets users start with L1+L2 only, gather data, then run `dmr train --auto`
+        # — L3 lights up automatically without code changes.
+        if isinstance(layer3_enabled, str) and layer3_enabled.lower() == "auto":
+            self.layer3_enabled = _l3_model_available()
+        else:
+            self.layer3_enabled = layer3_enabled
         self.escalation_threshold = escalation_threshold
         self.layer3_threshold = layer3_threshold
         self.budget_usd = budget_usd
@@ -161,6 +185,14 @@ class Router:
             from classifier.layers.layer1.keyword_pack import register_extra_packs
 
             register_extra_packs(self.extra_keyword_packs)
+
+        # Auto-load user-authored packs from ~/.dmr/keywords/ — lets users
+        # add keywords via `dmr keywords add` and have them take effect on the
+        # next Router() with no code change. Idempotent across instances.
+        from classifier.layers.layer1.keyword_pack import auto_load_user_packs
+
+        auto_load_user_packs()
+
         if self.extra_pii_patterns:
             from classifier.infra import pii_scrubber
 
