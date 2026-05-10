@@ -14,9 +14,9 @@ the same return signature `(TaskType, TaskComplexity, ModelTier, float, str) | N
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 from classifier.infra.config import settings
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def list_strategies() -> list[str]:
     return sorted(set(list(_STRATEGIES) + ["zeroshot", "head", "distilbert"]))
 
 
-def _builtin(name: str) -> Optional[Callable]:
+def _builtin(name: str) -> Callable | None:
     if name == "zeroshot":
         from .zeroshot import classify_layer3_zeroshot
         return classify_layer3_zeroshot
@@ -62,8 +62,8 @@ def _builtin(name: str) -> Optional[Callable]:
 
 def classify_layer3(
     task: str,
-    history: Optional[list[str]] = None,
-) -> Optional[tuple[TaskType, TaskComplexity, ModelTier, float, str]]:
+    history: list[str] | None = None,
+) -> tuple[TaskType, TaskComplexity, ModelTier, float, str] | None:
     """Dispatch to the configured L3 strategy. Returns None on abstain/failure."""
     strategy = settings.layer3_strategy
 

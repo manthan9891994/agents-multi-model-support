@@ -21,7 +21,8 @@ Two patterns:
 from __future__ import annotations
 
 import logging
-from typing import Any, Iterator, List, Optional
+from collections.abc import Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,8 @@ def _build_chat_model(model_name: str, provider: str, **kwargs) -> Any:
 def get_chat_model(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **model_kwargs: Any,
 ) -> Any:
     """Classify a task and return the appropriate LangChain ChatModel.
@@ -123,8 +124,8 @@ class DynamicChatModel:
     def __init__(
         self,
         *,
-        provider: Optional[str] = None,
-        fallback_model: Optional[str] = None,
+        provider: str | None = None,
+        fallback_model: str | None = None,
         report_outcomes: bool = True,
         **model_kwargs: Any,
     ) -> None:
@@ -154,7 +155,7 @@ class DynamicChatModel:
     def _report(self, decision, response, wall_ms: float, success: bool, error: str | None = None):
         if not self._report_outcomes or decision is None:
             return
-        from classifier import log_outcome, OutcomeRecord
+        from classifier import OutcomeRecord, log_outcome
         usage = getattr(response, "usage_metadata", None) or {}
         if hasattr(usage, "get"):
             tokens_in  = int(usage.get("input_tokens",  usage.get("prompt_tokens",     0)) or 0)
@@ -229,11 +230,11 @@ class DynamicChatModel:
             self._report(decision, None, (time.perf_counter() - t0) * 1000, success=False, error=str(exc))
             raise
 
-    async def abatch(self, inputs: List, **kwargs) -> List:
+    async def abatch(self, inputs: list, **kwargs) -> list:
         import asyncio
         return await asyncio.gather(*[self.ainvoke(inp, **kwargs) for inp in inputs])
 
-    def batch(self, inputs: List, **kwargs) -> List:
+    def batch(self, inputs: list, **kwargs) -> list:
         return [self.invoke(inp, **kwargs) for inp in inputs]
 
     # LCEL pipe operator

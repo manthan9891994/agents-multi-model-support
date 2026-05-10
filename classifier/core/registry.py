@@ -1,4 +1,4 @@
-from classifier.core.types import ModelTier, TaskType, TaskComplexity
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 TIER_MATRIX = {
     # ── Reasoning ─────────────────────────────────────────────────────────────

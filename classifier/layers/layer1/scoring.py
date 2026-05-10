@@ -1,15 +1,22 @@
 import re
-from typing import Optional
 
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
 from classifier.config.feature_flags import feature_flags
-from .constants import (
-    _TASK_KEYWORDS, _NEGATIVE_KEYWORDS, _ESCALATORS, _DEESCALATORS,
-    _ALGORITHM_NAMES, _FORMAT_REQUESTS, _DOMAIN_MIN_TIER,
-    _TASK_TYPE_TIER_WEIGHT, _COMPLEXITY_LEVELS, _TIER_ORDER, _LOW_TIER_CONTEXT_TOKENS,
-)
-from .helpers import _negation_positions, _extract_instruction
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
+from .constants import (
+    _ALGORITHM_NAMES,
+    _COMPLEXITY_LEVELS,
+    _DEESCALATORS,
+    _DOMAIN_MIN_TIER,
+    _ESCALATORS,
+    _FORMAT_REQUESTS,
+    _LOW_TIER_CONTEXT_TOKENS,
+    _NEGATIVE_KEYWORDS,
+    _TASK_KEYWORDS,
+    _TASK_TYPE_TIER_WEIGHT,
+    _TIER_ORDER,
+)
+from .helpers import _extract_instruction, _negation_positions
 
 # Configurable scoring weights — Router(l1_weights={...}) updates this dict.
 # Keys: "primary" (matches in primary keyword group), "secondary", "escalator".
@@ -147,8 +154,8 @@ def _detect_complexity(lower: str, tokens: int) -> TaskComplexity:
     return complexity
 
 
-def _domain_min_tier(lower: str) -> Optional[ModelTier]:
-    result: Optional[ModelTier] = None
+def _domain_min_tier(lower: str) -> ModelTier | None:
+    result: ModelTier | None = None
     for kw, min_t in _DOMAIN_MIN_TIER.items():
         if kw in lower:
             if result is None or _TIER_ORDER.index(min_t) > _TIER_ORDER.index(result):

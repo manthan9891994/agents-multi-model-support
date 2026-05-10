@@ -1,6 +1,7 @@
 """Shared pytest fixtures for the classifier test suite."""
 import pytest
-from classifier.core.types import TaskType, TaskComplexity, ModelTier, ClassificationDecision
+
+from classifier.core.types import ClassificationDecision, ModelTier, TaskComplexity, TaskType
 
 
 @pytest.fixture

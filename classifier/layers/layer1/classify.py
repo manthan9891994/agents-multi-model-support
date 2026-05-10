@@ -1,16 +1,15 @@
 import logging
 import time
-from typing import Optional
 
-from classifier.core.exceptions import ClassificationError
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
-from classifier.core.registry import TIER_MATRIX
 from classifier.config.feature_flags import feature_flags
-from .constants import _TIER_ORDER, _TASK_KEYWORDS
-from .helpers import _is_trivial, _detect_language, _count_tokens, _CONTINUATION_RE
-from .pii import detect_pii
-from .scoring import _score_task_type, _detect_task_type, _detect_complexity, _domain_min_tier
+from classifier.core.exceptions import ClassificationError
+from classifier.core.registry import TIER_MATRIX
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
+
+from .constants import _TASK_KEYWORDS, _TIER_ORDER
+from .helpers import _CONTINUATION_RE, _count_tokens, _detect_language, _is_trivial
 from .keyword_packs import _load_keyword_packs
+from .scoring import _detect_complexity, _detect_task_type, _domain_min_tier
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ if feature_flags.keyword_packs:
 
 def classify_layer1(
     task: str,
-    history: Optional[list[str]] = None,
+    history: list[str] | None = None,
     provider: str = "google",
 ) -> tuple[TaskType, TaskComplexity, ModelTier, float, str]:
     """Layer 1 — keyword + heuristic classifier (<1ms, no external calls)."""

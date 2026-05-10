@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import re
 
-from classifier.core.types import TaskType, ModelTier
+from classifier.core.types import ModelTier, TaskType
 from classifier.layers.layer1.keyword_pack import KeywordPack
-
 
 _HEALTHCARE_PACK = (
     KeywordPack.builder("healthcare")

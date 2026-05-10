@@ -22,7 +22,7 @@ no wrapping of internal classes so you retain full framework behaviour.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +59,9 @@ def _classify(task: str, provider: str) -> tuple[str, Any]:
 def get_autogen_llm_config(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
-    extra_config: Optional[dict] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
+    extra_config: dict | None = None,
 ) -> dict:
     """Return an AutoGen-compatible `llm_config` dict for the routed model.
 
@@ -82,6 +82,7 @@ def get_autogen_llm_config(
         agent = AssistantAgent("summariser", llm_config=config)
     """
     import os
+
     from classifier.core.exceptions import ClassificationError
     from classifier.infra.config import settings
 
@@ -115,8 +116,8 @@ def get_autogen_llm_config(
 def get_openai_agent_model(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
 ) -> str:
     """Return a model name string for the OpenAI Agents SDK.
 
@@ -171,8 +172,8 @@ class DynamicModelRouter:
     def __init__(
         self,
         *,
-        provider: Optional[str] = None,
-        fallback_model: Optional[str] = None,
+        provider: str | None = None,
+        fallback_model: str | None = None,
     ) -> None:
         self._provider = provider
         self._fallback_model = fallback_model

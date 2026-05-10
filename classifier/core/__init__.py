@@ -1,12 +1,12 @@
-from classifier.core.types import ModelTier, TaskType, TaskComplexity, ClassificationDecision
-from classifier.core.registry import TIER_MATRIX, MODEL_REGISTRY
 from classifier.core.exceptions import (
-    ClassifierError,
     ClassificationError,
+    ClassifierError,
     ConfigurationError,
-    UnsupportedProviderError,
     LayerNotAvailableError,
+    UnsupportedProviderError,
 )
+from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX
+from classifier.core.types import ClassificationDecision, ModelTier, TaskComplexity, TaskType
 
 __all__ = [
     "ModelTier", "TaskType", "TaskComplexity", "ClassificationDecision",

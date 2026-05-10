@@ -69,7 +69,7 @@ def _cmd_generate_data(args) -> int:
 
 def _cmd_stats(args) -> int:
     """Reuse the existing stats CLI."""
-    from classifier.stats import cmd_summary, cmd_disagreements, cmd_cost
+    from classifier.stats import cmd_cost, cmd_disagreements, cmd_summary
     sub = args.sub or "summary"
     handler = {
         "summary":       cmd_summary,
@@ -137,6 +137,7 @@ def _cmd_eval(args) -> int:
     """
     import json
     from pathlib import Path
+
     from classifier import Router
 
     path = Path(args.data)
@@ -146,7 +147,7 @@ def _cmd_eval(args) -> int:
 
     router = Router.from_yaml(args.config) if args.config else Router()
 
-    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     total = correct = 0
     per_tier: dict[str, dict] = {}
     mismatches = []
@@ -227,7 +228,7 @@ def _cmd_models(args) -> int:
     sub = (args.action or "list").lower()
 
     if sub == "list":
-        from classifier.core.registry import MODEL_REGISTRY, MODEL_CAPABILITIES
+        from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
         from classifier.infra.cost_tracker import COST_TABLE
         if not MODEL_REGISTRY:
             print("No providers registered. Try: dmr models load default")
@@ -252,7 +253,7 @@ def _cmd_models(args) -> int:
         return 0
 
     if sub in ("load", "pull"):
-        from classifier.core.registry_loader import load_registry, clear_registry
+        from classifier.core.registry_loader import clear_registry, load_registry
         if args.replace:
             clear_registry()
         source = args.source or "default"
@@ -283,6 +284,7 @@ def _cmd_presets(args) -> int:
 def _cmd_version(args) -> int:
     """Print package version + Python + key dep versions."""
     import platform
+
     from classifier import __version__
     out = {
         "dynamic_model_router": __version__,
@@ -314,6 +316,7 @@ def _cmd_relabel(args) -> int:
     """
     from datetime import datetime, timedelta, timezone
     from pathlib import Path
+
     from classifier.ml.auto_labeler import AutoLabeler
 
     # Resolve --since to ISO if it's a relative window
@@ -358,7 +361,6 @@ def _cmd_prune(args) -> int:
 def _cmd_doctor(args) -> int:
     """Diagnose configuration issues. Reports OK/WARN/FAIL for each check."""
     import importlib
-    from pathlib import Path
 
     checks: list[tuple[str, str, str]] = []   # (name, status, detail)
 
@@ -414,7 +416,7 @@ def _cmd_doctor(args) -> int:
             sz = embed_classifier._MODEL_PATH.stat().st_size / 1024
             add("L3 model file", "OK", f"{embed_classifier._MODEL_PATH.name} ({sz:.0f}KB)")
         else:
-            add("L3 model file", "WARN", f"missing — run `dmr train --data ...` (L3 will abstain)")
+            add("L3 model file", "WARN", "missing — run `dmr train --data ...` (L3 will abstain)")
     except Exception as exc:
         add("L3 model file", "WARN", str(exc)[:100])
 
@@ -433,8 +435,10 @@ def _cmd_doctor(args) -> int:
     print()
     fails = warns = 0
     for name, status, detail in checks:
-        if status == "FAIL": fails += 1
-        elif status == "WARN": warns += 1
+        if status == "FAIL":
+            fails += 1
+        elif status == "WARN":
+            warns += 1
         print(f"  [{icon[status]}] {name:<{width}} {status:<5} {detail}")
     print()
     print(f"  Result: {len(checks)-fails-warns} ok, {warns} warning(s), {fails} failure(s)")
@@ -445,6 +449,7 @@ def _cmd_benchmark(args) -> int:
     """Measure routing latency on synthetic input. Reports p50/p95/p99 per layer."""
     import statistics
     import time as _t
+
     from classifier import Router
 
     router = Router()
@@ -462,7 +467,7 @@ def _cmd_benchmark(args) -> int:
 
     latencies: list[float] = []
     print(f"\n  Running {args.iterations} iterations × {len(sample_tasks)} tasks each...\n")
-    for i in range(args.iterations):
+    for _ in range(args.iterations):
         for t in sample_tasks:
             start = _t.perf_counter()
             router.classify(t)

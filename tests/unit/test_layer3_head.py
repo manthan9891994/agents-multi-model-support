@@ -3,9 +3,10 @@
 The encoder and MLPs are mocked at the module level. Sentence-transformers does
 NOT need to be installed for these tests.
 """
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 
 @pytest.fixture(autouse=True)
@@ -48,8 +49,8 @@ def _patch_encoder(monkeypatch, vec=None):
 # ── Happy path ────────────────────────────────────────────────────────────────
 
 def test_confident_head_returns_decision(monkeypatch):
-    from classifier.core.types import TaskType, TaskComplexity, ModelTier
     import classifier.layers.layer3.embed_classifier as eh
+    from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
     eh._bundle = _make_mock_bundle("code_creation", 0.95, "standard", 0.90)
     _patch_encoder(monkeypatch)
@@ -170,10 +171,10 @@ def test_history_prepended_to_input(monkeypatch):
 
 def test_strategy_router_dispatches_head(monkeypatch):
     """settings.layer3_strategy='head' → calls embed_classifier implementation."""
-    from classifier.layers.layer3 import classify_layer3
     import classifier.layers.layer3.embed_classifier as eh
-    from classifier.infra.config import settings
     from classifier.core.types import TaskType
+    from classifier.infra.config import settings
+    from classifier.layers.layer3 import classify_layer3
 
     eh._bundle = _make_mock_bundle("math", 0.94, "simple", 0.92)
     _patch_encoder(monkeypatch)
@@ -193,10 +194,11 @@ def test_strategy_router_dispatches_head(monkeypatch):
 def test_cascade_l3_head_skips_l2(monkeypatch):
     """When L3 head is confident, L2 should not fire."""
     from unittest.mock import patch
-    from classifier.core.types import TaskType, TaskComplexity
-    from classifier.infra.config import settings
-    from classifier.infra.cache import cache
+
     import classifier.layers.layer3.embed_classifier as eh
+    from classifier.core.types import TaskComplexity, TaskType
+    from classifier.infra.cache import cache
+    from classifier.infra.config import settings
 
     eh._bundle = _make_mock_bundle("reasoning", 0.95, "complex", 0.90)
     _patch_encoder(monkeypatch)

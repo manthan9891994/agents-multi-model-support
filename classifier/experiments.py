@@ -35,8 +35,9 @@ import hashlib
 import logging
 import random
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from classifier.core.types import ClassificationDecision
@@ -67,12 +68,12 @@ class ABTest:
 
     def __init__(
         self,
-        control: "Router",
-        treatment: "Router",
+        control: Router,
+        treatment: Router,
         *,
         split: float = 0.5,
-        sticky_key: Optional[Callable[[dict], str]] = None,
-        on_assign: Optional[Callable[[str, dict], None]] = None,
+        sticky_key: Callable[[dict], str] | None = None,
+        on_assign: Callable[[str, dict], None] | None = None,
     ) -> None:
         if not 0.0 <= split <= 1.0:
             raise ValueError(f"split must be in [0, 1], got {split}")
@@ -93,12 +94,14 @@ class ABTest:
                 return "treatment" if bucket < self.split else "control"
         return "treatment" if random.random() < self.split else "control"
 
-    def classify(self, task: str, ctx: dict | None = None, **kwargs) -> "ClassificationDecision":
+    def classify(self, task: str, ctx: dict | None = None, **kwargs) -> ClassificationDecision:
         ctx = ctx or {}
         variant = self.assign(ctx)
         if self.on_assign:
-            try: self.on_assign(variant, ctx)
-            except Exception: pass
+            try:
+                self.on_assign(variant, ctx)
+            except Exception:
+                pass
         router = self.treatment if variant == "treatment" else self.control
         ctx_with_variant = {**ctx, "ab_variant": variant}
         return router.classify(task, hook_context=ctx_with_variant, **kwargs)
@@ -118,11 +121,11 @@ class ShadowMode:
 
     def __init__(
         self,
-        primary: "Router",
-        shadow: "Router",
+        primary: Router,
+        shadow: Router,
         *,
-        on_diff: Optional[Callable[[str, Any, Any], None]] = None,
-        on_match: Optional[Callable[[str, Any, Any], None]] = None,
+        on_diff: Callable[[str, Any, Any], None] | None = None,
+        on_match: Callable[[str, Any, Any], None] | None = None,
         timeout_secs: float = 2.0,
     ) -> None:
         self.primary  = primary
@@ -148,7 +151,7 @@ class ShadowMode:
             and a.complexity == b.complexity
         )
 
-    def classify(self, task: str, ctx: dict | None = None, **kwargs) -> "ClassificationDecision":
+    def classify(self, task: str, ctx: dict | None = None, **kwargs) -> ClassificationDecision:
         ctx = ctx or {}
         # Fire shadow in parallel
         shadow_future = self._executor.submit(
@@ -170,11 +173,15 @@ class ShadowMode:
             if self._is_match(primary_decision, shadow_decision):
                 self._stats["matches"] += 1
                 if self.on_match:
-                    try: self.on_match(task, primary_decision, shadow_decision)
-                    except Exception: pass
+                    try:
+                        self.on_match(task, primary_decision, shadow_decision)
+                    except Exception:
+                        pass
             elif shadow_decision is not None:
                 self._stats["diffs"] += 1
                 if self.on_diff:
-                    try: self.on_diff(task, primary_decision, shadow_decision)
-                    except Exception: pass
+                    try:
+                        self.on_diff(task, primary_decision, shadow_decision)
+                    except Exception:
+                        pass
         return primary_decision

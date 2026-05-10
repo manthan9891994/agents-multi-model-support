@@ -1,43 +1,63 @@
 """Type stubs for the classifier package public API."""
-from typing import Any, Callable, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from classifier.core.exceptions import (
     ClassificationError as ClassificationError,
-    ClassifierError as ClassifierError,
-    ConfigurationError as ConfigurationError,
-    LayerNotAvailableError as LayerNotAvailableError,
-    UnsupportedProviderError as UnsupportedProviderError,
 )
-from classifier.core.types import (
-    ClassificationDecision as ClassificationDecision,
-    ContextSignals as ContextSignals,
-    ModelTier as ModelTier,
-    TaskComplexity as TaskComplexity,
-    TaskType as TaskType,
+from classifier.core.exceptions import (
+    ClassifierError as ClassifierError,
+)
+from classifier.core.exceptions import (
+    ConfigurationError as ConfigurationError,
+)
+from classifier.core.exceptions import (
+    LayerNotAvailableError as LayerNotAvailableError,
+)
+from classifier.core.exceptions import (
+    UnsupportedProviderError as UnsupportedProviderError,
 )
 from classifier.core.registry import (
     MODEL_REGISTRY as MODEL_REGISTRY,
+)
+from classifier.core.registry import (
     TIER_MATRIX as TIER_MATRIX,
 )
-from classifier.router import Router as Router, classify as classify
+from classifier.core.types import (
+    ClassificationDecision as ClassificationDecision,
+)
+from classifier.core.types import (
+    ContextSignals as ContextSignals,
+)
+from classifier.core.types import (
+    ModelTier as ModelTier,
+)
+from classifier.core.types import (
+    TaskComplexity as TaskComplexity,
+)
+from classifier.core.types import (
+    TaskType as TaskType,
+)
 from classifier.layers.layer1.keyword_pack import KeywordPack as KeywordPack
+from classifier.router import Router as Router
+from classifier.router import classify as classify
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 def classify_task(
     task: str,
-    provider: Optional[str] = ...,
-    history: Optional[List[str]] = ...,
-    context_signals: Optional[ContextSignals] = ...,
+    provider: str | None = ...,
+    history: list[str] | None = ...,
+    context_signals: ContextSignals | None = ...,
     task_stable: bool = ...,
-    user_id: Optional[str] = ...,
+    user_id: str | None = ...,
 ) -> ClassificationDecision: ...
 
 def route_model(
-    provider: Optional[str] = ...,
+    provider: str | None = ...,
     *,
     task_arg: str = ...,
-    fallback_model: Optional[str] = ...,
+    fallback_model: str | None = ...,
     inject_as: str = ...,
 ) -> Callable[[F], F]: ...
 

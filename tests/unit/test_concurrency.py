@@ -36,8 +36,10 @@ def test_concurrent_routers_with_different_overrides():
 
     t1 = threading.Thread(target=call, args=("a", r_layer1_only))
     t2 = threading.Thread(target=call, args=("b", r_default))
-    t1.start(); t2.start()
-    t1.join();  t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
     # r_layer1_only should never use L2 or L3
     assert all(layer == "layer1" for layer in results.get("a", []))

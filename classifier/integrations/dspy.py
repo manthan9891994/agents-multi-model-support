@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def _qualify(model_name: str, provider: str) -> str:
     return f"{prefix}/{model_name}"
 
 
-def _route_one(task: str, provider: Optional[str], fallback_model: Optional[str]) -> str:
+def _route_one(task: str, provider: str | None, fallback_model: str | None) -> str:
     from classifier import classify_task
     from classifier.core.exceptions import ClassificationError
     from classifier.infra.config import settings
@@ -69,8 +69,8 @@ def _route_one(task: str, provider: Optional[str], fallback_model: Optional[str]
 def get_lm(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **lm_kwargs: Any,
 ) -> Any:
     """Return a `dspy.LM` configured for the routed model."""
@@ -87,8 +87,8 @@ def get_lm(
 def route(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **lm_kwargs: Any,
 ):
     """Context manager that temporarily swaps `dspy.settings.lm` to the routed model.
@@ -110,8 +110,8 @@ def route(
 def get_model_string(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
 ) -> str:
     """Just the qualified `provider/model` string (when you need raw access)."""
     return _route_one(task, provider, fallback_model)

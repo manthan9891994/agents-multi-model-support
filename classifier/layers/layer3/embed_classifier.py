@@ -11,12 +11,11 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
 from classifier.core.registry import TIER_MATRIX
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 from classifier.infra.config import settings
 
 logger = logging.getLogger(__name__)
@@ -64,8 +63,8 @@ def _load_bundle():
 
 def classify_layer3_head(
     task: str,
-    history: Optional[list[str]] = None,
-) -> Optional[tuple[TaskType, TaskComplexity, ModelTier, float, str]]:
+    history: list[str] | None = None,
+) -> tuple[TaskType, TaskComplexity, ModelTier, float, str] | None:
     """Classify with frozen-encoder + MLP heads. Returns None on abstain or failure."""
     bundle = _load_bundle()
     if bundle is None:

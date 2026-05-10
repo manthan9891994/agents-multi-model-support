@@ -4,10 +4,17 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from classifier.ml.auto_labeler import (
-    AutoLabeler, Label, DEFAULT_LFS,
-    lf_short_short, lf_user_escalated, lf_high_output_ratio, lf_thumbs_down,
-    lf_thumbs_up_trust_layer1, lf_latency_breach, lf_code_keywords_strong,
+    DEFAULT_LFS,
+    AutoLabeler,
+    Label,
+    lf_code_keywords_strong,
+    lf_high_output_ratio,
     lf_l2_ground_truth,
+    lf_latency_breach,
+    lf_short_short,
+    lf_thumbs_down,
+    lf_thumbs_up_trust_layer1,
+    lf_user_escalated,
 )
 
 
@@ -370,9 +377,10 @@ def test_run_stats_reports_full_funnel():
 def test_cli_relabel_smoke(tmp_path, monkeypatch):
     """`dmr relabel` end-to-end with synthetic logs."""
     import json
+
     from classifier.cli import main as cli_main
-    from classifier.infra import outcome_logger as ol
     from classifier.infra import decision_logger as dl
+    from classifier.infra import outcome_logger as ol
 
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
@@ -396,6 +404,6 @@ def test_cli_relabel_smoke(tmp_path, monkeypatch):
     rc = cli_main(["relabel", "--out", str(out_path), "--min-confidence", "0.5"])
     assert rc == 0
     assert out_path.exists()
-    rows = [json.loads(l) for l in out_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    rows = [json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(rows) == 1
     assert rows[0]["task_type"] == "reasoning"

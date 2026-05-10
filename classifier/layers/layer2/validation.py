@@ -1,7 +1,7 @@
 import logging
 
-from classifier.core.types import TaskType, TaskComplexity
-from classifier.layers.layer1 import _score_task_type, _count_tokens, _CODE_SNIPPET_RE, _TASK_TYPE_TIER_WEIGHT
+from classifier.core.types import TaskComplexity, TaskType
+from classifier.layers.layer1 import _CODE_SNIPPET_RE, _TASK_TYPE_TIER_WEIGHT, _count_tokens, _score_task_type
 
 logger = logging.getLogger(__name__)
 

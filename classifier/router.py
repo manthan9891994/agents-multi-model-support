@@ -19,10 +19,13 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from classifier.core.types import ClassificationDecision, ContextSignals, ModelTier, TaskComplexity, TaskType
+    from classifier.core.types import (
+        ClassificationDecision,
+        ContextSignals,
+    )
     from classifier.layers.layer1.keyword_pack import KeywordPack
 
 # Single lock guards mutation of global state during a classify() call
@@ -52,39 +55,39 @@ class Router:
     def __init__(
         self,
         *,
-        providers: Optional[list[str]] = None,
-        extra_keyword_packs: Optional[list["KeywordPack"]] = None,
-        extra_pii_patterns: Optional[list[tuple]] = None,
-        tier_matrix: Optional[dict] = None,
-        model_registry: Optional[dict] = None,
-        layer1_enabled: Optional[bool] = None,
-        layer2_enabled: Optional[bool] = None,
-        layer3_enabled: Optional[bool] = None,
-        escalation_threshold: Optional[float] = None,
-        layer3_threshold: Optional[float] = None,
-        budget_usd: Optional[float] = None,
-        cache_enabled: Optional[bool] = None,
+        providers: list[str] | None = None,
+        extra_keyword_packs: list[KeywordPack] | None = None,
+        extra_pii_patterns: list[tuple] | None = None,
+        tier_matrix: dict | None = None,
+        model_registry: dict | None = None,
+        layer1_enabled: bool | None = None,
+        layer2_enabled: bool | None = None,
+        layer3_enabled: bool | None = None,
+        escalation_threshold: float | None = None,
+        layer3_threshold: float | None = None,
+        budget_usd: float | None = None,
+        cache_enabled: bool | None = None,
         # ── Extensibility hooks (v2) ──────────────────────────────────────────
-        layer2_provider: Optional[str] = None,
-        layer2_model:    Optional[str] = None,
-        layer3_embedding_model: Optional[str] = None,
-        model_costs:     Optional[dict] = None,
-        custom_classifier: Optional[Any] = None,
-        pre_classify_hooks:  Optional[list[Any]] = None,
-        post_classify_hooks: Optional[list[Any]] = None,
-        on_error_hooks:      Optional[list[Any]] = None,
-        pii_policy: Optional[dict] = None,
-        l2_retry_policy: Optional[dict] = None,
-        l2_circuit_breaker: Optional[dict] = None,
-        l1_weights: Optional[dict] = None,
-        tokenizer: Optional[Any] = None,
-        latency_budget_ms: Optional[float] = None,
-        residency: Optional[str] = None,
-        cache_backend: Optional[Any] = None,
-        decision_logger: Optional[Any] = None,
-        layer2_prompt_template: Optional[str] = None,
-        registry: Optional[Any] = None,
-        outcome_logger: Optional[Any] = None,    # pluggable outcome backend (Kafka / S3 / Redis / …)
+        layer2_provider: str | None = None,
+        layer2_model:    str | None = None,
+        layer3_embedding_model: str | None = None,
+        model_costs:     dict | None = None,
+        custom_classifier: Any | None = None,
+        pre_classify_hooks:  list[Any] | None = None,
+        post_classify_hooks: list[Any] | None = None,
+        on_error_hooks:      list[Any] | None = None,
+        pii_policy: dict | None = None,
+        l2_retry_policy: dict | None = None,
+        l2_circuit_breaker: dict | None = None,
+        l1_weights: dict | None = None,
+        tokenizer: Any | None = None,
+        latency_budget_ms: float | None = None,
+        residency: str | None = None,
+        cache_backend: Any | None = None,
+        decision_logger: Any | None = None,
+        layer2_prompt_template: str | None = None,
+        registry: Any | None = None,
+        outcome_logger: Any | None = None,    # pluggable outcome backend (Kafka / S3 / Redis / …)
     ):
         self.providers           = providers or []
         self.extra_keyword_packs = extra_keyword_packs or []
@@ -161,12 +164,12 @@ class Router:
     def classify(
         self,
         task: str,
-        history: Optional[list[str]] = None,
-        context_signals: "Optional[ContextSignals]" = None,
-        provider: Optional[str] = None,
-        hook_context: Optional[dict] = None,
-        tenant_config: Optional[dict] = None,
-    ) -> "ClassificationDecision":
+        history: list[str] | None = None,
+        context_signals: ContextSignals | None = None,
+        provider: str | None = None,
+        hook_context: dict | None = None,
+        tenant_config: dict | None = None,
+    ) -> ClassificationDecision:
         """Classify a task and return the routing decision.
 
         Args:
@@ -252,12 +255,12 @@ class Router:
         tokens_out: int = 0,
         wall_ms: float = 0.0,
         success: bool = True,
-        cost_usd: Optional[float] = None,
+        cost_usd: float | None = None,
         user_retried: bool = False,
-        user_escalated_model: Optional[str] = None,
-        user_feedback: Optional[str] = None,   # "up" | "down" | None
-        edit_distance: Optional[int] = None,
-        error_message: Optional[str] = None,
+        user_escalated_model: str | None = None,
+        user_feedback: str | None = None,   # "up" | "down" | None
+        edit_distance: int | None = None,
+        error_message: str | None = None,
     ) -> None:
         """Report what happened after a routing decision was acted upon.
 
@@ -299,10 +302,10 @@ class Router:
     async def aclassify(
         self,
         task: str,
-        history: Optional[list[str]] = None,
-        context_signals: "Optional[ContextSignals]" = None,
-        provider: Optional[str] = None,
-    ) -> "ClassificationDecision":
+        history: list[str] | None = None,
+        context_signals: ContextSignals | None = None,
+        provider: str | None = None,
+    ) -> ClassificationDecision:
         """Async version of classify(). Runs the synchronous classifier in a
         threadpool to avoid blocking the event loop.
 
@@ -323,9 +326,9 @@ class Router:
         self,
         tasks: list[str],
         *,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         concurrency: int = 8,
-    ) -> "list[ClassificationDecision]":
+    ) -> list[ClassificationDecision]:
         """Async batch classify. Runs up to `concurrency` classifications in parallel."""
         import asyncio
         sem = asyncio.Semaphore(concurrency)
@@ -340,7 +343,7 @@ class Router:
         self,
         task: str,
         *,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         estimated_output_tokens: int = 500,
     ) -> dict:
         """Dry-run: classify task and return estimated cost without making an API call.
@@ -385,7 +388,7 @@ class Router:
         self,
         data: str | Path,
         *,
-        output_path: Optional[str | Path] = None,
+        output_path: str | Path | None = None,
         max_iter: int = 600,
     ) -> dict:
         """Retrain L3 head on user-supplied data. Returns metadata dict.
@@ -407,7 +410,7 @@ class Router:
 
     # ── Alternative constructors ─────────────────────────────────────────────
 
-    def with_overrides(self, **kwargs) -> "Router":
+    def with_overrides(self, **kwargs) -> Router:
         """Create a new Router that inherits this one's config, with overrides.
 
         For multi-tenant deployments where a base Router serves many tenants
@@ -421,7 +424,7 @@ class Router:
         merged.update(kwargs)
         return Router(**merged)
 
-    def merge(self, other: "Router") -> "Router":
+    def merge(self, other: Router) -> Router:
         """Compose two Routers — last-wins semantics on every field.
 
         Useful when combining a domain preset with custom user overrides:
@@ -478,7 +481,7 @@ class Router:
         }
 
     @classmethod
-    def from_registry(cls, source: "str | Path | dict", **router_kwargs) -> "Router":
+    def from_registry(cls, source: str | Path | dict, **router_kwargs) -> Router:
         """Construct a Router after loading a model registry.
 
         Equivalent to:
@@ -491,13 +494,13 @@ class Router:
         return cls(**router_kwargs)
 
     @staticmethod
-    def load_registry(source: "str | Path | dict") -> dict:
+    def load_registry(source: str | Path | dict) -> dict:
         """Load (and merge) a model registry into the runtime tables."""
         from classifier.core.registry_loader import load_registry
         return load_registry(source)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "Router":
+    def from_yaml(cls, path: str | Path) -> Router:
         """Construct a Router from a YAML config file."""
         import yaml
         cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
@@ -514,8 +517,8 @@ class Router:
 
         # Keyword packs from YAML (list of {name, packs: {task_type: [keywords]}})
         if "keyword_packs" in cfg:
-            from classifier.layers.layer1.keyword_pack import KeywordPack
             from classifier.core.types import TaskType
+            from classifier.layers.layer1.keyword_pack import KeywordPack
             packs = []
             for pack_def in cfg["keyword_packs"]:
                 builder = KeywordPack.builder(pack_def.get("name", "custom"))
@@ -527,7 +530,7 @@ class Router:
         return cls(**kwargs)
 
     @classmethod
-    def from_preset(cls, name: str) -> "Router":
+    def from_preset(cls, name: str) -> Router:
         """Construct a Router from a built-in domain preset."""
         from classifier.presets import load_preset
         cfg = load_preset(name)
@@ -543,9 +546,8 @@ class Router:
         and restores on exit. Per-instance keyword_packs and pii_patterns are
         merged at construction (they're additive, not replacement).
         """
-        from classifier.infra.config import settings
-        from classifier.config.feature_flags import feature_flags
         from classifier.core import registry
+        from classifier.infra.config import settings
 
         with _router_lock:
             saved: dict[str, Any] = {}
@@ -648,15 +650,24 @@ class Router:
 
             finally:
                 # Restore in reverse order
-                if "l1_enabled" in saved: settings.layer1_enabled = saved["l1_enabled"]
-                if "l2_enabled" in saved: settings.layer2_enabled = saved["l2_enabled"]
-                if "l3_enabled" in saved: settings.layer3_enabled = saved["l3_enabled"]
-                if "esc_thresh" in saved: settings.layer2_confidence_threshold = saved["esc_thresh"]
-                if "l3_thresh"  in saved: settings.layer3_confidence_threshold = saved["l3_thresh"]
-                if "cache"     in saved:  settings.cache_enabled = saved["cache"]
-                if "budget"    in saved:  settings.monthly_budget_usd = saved["budget"]
-                if "l2_provider" in saved: settings.layer2_provider = saved["l2_provider"]
-                if "l2_model"    in saved: settings.layer2_model = saved["l2_model"]
+                if "l1_enabled" in saved:
+                    settings.layer1_enabled = saved["l1_enabled"]
+                if "l2_enabled" in saved:
+                    settings.layer2_enabled = saved["l2_enabled"]
+                if "l3_enabled" in saved:
+                    settings.layer3_enabled = saved["l3_enabled"]
+                if "esc_thresh" in saved:
+                    settings.layer2_confidence_threshold = saved["esc_thresh"]
+                if "l3_thresh" in saved:
+                    settings.layer3_confidence_threshold = saved["l3_thresh"]
+                if "cache" in saved:
+                    settings.cache_enabled = saved["cache"]
+                if "budget" in saved:
+                    settings.monthly_budget_usd = saved["budget"]
+                if "l2_provider" in saved:
+                    settings.layer2_provider = saved["l2_provider"]
+                if "l2_model" in saved:
+                    settings.layer2_model = saved["l2_model"]
                 if "cb_threshold" in saved:
                     from classifier.layers.layer2 import api as l2api
                     l2api._circuit_breaker.failure_threshold = saved["cb_threshold"]
@@ -687,10 +698,10 @@ class Router:
 
 # ── Module-level convenience function ────────────────────────────────────────
 
-_default_router: Optional[Router] = None
+_default_router: Router | None = None
 
 
-def classify(task: str, **kwargs) -> "ClassificationDecision":
+def classify(task: str, **kwargs) -> ClassificationDecision:
     """Zero-config classify using a process-wide default Router.
 
     Equivalent to:

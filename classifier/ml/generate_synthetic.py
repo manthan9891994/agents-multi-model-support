@@ -22,7 +22,7 @@ import json
 import logging
 from pathlib import Path
 
-from classifier.core.types import TaskType, TaskComplexity
+from classifier.core.types import TaskComplexity, TaskType
 from classifier.infra.config import settings
 
 logger = logging.getLogger(__name__)

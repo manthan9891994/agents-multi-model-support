@@ -23,7 +23,7 @@ treats it like a normal layer outcome.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ def list_layers() -> dict[str, list[str]]:
     return {pos: [getattr(p, "name", repr(p)) for p in layers] for pos, layers in _PLUGINS.items()}
 
 
-def run_layers_at(position: str, task: str, history=None) -> Optional[tuple]:
+def run_layers_at(position: str, task: str, history=None) -> tuple | None:
     """Run plugins at `position`, returning the first non-None result, or None."""
     for layer in _PLUGINS.get(position, []):
         try:

@@ -13,7 +13,7 @@ Use:
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def _wordcount(text: str) -> int:
     return max(1, len(text.split()))
 
 
-def _tiktoken(model: str) -> Optional[Callable[[str], int]]:
+def _tiktoken(model: str) -> Callable[[str], int] | None:
     try:
         import tiktoken
         try:
@@ -47,9 +47,9 @@ def _tiktoken(model: str) -> Optional[Callable[[str], int]]:
         return None
 
 
-def _anthropic_tokenizer() -> Optional[Callable[[str], int]]:
+def _anthropic_tokenizer() -> Callable[[str], int] | None:
     try:
-        from anthropic import Anthropic   # noqa: F401
+        from anthropic import Anthropic  # noqa: F401
         # Claude SDK exposes count_tokens via client; expensive — fall back to char/3.5
         return lambda text: max(1, len(text) // 4)
     except ImportError:

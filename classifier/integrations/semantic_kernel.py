@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +56,8 @@ def _build_service(model_name: str, provider: str, **kwargs: Any) -> Any:
 def get_chat_service(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **service_kwargs: Any,
 ) -> Any:
     """Classify a task and return the Semantic Kernel chat service pinned to the routed model."""

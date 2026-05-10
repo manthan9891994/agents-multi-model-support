@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def register_l2_provider(name: str, caller: Callable) -> None:
     _L2_PROVIDERS[name] = caller
 
 
-def get_l2_caller(provider: str) -> Optional[Callable]:
+def get_l2_caller(provider: str) -> Callable | None:
     """Return registered L2 caller or lazy-load a built-in one."""
     if provider in _L2_PROVIDERS:
         return _L2_PROVIDERS[provider]

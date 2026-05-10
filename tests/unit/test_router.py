@@ -1,14 +1,14 @@
 """Unit tests for the Router class — the high-level user-facing API."""
 import pytest
 
-from classifier import Router, classify, KeywordPack, TaskType
+from classifier import KeywordPack, Router, TaskType, classify
 
 
 @pytest.fixture(autouse=True)
 def reset_extras():
     """Wipe registered extra packs / pii patterns between tests."""
-    from classifier.layers.layer1 import keyword_pack
     from classifier.infra import pii_scrubber
+    from classifier.layers.layer1 import keyword_pack
     keyword_pack.clear_registered()
     pii_scrubber.clear_extra_patterns()
     yield
@@ -69,7 +69,7 @@ def test_custom_keyword_pack_injected():
 
 def test_keyword_pack_idempotent_registration():
     """Registering the same pack twice should be a no-op."""
-    from classifier.layers.layer1.keyword_pack import register_extra_packs, list_registered
+    from classifier.layers.layer1.keyword_pack import list_registered, register_extra_packs
     pack = KeywordPack.builder("dup").add(TaskType.REASONING, ["dup_kw"]).build()
     register_extra_packs([pack])
     register_extra_packs([pack])
@@ -80,6 +80,7 @@ def test_keyword_pack_idempotent_registration():
 
 def test_custom_pii_pattern_applied():
     import re
+
     from classifier.infra.pii_scrubber import scrub
     pattern = (re.compile(r"\bACCT-\d{6}\b"), "[ACCT]")
     Router(extra_pii_patterns=[pattern])
@@ -91,8 +92,8 @@ def test_custom_pii_pattern_applied():
 # ── Tier matrix override ──────────────────────────────────────────────────────
 
 def test_tier_matrix_override_applied_then_restored():
-    from classifier.core.types import TaskType, TaskComplexity, ModelTier
     from classifier.core.registry import TIER_MATRIX
+    from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
     original = TIER_MATRIX[(TaskType.CONVERSATION, TaskComplexity.SIMPLE)]
 

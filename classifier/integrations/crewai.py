@@ -18,7 +18,7 @@ Both share the same routing logic — pick whichever fits your code shape.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 def pick_llm_for_task(
     task_description: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
 ):
     """Classify a task and return a CrewAI-compatible LLM instance pre-configured
     with the right model.
@@ -105,7 +105,7 @@ class DynamicLLM:
     def __init__(
         self,
         *,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         fallback_model: str = "gemini/gemini-2.5-flash",
         report_outcomes: bool = True,
     ):
@@ -149,7 +149,8 @@ class DynamicLLM:
         try:
             response = llm.call(messages, *args, **kwargs)
             if self._report_outcomes and decision is not None:
-                from classifier import log_outcome, OutcomeRecord
+                from classifier import OutcomeRecord, log_outcome
+
                 # CrewAI's LLM.call typically returns a string; we don't have token counts.
                 # Approximate with tokenizer for analytics.
                 from classifier.infra.tokenizers import count_tokens
@@ -165,7 +166,7 @@ class DynamicLLM:
             return response
         except Exception as exc:
             if self._report_outcomes and decision is not None:
-                from classifier import log_outcome, OutcomeRecord
+                from classifier import OutcomeRecord, log_outcome
                 log_outcome(OutcomeRecord(
                     decision_id=decision.decision_id,
                     wall_ms=(time.perf_counter() - t0) * 1000,

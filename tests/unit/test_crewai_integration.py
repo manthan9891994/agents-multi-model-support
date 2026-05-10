@@ -66,8 +66,8 @@ def test_pick_llm_anthropic_prefix():
 
 
 def test_pick_llm_uses_fallback_on_classification_error():
-    from classifier.integrations.crewai import pick_llm_for_task
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.crewai import pick_llm_for_task
 
     with patch("classifier.classify_task",
                side_effect=ClassificationError("boom")):
@@ -78,8 +78,8 @@ def test_pick_llm_uses_fallback_on_classification_error():
 
 
 def test_pick_llm_raises_without_fallback():
-    from classifier.integrations.crewai import pick_llm_for_task
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.crewai import pick_llm_for_task
 
     with patch("classifier.classify_task",
                side_effect=ClassificationError("boom")):

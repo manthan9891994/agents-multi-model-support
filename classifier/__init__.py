@@ -10,25 +10,38 @@ from classifier.core.exceptions import (
     LayerNotAvailableError,
     UnsupportedProviderError,
 )
-from classifier.core.types import (
-    ClassificationDecision, ContextSignals, TaskComplexity, TaskType, ModelTier,
-    register_task_type, register_complexity, set_tier_levels, list_tier_levels,
-)
-from classifier.infra.feedback import record_feedback
 from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX
 
 # Auto-load the bundled / configured registry at import time.
 # Honors DMR_REGISTRY env var and DMR_NO_DEFAULT_REGISTRY=1 to opt out.
 from classifier.core.registry_loader import (
     _auto_load_at_import as _registry_auto_load,
-    load_registry, clear_registry, export_registry, export_to_yaml,
 )
+from classifier.core.registry_loader import (
+    clear_registry,
+    export_registry,
+    export_to_yaml,
+    load_registry,
+)
+from classifier.core.types import (
+    ClassificationDecision,
+    ContextSignals,
+    ModelTier,
+    TaskComplexity,
+    TaskType,
+    list_tier_levels,
+    register_complexity,
+    register_task_type,
+    set_tier_levels,
+)
+from classifier.infra.feedback import record_feedback
+
 _registry_auto_load()
-from classifier.layers.layer1 import classify_layer1, detect_pii  # noqa: F401 — re-exported
-from classifier.infra.config import settings
-from classifier.infra.cache import cache
-from classifier.infra.cost_tracker import cost_tracker
 from classifier.config.feature_flags import feature_flags
+from classifier.infra.cache import cache
+from classifier.infra.config import settings
+from classifier.infra.cost_tracker import cost_tracker
+from classifier.layers.layer1 import classify_layer1, detect_pii  # noqa: F401 — re-exported
 
 logger = logging.getLogger(__name__)
 # PEP 282 best practice: libraries must NOT configure logging — only attach
@@ -38,6 +51,7 @@ logger.addHandler(logging.NullHandler())
 
 # Use the dynamic tier order from core.types so set_tier_levels() takes effect.
 from classifier.core.types import _TIER_ORDER as _DYN_TIER_ORDER
+
 
 def _tier_order():
     """Always return the latest tier order (live reference, not snapshot)."""
@@ -49,6 +63,7 @@ _TIER_ORDER = _DYN_TIER_ORDER
 # Maximum input length — guards L3 OOM, L2 timeout, runaway costs.
 # Override via DMR_MAX_TASK_CHARS env var if you really need longer inputs.
 import os as _os
+
 MAX_TASK_CHARS = int(_os.environ.get("DMR_MAX_TASK_CHARS", "32000"))
 
 # Item 20: Streaming debounce — last known good decision (stateless fallback).
@@ -290,6 +305,7 @@ def _stamp_cache_hit(original: ClassificationDecision) -> ClassificationDecision
     decide whether to dedupe by `cached_from` during training.
     """
     from dataclasses import replace
+
     from classifier.core.types import _new_decision_id
     return replace(
         original,
@@ -309,7 +325,8 @@ def _classify_inner(
     user_id: str | None,
     ctx: dict | None = None,
 ) -> ClassificationDecision:
-    from classifier.infra.telemetry import span as _span, set_attribute as _attr
+    from classifier.infra.telemetry import set_attribute as _attr
+    from classifier.infra.telemetry import span as _span
 
     with _span("dmr.classify", **{"task.length": len(task), "provider": resolved_provider}) as _s:
         return _classify_inner_traced(
@@ -400,7 +417,7 @@ def _classify_inner_traced(
                 task_type, complexity, tier = l2_tt, l2_cx, l2_tier
                 reasoning += f" | L1≠L2 disagree → L2 tier higher, using L2 ({l2_reason})"
             else:
-                reasoning += f" | L1≠L2 disagree → L1 tier ≥ L2, keeping L1"
+                reasoning += " | L1≠L2 disagree → L1 tier ≥ L2, keeping L1"
             confidence = min(confidence, l2_conf, 0.55)
             # Auto-record disagreement as feedback candidate for L3 training
             try:
@@ -555,7 +572,7 @@ def _classify_inner_traced(
         try:
             from classifier.infra.health_tracker import health_tracker
             # If the chosen model's recent p95 exceeds SLA, drop a tier
-            current_model = MODEL_REGISTRY[resolved_provider][tier]
+            _current_model = MODEL_REGISTRY[resolved_provider][tier]
             p95 = getattr(health_tracker, "get_p95", lambda *_: 0)(resolved_provider, tier)
             if p95 and p95 > sla_ms:
                 idx = _TIER_ORDER.index(tier)
@@ -631,24 +648,30 @@ def _classify_inner_traced(
     return decision
 
 
-from classifier.router import Router, classify
-from classifier.layers.layer1.keyword_pack import KeywordPack
-from classifier.core.registry import register_provider, list_providers, list_models, capabilities_for
-from classifier.infra.cost_tracker import register_model_cost, get_model_cost
-from classifier.ml.embeddings import set_embedding_model, current_embedding_model
-from classifier.hooks import register_hook, unregister_hook, clear_hooks, hook_manager
+from classifier.core.registry import capabilities_for, list_models, list_providers, register_provider
 from classifier.experiments import ABTest, ShadowMode
-from classifier.infra.outcome_logger import (
-    OutcomeRecord, log_outcome, read_outcomes, join_decisions_outcomes,
-    prune_old_outcomes,
-)
+from classifier.hooks import clear_hooks, hook_manager, register_hook, unregister_hook
+from classifier.infra.cost_tracker import get_model_cost, register_model_cost
 from classifier.infra.decision_logger import read_decisions
-from classifier.ml.auto_labeler import (
-    AutoLabeler, Label, LabelingFunction, DEFAULT_LFS,
+from classifier.infra.outcome_logger import (
+    OutcomeRecord,
+    join_decisions_outcomes,
+    log_outcome,
+    prune_old_outcomes,
+    read_outcomes,
 )
-from classifier.layers.plugin import register_layer, unregister_layer, list_layers
+from classifier.infra.tokenizers import count_tokens, register_tokenizer
+from classifier.layers.layer1.keyword_pack import KeywordPack
 from classifier.layers.layer3 import register_strategy as register_l3_strategy
-from classifier.infra.tokenizers import register_tokenizer, count_tokens
+from classifier.layers.plugin import list_layers, register_layer, unregister_layer
+from classifier.ml.auto_labeler import (
+    DEFAULT_LFS,
+    AutoLabeler,
+    Label,
+    LabelingFunction,
+)
+from classifier.ml.embeddings import current_embedding_model, set_embedding_model
+from classifier.router import Router, classify
 
 
 def route_model(
@@ -701,7 +724,7 @@ def route_model(
             try:
                 decision = classify_task(str(task_text), provider=provider)
                 model = decision.model_name
-            except Exception as exc:
+            except Exception:
                 if fallback_model:
                     model = fallback_model
                 else:

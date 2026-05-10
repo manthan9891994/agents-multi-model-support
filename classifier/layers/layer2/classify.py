@@ -2,12 +2,13 @@ import json
 import logging
 from concurrent.futures import TimeoutError as _FuturesTimeout
 
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
+from classifier.config.feature_flags import feature_flags
 from classifier.core.registry import TIER_MATRIX
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 from classifier.infra.config import settings
 from classifier.infra.cost_tracker import cost_tracker
-from classifier.config.feature_flags import feature_flags
-from .api import _executor, _call_api, _call_api_with_model
+
+from .api import _call_api, _call_api_with_model, _executor
 from .rate_limiter import _get_rate_limiter
 from .validation import _validate_l2_output
 

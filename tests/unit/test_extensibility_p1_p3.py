@@ -2,14 +2,23 @@
 import pytest
 
 from classifier import (
-    Router, ModelTier, TaskType,
-    register_provider, register_task_type, register_complexity,
-    set_tier_levels, list_tier_levels,
-    register_tokenizer, count_tokens,
-    register_layer, list_layers, unregister_layer,
-    register_l3_strategy,
-    ABTest, ShadowMode,
+    ABTest,
+    ModelTier,
+    Router,
+    ShadowMode,
+    TaskType,
     clear_hooks,
+    count_tokens,
+    list_layers,
+    list_tier_levels,
+    register_complexity,
+    register_l3_strategy,
+    register_layer,
+    register_provider,
+    register_task_type,
+    register_tokenizer,
+    set_tier_levels,
+    unregister_layer,
 )
 
 
@@ -46,7 +55,7 @@ def test_register_complexity_creates_member():
 
 def test_set_tier_levels_extends_order():
     original = list_tier_levels()
-    new_order = set_tier_levels(["free", "low", "medium", "high", "frontier"])
+    set_tier_levels(["free", "low", "medium", "high", "frontier"])
     assert list_tier_levels() == ["free", "low", "medium", "high", "frontier"]
     # Restore
     set_tier_levels(original)
@@ -231,7 +240,7 @@ def test_tenant_config_per_call():
     """Per-call tenant_config overrides Router defaults."""
     router = Router(layer2_enabled=False, layer3_enabled=False, cache_enabled=False)
     # Default uses google
-    d1 = router.classify("hello tenant test 1")
+    router.classify("hello tenant test 1")
     # Tenant A overrides to anthropic
     d2 = router.classify(
         "hello tenant test 2",

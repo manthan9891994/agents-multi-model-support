@@ -79,7 +79,7 @@ def _threshold_sweep(
     confidence = (np.max(tt_probs, axis=1) * np.max(cx_probs, axis=1)) ** 0.5
 
     correct = (np.array(y_tt) == tt_pred) & (np.array(y_cx) == cx_pred)
-    n = len(y_tt)
+    _n = len(y_tt)
     results = {}
     for t in thresholds:
         intercepted = confidence >= t

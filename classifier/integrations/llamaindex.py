@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,8 @@ def _build_llm(model_name: str, provider: str, **kwargs: Any) -> Any:
 def get_llm(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **llm_kwargs: Any,
 ) -> Any:
     """Classify a task and return the appropriate LlamaIndex LLM instance."""
@@ -94,8 +94,8 @@ class DynamicLLM:
     def __init__(
         self,
         *,
-        provider: Optional[str] = None,
-        fallback_model: Optional[str] = None,
+        provider: str | None = None,
+        fallback_model: str | None = None,
         **llm_kwargs: Any,
     ) -> None:
         self._provider = provider

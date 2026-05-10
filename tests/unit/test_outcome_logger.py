@@ -8,9 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from classifier import (
-    Router, OutcomeRecord, log_outcome, read_outcomes, join_decisions_outcomes,
+    OutcomeRecord,
+    Router,
+    join_decisions_outcomes,
+    log_outcome,
+    read_outcomes,
 )
-from classifier.core.types import ClassificationDecision, ModelTier, TaskType, TaskComplexity
+from classifier.core.types import ClassificationDecision, ModelTier, TaskComplexity, TaskType
 
 
 @pytest.fixture

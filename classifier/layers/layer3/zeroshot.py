@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
 
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
 from classifier.core.registry import TIER_MATRIX
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 from classifier.infra.config import settings
 
 logger = logging.getLogger(__name__)
@@ -81,8 +80,8 @@ def _load_pipeline():
 
 def classify_layer3_zeroshot(
     task: str,
-    history: Optional[list[str]] = None,
-) -> Optional[tuple[TaskType, TaskComplexity, ModelTier, float, str]]:
+    history: list[str] | None = None,
+) -> tuple[TaskType, TaskComplexity, ModelTier, float, str] | None:
     """Zero-shot classification using NLI. Returns None on low confidence or failure."""
     pipe = _load_pipeline()
     if pipe is None:

@@ -7,8 +7,13 @@ from pathlib import Path
 import pytest
 
 from classifier import (
-    list_providers, list_models, get_model_cost, capabilities_for,
-    load_registry, clear_registry, export_registry,
+    capabilities_for,
+    clear_registry,
+    export_registry,
+    get_model_cost,
+    list_models,
+    list_providers,
+    load_registry,
 )
 
 
@@ -136,7 +141,7 @@ def test_router_from_registry_classmethod(tmp_path: Path, empty_registry):
     p = tmp_path / "models.yaml"
     p.write_text(yaml_text, encoding="utf-8")
 
-    router = Router.from_registry(p, layer2_enabled=False, layer3_enabled=False)
+    Router.from_registry(p, layer2_enabled=False, layer3_enabled=False)
     assert "fab" in list_providers()
     assert get_model_cost("fab-high") == {"input": 5.0, "output": 10.0}
 

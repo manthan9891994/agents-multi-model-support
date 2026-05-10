@@ -44,10 +44,14 @@ def _detect_language(text: str) -> str:
     arabic     = sum(1 for c in text if "؀" <= c <= "ۿ")
     cyrillic   = sum(1 for c in text if "Ѐ" <= c <= "ӿ")
     devanagari = sum(1 for c in text if "ऀ" <= c <= "ॿ")
-    if cjk / total > 0.15:        return "zh"
-    if arabic / total > 0.15:     return "ar"
-    if cyrillic / total > 0.15:   return "ru"
-    if devanagari / total > 0.15: return "hi"
+    if cjk / total > 0.15:
+        return "zh"
+    if arabic / total > 0.15:
+        return "ar"
+    if cyrillic / total > 0.15:
+        return "ru"
+    if devanagari / total > 0.15:
+        return "hi"
     return "en"
 
 

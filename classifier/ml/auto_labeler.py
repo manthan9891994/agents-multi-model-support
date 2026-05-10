@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Callable, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +41,18 @@ class Label:
     the dimension it has signal for. `confidence` is the LF's self-rated
     certainty in [0, 1] — used for weighted majority aggregation.
     """
-    task_type:  Optional[str] = None
-    complexity: Optional[str] = None
+    task_type:  str | None = None
+    complexity: str | None = None
     confidence: float = 0.0
     reason:     str = ""
 
 
-LabelingFunction = Callable[[dict, dict], Optional[Label]]
+LabelingFunction = Callable[[dict, dict], Label | None]
 
 
 # ── 8 built-in labeling functions ────────────────────────────────────────────
 
-def lf_short_short(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_short_short(decision: dict, outcome: dict) -> Label | None:
     """Short prompt + short answer + cheap model accepted → simple/conversation."""
     task_len   = decision.get("task_length", 0) or len(decision.get("task_preview", ""))
     tokens_out = outcome.get("tokens_out", 0)
@@ -63,7 +63,7 @@ def lf_short_short(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_user_escalated(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_user_escalated(decision: dict, outcome: dict) -> Label | None:
     """User manually chose a bigger model → original was underspec'd → reasoning/complex."""
     if outcome.get("user_escalated_model"):
         return Label(task_type="reasoning", complexity="complex", confidence=0.95,
@@ -71,7 +71,7 @@ def lf_user_escalated(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_high_output_ratio(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_high_output_ratio(decision: dict, outcome: dict) -> Label | None:
     """tokens_out / tokens_in > 5 → generative task → doc_creation/standard."""
     if outcome.get("tokens_estimated", False):
         return None  # don't trust heuristic counts
@@ -84,7 +84,7 @@ def lf_high_output_ratio(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_thumbs_down(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_thumbs_down(decision: dict, outcome: dict) -> Label | None:
     """User downvoted → tier was too low → bump complexity."""
     if outcome.get("user_feedback") == "down":
         return Label(complexity="complex", confidence=0.8,
@@ -92,7 +92,7 @@ def lf_thumbs_down(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_thumbs_up_trust_layer1(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_thumbs_up_trust_layer1(decision: dict, outcome: dict) -> Label | None:
     """User thumbs-up + L1 was confident → trust L1's labels."""
     if (outcome.get("user_feedback") == "up"
         and decision.get("layer") == "layer1"
@@ -106,7 +106,7 @@ def lf_thumbs_up_trust_layer1(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_latency_breach(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_latency_breach(decision: dict, outcome: dict) -> Label | None:
     """Small model took too long → underspec'd → bump complexity."""
     tier = (decision.get("tier") or "").lower()
     wall = outcome.get("wall_ms", 0) or 0
@@ -116,7 +116,7 @@ def lf_latency_breach(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_code_keywords_strong(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_code_keywords_strong(decision: dict, outcome: dict) -> Label | None:
     """L1 already labeled it code with high confidence + no retry → trust."""
     if (decision.get("task_type") == "code_creation"
         and decision.get("confidence", 0) > 0.85
@@ -131,7 +131,7 @@ def lf_code_keywords_strong(decision: dict, outcome: dict) -> Optional[Label]:
     return None
 
 
-def lf_l2_ground_truth(decision: dict, outcome: dict) -> Optional[Label]:
+def lf_l2_ground_truth(decision: dict, outcome: dict) -> Label | None:
     """L2 ran (LLM classifier) AND outcome was successful → trust L2's labels.
 
     L2 is the LLM-classifier path; when it ran without retries/escalation,
@@ -178,7 +178,7 @@ class AutoLabeler:
 
     def __init__(
         self,
-        lfs: Optional[list[LabelingFunction]] = None,
+        lfs: list[LabelingFunction] | None = None,
         *,
         min_confidence:    float = 0.7,
         skip_cached:       bool  = True,
@@ -195,7 +195,7 @@ class AutoLabeler:
 
     # ── Public API ───────────────────────────────────────────────────────────
 
-    def label_one(self, decision: dict, outcome: dict) -> Optional[dict]:
+    def label_one(self, decision: dict, outcome: dict) -> dict | None:
         """Apply all LFs to one (decision, outcome) pair. Returns aggregated label
         dict or None if no signal / too low confidence.
         """
@@ -224,10 +224,10 @@ class AutoLabeler:
     def run(
         self,
         *,
-        since: Optional[str]    = None,
-        until: Optional[str]    = None,
-        decisions: Optional[list[dict]] = None,
-        outcomes:  Optional[list[dict]] = None,
+        since: str | None    = None,
+        until: str | None    = None,
+        decisions: list[dict] | None = None,
+        outcomes:  list[dict] | None = None,
     ) -> list[dict]:
         """Read logs (or use supplied lists), join, label.
 
@@ -239,8 +239,8 @@ class AutoLabeler:
         them out of the canonical training fields; downstream tools may use
         them for filtering / debugging.
         """
-        from classifier.infra.outcome_logger import read_outcomes, join_decisions_outcomes
         from classifier.infra.decision_logger import read_decisions
+        from classifier.infra.outcome_logger import join_decisions_outcomes, read_outcomes
 
         if decisions is None:
             decisions = read_decisions(since=since, until=until)
@@ -294,7 +294,7 @@ class AutoLabeler:
 
     # ── Aggregation ─────────────────────────────────────────────────────────
 
-    def _aggregate(self, votes: list[Label]) -> Optional[dict]:
+    def _aggregate(self, votes: list[Label]) -> dict | None:
         """Weighted majority vote on each dimension independently.
 
         For task_type and complexity separately:

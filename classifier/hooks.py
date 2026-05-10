@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from classifier.core.types import ClassificationDecision
@@ -82,8 +83,8 @@ class HookManager:
         return task
 
     def run_post(
-        self, kind: str, task: str, decision: "ClassificationDecision", ctx: dict[str, Any],
-    ) -> "ClassificationDecision":
+        self, kind: str, task: str, decision: ClassificationDecision, ctx: dict[str, Any],
+    ) -> ClassificationDecision:
         for fn in list(getattr(self, kind)):
             try:
                 result = fn(task, decision, ctx)

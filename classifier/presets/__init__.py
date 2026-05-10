@@ -9,7 +9,7 @@ Available presets:
     legal      — skeleton — extend with your firm's vocab
     fintech    — skeleton — extend with your domain vocab
 """
-from typing import Callable
+from collections.abc import Callable
 
 _REGISTRY: dict[str, Callable[[], dict]] = {}
 
@@ -35,7 +35,7 @@ def available() -> list[str]:
 
 
 # Auto-register built-in presets on import
-from classifier.presets import healthcare, legal, fintech  # noqa: E402, F401
+from classifier.presets import fintech, healthcare, legal  # noqa: E402, F401
 
 register("healthcare", healthcare.config)
 register("legal",      legal.config)

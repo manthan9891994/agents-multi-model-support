@@ -4,7 +4,6 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from typing import Optional
 
 from classifier.core.types import ClassificationDecision
 
@@ -32,7 +31,7 @@ class ClassificationCache:
         normalized = " ".join(task.lower().split())
         return hashlib.sha256(f"{provider}:{normalized}".encode()).hexdigest()
 
-    def get(self, task: str, provider: str) -> Optional[ClassificationDecision]:
+    def get(self, task: str, provider: str) -> ClassificationDecision | None:
         key = self._key(task, provider)
         if self._backend is not None:
             value = self._backend.get(key)

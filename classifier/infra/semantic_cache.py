@@ -1,7 +1,7 @@
 """Optional embedding-based semantic cache. Falls back gracefully if
 sentence-transformers or numpy are not installed."""
 import threading
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from classifier.core.types import ClassificationDecision
@@ -34,7 +34,7 @@ class SemanticCache:
         self._decisions: list = []
         self._lock = threading.Lock()
 
-    def get(self, task: str) -> "Optional[ClassificationDecision]":
+    def get(self, task: str) -> "ClassificationDecision | None":
         model = _get_model()
         if model is None:
             return None

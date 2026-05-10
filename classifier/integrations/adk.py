@@ -19,7 +19,9 @@ the router, and overwrites `llm_request.model` with the selected model.
 """
 from __future__ import annotations
 
+import collections as _collections
 import logging
+import threading as _threading
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +34,9 @@ _ERROR_SIGNALS = {"error", "exception", "traceback", "failed", "failure", "timeo
 #   2. callback_context.state["_dmr_decision"]  (preferred — survives GC)
 #   3. id(callback_context)             (fallback — bounded by an LRU)
 # Bounded so unmatched decisions (after_model_callback never fires) don't leak.
-import collections as _collections
 _PENDING_MAX = 1024
-_pending_decisions: "_collections.OrderedDict[str, dict]" = _collections.OrderedDict()
-import threading as _threading
+_pending_decisions: _collections.OrderedDict[str, dict] = _collections.OrderedDict()
+
 _pending_lock = _threading.Lock()
 
 
@@ -193,7 +194,7 @@ def report_model_outcome(callback_context, llm_response):
     if pending is None:
         return None
 
-    from classifier import log_outcome, OutcomeRecord
+    from classifier import OutcomeRecord, log_outcome
     from classifier.infra.tokenizers import count_tokens
 
     wall_ms = (time.perf_counter() - pending["t0"]) * 1000

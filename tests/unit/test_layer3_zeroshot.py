@@ -3,8 +3,9 @@
 All tests mock the transformers pipeline. transformers does NOT need to be installed
 to run this test file; the lazy-loaded pipeline is replaced by a MagicMock.
 """
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +42,7 @@ def _make_mock_pipe(tt_label: str, tt_score: float, cx_label: str, cx_score: flo
 # ── Happy path ────────────────────────────────────────────────────────────────
 
 def test_confident_zeroshot_returns_decision():
-    from classifier.core.types import TaskType, TaskComplexity, ModelTier
+    from classifier.core.types import ModelTier, TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.CODE_CREATION)
@@ -62,7 +63,7 @@ def test_confident_zeroshot_returns_decision():
 
 
 def test_reasoning_string_includes_both_probs():
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.REASONING)
@@ -79,7 +80,7 @@ def test_reasoning_string_includes_both_probs():
 
 def test_low_confidence_abstains():
     """Geometric mean below threshold → returns None → cascade falls to L2."""
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.CODE_CREATION)
@@ -93,7 +94,7 @@ def test_low_confidence_abstains():
 
 def test_asymmetric_confidence_abstains():
     """One head sure, other guessing → geometric mean penalises → abstain."""
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.REASONING)
@@ -139,7 +140,7 @@ def test_load_failed_short_circuits():
 
 def test_history_is_prepended_to_input():
     """Last history turn should be visible to the NLI model for continuation cases."""
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.CODE_CREATION)
@@ -159,9 +160,10 @@ def test_history_is_prepended_to_input():
 
 def test_strategy_router_dispatches_zeroshot():
     """settings.layer3_strategy='zeroshot' → calls zeroshot implementation."""
-    from classifier.layers.layer3 import classify_layer3, zeroshot as zs
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.infra.config import settings
+    from classifier.layers.layer3 import classify_layer3
+    from classifier.layers.layer3 import zeroshot as zs
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.MATH)
     cx_label = next(k for k, v in zs._COMPLEXITY_HYPOTHESES.items() if v == TaskComplexity.SIMPLE)
@@ -178,8 +180,8 @@ def test_strategy_router_dispatches_zeroshot():
 
 
 def test_strategy_router_skips_unimplemented_distilbert():
-    from classifier.layers.layer3 import classify_layer3
     from classifier.infra.config import settings
+    from classifier.layers.layer3 import classify_layer3
 
     original = settings.layer3_strategy
     try:
@@ -190,8 +192,8 @@ def test_strategy_router_skips_unimplemented_distilbert():
 
 
 def test_strategy_router_unknown_returns_none():
-    from classifier.layers.layer3 import classify_layer3
     from classifier.infra.config import settings
+    from classifier.layers.layer3 import classify_layer3
 
     original = settings.layer3_strategy
     try:
@@ -205,10 +207,10 @@ def test_strategy_router_unknown_returns_none():
 
 def test_cascade_l3_confident_skips_l2():
     """When L3 returns a confident result, L2 should not fire even if L1 was low-conf."""
-    from classifier.core.types import TaskType, TaskComplexity
+    from classifier.core.types import TaskComplexity, TaskType
+    from classifier.infra.cache import cache
     from classifier.infra.config import settings
     from classifier.layers.layer3 import zeroshot as zs
-    from classifier.infra.cache import cache
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.REASONING)
     cx_label = next(k for k, v in zs._COMPLEXITY_HYPOTHESES.items() if v == TaskComplexity.COMPLEX)
@@ -246,9 +248,9 @@ def test_cascade_l3_confident_skips_l2():
 
 def test_cascade_l3_abstains_falls_through_to_l1():
     """When L3 abstains and L2 is disabled, the L1 result is preserved."""
+    from classifier.core.types import TaskComplexity, TaskType
     from classifier.infra.config import settings
     from classifier.layers.layer3 import zeroshot as zs
-    from classifier.core.types import TaskType, TaskComplexity
 
     tt_label = next(k for k, v in zs._TASK_TYPE_HYPOTHESES.items() if v == TaskType.CODE_CREATION)
     cx_label = next(k for k, v in zs._COMPLEXITY_HYPOTHESES.items() if v == TaskComplexity.SIMPLE)

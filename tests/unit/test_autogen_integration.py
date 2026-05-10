@@ -45,8 +45,8 @@ def test_get_autogen_llm_config_extra_config():
 
 
 def test_get_autogen_llm_config_fallback_on_error():
-    from classifier.integrations.autogen import get_autogen_llm_config
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.autogen import get_autogen_llm_config
     with patch("classifier.classify_task", side_effect=ClassificationError("boom")):
         config = get_autogen_llm_config("task", provider="openai",
                                         fallback_model="gpt-4o-mini")
@@ -54,8 +54,8 @@ def test_get_autogen_llm_config_fallback_on_error():
 
 
 def test_get_autogen_llm_config_raises_without_fallback():
-    from classifier.integrations.autogen import get_autogen_llm_config
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.autogen import get_autogen_llm_config
     with patch("classifier.classify_task", side_effect=ClassificationError("boom")):
         with pytest.raises(ClassificationError):
             get_autogen_llm_config("task", provider="openai")
@@ -70,8 +70,8 @@ def test_get_openai_agent_model_returns_string():
 
 
 def test_get_openai_agent_model_fallback():
-    from classifier.integrations.autogen import get_openai_agent_model
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.autogen import get_openai_agent_model
     with patch("classifier.classify_task", side_effect=ClassificationError("boom")):
         model = get_openai_agent_model("task", provider="openai",
                                        fallback_model="gpt-4o-mini")

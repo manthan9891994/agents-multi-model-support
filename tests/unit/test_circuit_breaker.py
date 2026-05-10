@@ -27,7 +27,8 @@ def test_circuit_does_not_open_on_intermittent_failures():
 
 def test_circuit_half_opens_after_cooldown():
     cb = _CircuitBreaker(failure_threshold=2, cooldown_secs=0.05)
-    cb.record_failure(); cb.record_failure()
+    cb.record_failure()
+    cb.record_failure()
     assert cb.is_open()
     time.sleep(0.06)
     # After cooldown, allow one trial through (half-open)

@@ -11,7 +11,6 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 def train_from_data(
     data_path: Path,
     *,
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
     max_iter: int = 600,
     test_size: float = 0.30,
     cal_fraction: float = 0.50,

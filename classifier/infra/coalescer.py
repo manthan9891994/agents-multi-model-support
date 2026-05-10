@@ -1,7 +1,8 @@
 """Single-flight request coalescer — prevents cache stampede when many concurrent
 requests miss the cache for the same task simultaneously."""
 import threading
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 

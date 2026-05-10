@@ -1,4 +1,4 @@
-from classifier.core.types import TaskType, TaskComplexity, ModelTier
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 _TASK_KEYWORDS: dict[TaskType, dict[str, list[str]]] = {
     TaskType.CONVERSATION: {

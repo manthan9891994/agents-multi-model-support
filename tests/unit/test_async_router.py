@@ -1,5 +1,6 @@
 """Tests for the async Router API (aclassify + aclassify_batch)."""
 import asyncio
+
 import pytest
 
 from classifier import Router

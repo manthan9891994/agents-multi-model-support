@@ -1,7 +1,8 @@
 """Unit tests for classifier/layers/layer2/ package — mocks all external calls."""
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +40,7 @@ def _valid_payload(**overrides):
 # ── Happy path ─────────────────────────────────────────────────────────────────
 
 def test_valid_response_returns_tuple():
-    from classifier.core.types import TaskType, TaskComplexity, ModelTier
+    from classifier.core.types import ModelTier, TaskComplexity, TaskType
     with patch("classifier.layers.layer2.api.genai.Client") as mock_cls:
         mock_cls.return_value.models.generate_content.return_value = _mock_response(_valid_payload())
         from classifier.layers.layer2 import classify_layer2
@@ -109,7 +110,8 @@ def test_timeout_returns_none():
 
 def test_malformed_json_returns_none():
     with patch("classifier.layers.layer2.api.genai.Client") as mock_cls:
-        m = MagicMock(); m.text = "not-json-at-all"
+        m = MagicMock()
+        m.text = "not-json-at-all"
         mock_cls.return_value.models.generate_content.return_value = m
         from classifier.layers.layer2 import classify_layer2
         assert classify_layer2("some task") is None
@@ -127,8 +129,9 @@ def test_rate_limit_blocks():
 
 
 def test_rate_limiter_resets_after_window():
-    from classifier.layers.layer2 import _RateLimiter
     from collections import deque
+
+    from classifier.layers.layer2 import _RateLimiter
     limiter = _RateLimiter(max_rpm=2)
     assert limiter.allow() is True
     assert limiter.allow() is True

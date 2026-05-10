@@ -1,7 +1,8 @@
 """Unit tests for classifier/infra/cache.py."""
 import time
+
+from classifier.core.types import ClassificationDecision, ModelTier, TaskComplexity, TaskType
 from classifier.infra.cache import ClassificationCache
-from classifier.core.types import TaskType, TaskComplexity, ModelTier, ClassificationDecision
 
 
 def _decision(model="gemini-2.5-flash-lite"):

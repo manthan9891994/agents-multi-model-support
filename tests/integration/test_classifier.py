@@ -1,9 +1,9 @@
 """Integration tests for classifier.classify_task() — tests full Layer 1 pipeline."""
 import pytest
-from classifier import classify_task
-from classifier.core.types import ModelTier, TaskType, TaskComplexity
-from classifier.core.exceptions import ClassificationError, UnsupportedProviderError
 
+from classifier import classify_task
+from classifier.core.exceptions import ClassificationError, UnsupportedProviderError
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 # ── Tier routing ───────────────────────────────────────────────────────────────
 

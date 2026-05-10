@@ -51,7 +51,7 @@ def llamaindex_fakes():
 def test_llamaindex_get_llm_google(llamaindex_fakes):
     from classifier.integrations.llamaindex import get_llm
     with patch("classifier.classify_task", return_value=_mock_decision(model="gemini-2.5-flash")):
-        llm = get_llm("test", provider="google")
+        llm = get_llm("test", provider="google")  # noqa: F841
         import llama_index.llms.google_genai as g
         g.GoogleGenAI.assert_called_once_with(model="gemini-2.5-flash")
 
@@ -59,7 +59,7 @@ def test_llamaindex_get_llm_google(llamaindex_fakes):
 def test_llamaindex_get_llm_anthropic(llamaindex_fakes):
     from classifier.integrations.llamaindex import get_llm
     with patch("classifier.classify_task", return_value=_mock_decision(model="claude-opus-4-7", tier="high")):
-        llm = get_llm("test", provider="anthropic")
+        llm = get_llm("test", provider="anthropic")  # noqa: F841
         import llama_index.llms.anthropic as a
         a.Anthropic.assert_called_once_with(model="claude-opus-4-7")
 
@@ -103,7 +103,7 @@ def test_pydantic_ai_get_agent():
 
     from classifier.integrations.pydantic_ai import get_agent
     with patch("classifier.classify_task", return_value=_mock_decision(model="claude-opus-4-7", tier="high")):
-        agent = get_agent("Complex task", provider="anthropic", system_prompt="You are helpful")
+        agent = get_agent("Complex task", provider="anthropic", system_prompt="You are helpful")  # noqa: F841
         fake_agent_cls.assert_called_once_with("anthropic:claude-opus-4-7", system_prompt="You are helpful")
 
 
@@ -135,7 +135,7 @@ def test_dspy_get_lm():
 
     from classifier.integrations.dspy import get_lm
     with patch("classifier.classify_task", return_value=_mock_decision(model="gemini-2.5-flash")):
-        lm = get_lm("test", provider="google")
+        lm = get_lm("test", provider="google")  # noqa: F841
         fake_lm_cls.assert_called_once_with("gemini/gemini-2.5-flash")
 
 
@@ -181,7 +181,7 @@ def haystack_fakes():
 def test_haystack_get_generator_google(haystack_fakes):
     from classifier.integrations.haystack import get_generator
     with patch("classifier.classify_task", return_value=_mock_decision(model="gemini-2.5-flash")):
-        gen = get_generator("test", provider="google")
+        gen = get_generator("test", provider="google")  # noqa: F841
         from haystack_integrations.components.generators import google_genai as g
         g.GoogleGenAIGenerator.assert_called_once_with(model="gemini-2.5-flash")
 
@@ -189,7 +189,7 @@ def test_haystack_get_generator_google(haystack_fakes):
 def test_haystack_get_generator_openai(haystack_fakes):
     from classifier.integrations.haystack import get_generator
     with patch("classifier.classify_task", return_value=_mock_decision(model="gpt-4o", tier="medium")):
-        gen = get_generator("test", provider="openai")
+        gen = get_generator("test", provider="openai")  # noqa: F841
         from haystack.components import generators as g
         g.OpenAIGenerator.assert_called_once_with(model="gpt-4o")
 
@@ -224,7 +224,7 @@ def sk_fakes():
 def test_semantic_kernel_get_chat_service_google(sk_fakes):
     from classifier.integrations.semantic_kernel import get_chat_service
     with patch("classifier.classify_task", return_value=_mock_decision(model="gemini-2.5-flash")):
-        svc = get_chat_service("test", provider="google")
+        svc = get_chat_service("test", provider="google")  # noqa: F841
         from semantic_kernel.connectors.ai.google import google_ai as g
         g.GoogleAIChatCompletion.assert_called_once()
 
@@ -232,7 +232,7 @@ def test_semantic_kernel_get_chat_service_google(sk_fakes):
 def test_semantic_kernel_get_chat_service_anthropic(sk_fakes):
     from classifier.integrations.semantic_kernel import get_chat_service
     with patch("classifier.classify_task", return_value=_mock_decision(model="claude-opus-4-7", tier="high")):
-        svc = get_chat_service("test", provider="anthropic")
+        svc = get_chat_service("test", provider="anthropic")  # noqa: F841
         from semantic_kernel.connectors.ai import anthropic as a
         a.AnthropicChatCompletion.assert_called_once()
 
@@ -253,7 +253,7 @@ def test_smolagents_get_model():
 
     from classifier.integrations.smolagents import get_model
     with patch("classifier.classify_task", return_value=_mock_decision(model="gemini-2.5-flash")):
-        model = get_model("test", provider="google")
+        model = get_model("test", provider="google")  # noqa: F841
         fake_lite_llm_cls.assert_called_once_with(model_id="gemini/gemini-2.5-flash")
 
 
@@ -280,8 +280,9 @@ def test_smolagents_dynamic_model_extracts_text():
 ])
 def test_fallback_model_used_on_classification_error(module_path, fn, fake_setup):
     """When classification raises, fallback_model is used."""
-    from classifier.core.exceptions import ClassificationError
     import importlib
+
+    from classifier.core.exceptions import ClassificationError
 
     # Provide framework fakes for those paths that need them
     if fake_setup == "llamaindex":

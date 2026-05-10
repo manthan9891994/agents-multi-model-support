@@ -1,6 +1,6 @@
 """Type stubs for classifier.router."""
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from classifier.core.types import (
     ClassificationDecision,
@@ -9,65 +9,65 @@ from classifier.core.types import (
 from classifier.layers.layer1.keyword_pack import KeywordPack
 
 class Router:
-    providers: List[str]
-    extra_keyword_packs: List[KeywordPack]
-    extra_pii_patterns: List[tuple]
-    tier_matrix: Dict
-    model_registry: Dict
-    layer1_enabled: Optional[bool]
-    layer2_enabled: Optional[bool]
-    layer3_enabled: Optional[bool]
-    escalation_threshold: Optional[float]
-    layer3_threshold: Optional[float]
-    budget_usd: Optional[float]
-    cache_enabled: Optional[bool]
+    providers: list[str]
+    extra_keyword_packs: list[KeywordPack]
+    extra_pii_patterns: list[tuple]
+    tier_matrix: dict
+    model_registry: dict
+    layer1_enabled: bool | None
+    layer2_enabled: bool | None
+    layer3_enabled: bool | None
+    escalation_threshold: float | None
+    layer3_threshold: float | None
+    budget_usd: float | None
+    cache_enabled: bool | None
 
     def __init__(
         self,
         *,
-        providers: Optional[List[str]] = ...,
-        extra_keyword_packs: Optional[List[KeywordPack]] = ...,
-        extra_pii_patterns: Optional[List[tuple]] = ...,
-        tier_matrix: Optional[Dict] = ...,
-        model_registry: Optional[Dict] = ...,
-        layer1_enabled: Optional[bool] = ...,
-        layer2_enabled: Optional[bool] = ...,
-        layer3_enabled: Optional[bool] = ...,
-        escalation_threshold: Optional[float] = ...,
-        layer3_threshold: Optional[float] = ...,
-        budget_usd: Optional[float] = ...,
-        cache_enabled: Optional[bool] = ...,
+        providers: list[str] | None = ...,
+        extra_keyword_packs: list[KeywordPack] | None = ...,
+        extra_pii_patterns: list[tuple] | None = ...,
+        tier_matrix: dict | None = ...,
+        model_registry: dict | None = ...,
+        layer1_enabled: bool | None = ...,
+        layer2_enabled: bool | None = ...,
+        layer3_enabled: bool | None = ...,
+        escalation_threshold: float | None = ...,
+        layer3_threshold: float | None = ...,
+        budget_usd: float | None = ...,
+        cache_enabled: bool | None = ...,
     ) -> None: ...
 
     def classify(
         self,
         task: str,
-        history: Optional[List[str]] = ...,
-        context_signals: Optional[ContextSignals] = ...,
-        provider: Optional[str] = ...,
+        history: list[str] | None = ...,
+        context_signals: ContextSignals | None = ...,
+        provider: str | None = ...,
     ) -> ClassificationDecision: ...
 
     def estimate_cost(
         self,
         task: str,
         *,
-        provider: Optional[str] = ...,
+        provider: str | None = ...,
         estimated_output_tokens: int = ...,
-    ) -> Dict[str, Any]: ...
+    ) -> dict[str, Any]: ...
 
     def train(
         self,
         data: str | Path,
         *,
-        output_path: Optional[str | Path] = ...,
+        output_path: str | Path | None = ...,
         max_iter: int = ...,
-    ) -> Dict[str, Any]: ...
+    ) -> dict[str, Any]: ...
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "Router": ...
+    def from_yaml(cls, path: str | Path) -> Router: ...
 
     @classmethod
-    def from_preset(cls, name: str) -> "Router": ...
+    def from_preset(cls, name: str) -> Router: ...
 
 
 def classify(task: str, **kwargs: Any) -> ClassificationDecision: ...

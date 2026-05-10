@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
 
-from classifier.core.types import TaskType, ModelTier
-from .constants import _ESCALATORS, _DOMAIN_MIN_TIER, _TASK_KEYWORDS
+from classifier.core.types import ModelTier, TaskType
+
+from .constants import _DOMAIN_MIN_TIER, _ESCALATORS, _TASK_KEYWORDS
 
 logger = logging.getLogger(__name__)
 

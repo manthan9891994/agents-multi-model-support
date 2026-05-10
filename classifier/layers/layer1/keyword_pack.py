@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from classifier.core.types import TaskType, ModelTier
+    from classifier.core.types import ModelTier, TaskType
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class KeywordPack:
     domain_min_tier: dict      = field(default_factory=dict)  # {keyword: ModelTier}
 
     @staticmethod
-    def builder(name: str) -> "_KeywordPackBuilder":
+    def builder(name: str) -> _KeywordPackBuilder:
         return _KeywordPackBuilder(name)
 
 
@@ -46,7 +46,7 @@ class _KeywordPackBuilder:
         self._escalators: dict    = {}
         self._domain_min_tier: dict = {}
 
-    def add(self, task_type: "TaskType", keywords: list[str], group: str = "primary") -> "_KeywordPackBuilder":
+    def add(self, task_type: TaskType, keywords: list[str], group: str = "primary") -> _KeywordPackBuilder:
         """Add keywords for a task type. `group` defaults to 'primary' (highest weight)."""
         slot = self._task_keywords.setdefault(task_type, {})
         existing = slot.setdefault(group, [])
@@ -55,12 +55,12 @@ class _KeywordPackBuilder:
                 existing.append(kw)
         return self
 
-    def escalator(self, keyword: str, weight: int = 1) -> "_KeywordPackBuilder":
+    def escalator(self, keyword: str, weight: int = 1) -> _KeywordPackBuilder:
         """Add a complexity-escalator keyword (e.g. 'distributed' bumps complexity)."""
         self._escalators[keyword] = int(weight)
         return self
 
-    def min_tier(self, keyword: str, tier: "ModelTier") -> "_KeywordPackBuilder":
+    def min_tier(self, keyword: str, tier: ModelTier) -> _KeywordPackBuilder:
         """Force a minimum tier when this keyword appears (e.g. 'compliance' → MEDIUM)."""
         self._domain_min_tier[keyword] = tier
         return self
@@ -86,7 +86,9 @@ def register_extra_packs(packs: list[KeywordPack]) -> None:
     Called by Router(__init__) when `extra_keyword_packs=[...]` is passed.
     """
     from classifier.layers.layer1.constants import (
-        _TASK_KEYWORDS, _ESCALATORS, _DOMAIN_MIN_TIER,
+        _DOMAIN_MIN_TIER,
+        _ESCALATORS,
+        _TASK_KEYWORDS,
     )
 
     for pack in packs:

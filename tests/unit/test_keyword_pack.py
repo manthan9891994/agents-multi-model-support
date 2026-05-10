@@ -1,7 +1,7 @@
 """Unit tests for the KeywordPack builder API."""
 import pytest
 
-from classifier import KeywordPack, TaskType, ModelTier
+from classifier import KeywordPack, ModelTier, TaskType
 from classifier.layers.layer1 import keyword_pack as kp
 
 

@@ -1,9 +1,9 @@
 """Unit tests for classifier/layers/layer1.py — no external calls."""
 import pytest
-from classifier.layers.layer1 import classify_layer1
-from classifier.core.types import ModelTier, TaskType, TaskComplexity
-from classifier.core.exceptions import ClassificationError
 
+from classifier.core.exceptions import ClassificationError
+from classifier.core.types import ModelTier, TaskComplexity, TaskType
+from classifier.layers.layer1 import classify_layer1
 
 # ── Error handling ─────────────────────────────────────────────────────────────
 

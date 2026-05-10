@@ -20,7 +20,7 @@ Two patterns:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _qualify(model_name: str, provider: str) -> str:
     return f"{prefix}/{model_name}"
 
 
-def _route_one(task: str, provider: Optional[str], fallback_model: Optional[str]) -> str:
+def _route_one(task: str, provider: str | None, fallback_model: str | None) -> str:
     from classifier import classify_task
     from classifier.core.exceptions import ClassificationError
     from classifier.infra.config import settings
@@ -66,8 +66,8 @@ def _route_one(task: str, provider: Optional[str], fallback_model: Optional[str]
 def get_model(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **model_kwargs: Any,
 ) -> Any:
     """Classify a task and return a smolagents `LiteLLMModel` pinned to the routed model."""
@@ -95,8 +95,8 @@ class DynamicModel:
     def __init__(
         self,
         *,
-        provider: Optional[str] = None,
-        fallback_model: Optional[str] = None,
+        provider: str | None = None,
+        fallback_model: str | None = None,
         **model_kwargs: Any,
     ) -> None:
         self._provider = provider

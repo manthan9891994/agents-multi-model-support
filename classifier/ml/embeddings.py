@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Optional
 
 import numpy as np
 
@@ -76,7 +75,7 @@ def get_encoder():
             return None
 
 
-def encode(texts: list[str]) -> Optional[np.ndarray]:
+def encode(texts: list[str]) -> np.ndarray | None:
     """Encode a list of texts → (N, 384) L2-normalized array. Returns None on failure."""
     enc = get_encoder()
     if enc is None:
@@ -84,7 +83,7 @@ def encode(texts: list[str]) -> Optional[np.ndarray]:
     return enc.encode(texts, normalize_embeddings=True, show_progress_bar=False)
 
 
-def encode_one(text: str) -> Optional[np.ndarray]:
+def encode_one(text: str) -> np.ndarray | None:
     """Encode a single text → (384,) vector. Returns None on failure."""
     arr = encode([text])
     if arr is None:

@@ -22,7 +22,7 @@ Two patterns:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,8 @@ def _qualify(model_name: str, provider: str) -> str:
 def get_model_string(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
 ) -> str:
     """Classify a task and return the Pydantic-AI provider-qualified model string."""
     from classifier import classify_task
@@ -76,8 +76,8 @@ def get_model_string(
 def get_agent(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **agent_kwargs: Any,
 ) -> Any:
     """Classify a task and return a Pydantic-AI Agent pinned to the routed model."""

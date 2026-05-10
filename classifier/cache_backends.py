@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 

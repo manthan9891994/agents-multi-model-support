@@ -5,12 +5,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from classifier import (
-    Router, OutcomeRecord, log_outcome, read_outcomes, classify_task,
+    OutcomeRecord,
+    Router,
+    classify_task,
+    log_outcome,
+    read_outcomes,
 )
 from classifier.core.types import (
-    ClassificationDecision, ModelTier, TaskType, TaskComplexity,
+    ClassificationDecision,
+    ModelTier,
+    TaskComplexity,
+    TaskType,
 )
-
 
 # ── #1 Cache-hit: fresh decision_id + `cached` flag ──────────────────────────
 
@@ -79,6 +85,7 @@ def test_outcome_pii_redacted_email(tmp_path, monkeypatch):
 
 def test_prune_old_outcomes(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
+
     from classifier.infra import outcome_logger as ol
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")

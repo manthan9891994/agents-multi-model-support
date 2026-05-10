@@ -8,7 +8,6 @@ Usage anywhere in the classifier package:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class FeatureFlags:
     calibration:               bool = False
 
 
-def _extract_enabled(val) -> Optional[bool]:
+def _extract_enabled(val) -> bool | None:
     """Accept both `key: true` and `key: {enabled: true, doc: ...}` forms."""
     if isinstance(val, bool):
         return val

@@ -5,9 +5,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from classifier import (
-    Router, ModelTier,
-    register_provider, register_model_cost, register_hook, clear_hooks,
-    list_providers, list_models, capabilities_for, get_model_cost,
+    ModelTier,
+    Router,
+    capabilities_for,
+    clear_hooks,
+    get_model_cost,
+    list_models,
+    list_providers,
+    register_hook,
+    register_model_cost,
+    register_provider,
 )
 
 
@@ -86,7 +93,7 @@ def test_layer2_provider_dispatch():
 # ── #4 Configurable L3 embedding model ──────────────────────────────────────
 
 def test_set_embedding_model_updates_global():
-    from classifier.ml.embeddings import set_embedding_model, current_embedding_model
+    from classifier.ml.embeddings import current_embedding_model, set_embedding_model
     original = current_embedding_model()
     set_embedding_model("BAAI/bge-large-en-v1.5")
     assert current_embedding_model() == "BAAI/bge-large-en-v1.5"
@@ -104,7 +111,7 @@ def test_router_layer3_embedding_model_constructor():
 # ── #14 Custom router function ──────────────────────────────────────────────
 
 def test_custom_classifier_overrides_cascade():
-    from classifier.core.types import ClassificationDecision, TaskType, TaskComplexity
+    from classifier.core.types import ClassificationDecision, TaskComplexity, TaskType
 
     def force_high(task: str, ctx: dict):
         return ClassificationDecision(

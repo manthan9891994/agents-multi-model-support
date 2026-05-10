@@ -75,7 +75,8 @@ def apply_registry(data: dict) -> dict:
     Does NOT clear existing entries — call clear_registry() first for a fresh slate.
     """
     from classifier.core.registry import (
-        MODEL_REGISTRY, MODEL_CAPABILITIES, register_provider,
+        MODEL_CAPABILITIES,
+        register_provider,
     )
     from classifier.infra.cost_tracker import register_model_cost
 
@@ -111,7 +112,7 @@ def apply_registry(data: dict) -> dict:
 
 def clear_registry() -> None:
     """Wipe all registered providers, models, costs, and capabilities."""
-    from classifier.core.registry import MODEL_REGISTRY, MODEL_CAPABILITIES
+    from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
     from classifier.infra.cost_tracker import COST_TABLE
     MODEL_REGISTRY.clear()
     MODEL_CAPABILITIES.clear()
@@ -152,7 +153,7 @@ def load_registry(source: str | Path = "default") -> dict:
 
 def export_registry() -> dict:
     """Snapshot the current runtime registries as a dict in registry-YAML shape."""
-    from classifier.core.registry import MODEL_REGISTRY, MODEL_CAPABILITIES
+    from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
     from classifier.infra.cost_tracker import COST_TABLE
 
     providers_out: dict[str, Any] = {}

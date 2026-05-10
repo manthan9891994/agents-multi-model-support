@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +62,8 @@ def _build_generator(model_name: str, provider: str, **kwargs: Any) -> Any:
 def get_generator(
     task: str,
     *,
-    provider: Optional[str] = None,
-    fallback_model: Optional[str] = None,
+    provider: str | None = None,
+    fallback_model: str | None = None,
     **generator_kwargs: Any,
 ) -> Any:
     """Classify a task and return the Haystack generator pinned to the routed model."""

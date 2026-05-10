@@ -1,6 +1,6 @@
-"""Unit tests for the LangChain integration.
+﻿"""Unit tests for the LangChain integration.
 
-langchain packages are optional — mocked so tests run without them installed.
+langchain packages are optional â€” mocked so tests run without them installed.
 """
 import sys
 import types
@@ -50,7 +50,7 @@ def test_get_chat_model_google():
     from classifier.integrations.langchain import get_chat_model
     with patch("classifier.classify_task") as mock_classify:
         mock_classify.return_value = _mock_decision(model="gemini-2.5-flash")
-        llm = get_chat_model("Write a short summary", provider="google")
+        llm = get_chat_model("Write a short summary", provider="google")  # noqa: F841
         import langchain_google_genai
         langchain_google_genai.ChatGoogleGenerativeAI.assert_called_once_with(
             model="gemini-2.5-flash"
@@ -61,7 +61,7 @@ def test_get_chat_model_anthropic():
     from classifier.integrations.langchain import get_chat_model
     with patch("classifier.classify_task") as mock_classify:
         mock_classify.return_value = _mock_decision(model="claude-opus-4-7", tier="high")
-        llm = get_chat_model("Complex analysis", provider="anthropic")
+        llm = get_chat_model("Complex analysis", provider="anthropic")  # noqa: F841
         import langchain_anthropic
         langchain_anthropic.ChatAnthropic.assert_called_once_with(model="claude-opus-4-7")
 
@@ -70,16 +70,16 @@ def test_get_chat_model_openai():
     from classifier.integrations.langchain import get_chat_model
     with patch("classifier.classify_task") as mock_classify:
         mock_classify.return_value = _mock_decision(model="gpt-4o", tier="medium")
-        llm = get_chat_model("Translate to Spanish", provider="openai")
+        llm = get_chat_model("Translate to Spanish", provider="openai")  # noqa: F841
         import langchain_openai
         langchain_openai.ChatOpenAI.assert_called_once_with(model="gpt-4o")
 
 
 def test_get_chat_model_uses_fallback_on_error():
-    from classifier.integrations.langchain import get_chat_model
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.langchain import get_chat_model
     with patch("classifier.classify_task", side_effect=ClassificationError("boom")):
-        llm = get_chat_model("task", provider="google", fallback_model="gemini-2.5-flash")
+        llm = get_chat_model("task", provider="google", fallback_model="gemini-2.5-flash")  # noqa: F841
         import langchain_google_genai
         langchain_google_genai.ChatGoogleGenerativeAI.assert_called_with(
             model="gemini-2.5-flash"
@@ -87,8 +87,8 @@ def test_get_chat_model_uses_fallback_on_error():
 
 
 def test_get_chat_model_raises_without_fallback():
-    from classifier.integrations.langchain import get_chat_model
     from classifier.core.exceptions import ClassificationError
+    from classifier.integrations.langchain import get_chat_model
     with patch("classifier.classify_task", side_effect=ClassificationError("boom")):
         with pytest.raises(ClassificationError):
             get_chat_model("task", provider="google", fallback_model=None)

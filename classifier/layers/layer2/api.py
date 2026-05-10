@@ -5,9 +5,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 from google import genai
 
+from classifier.config.feature_flags import feature_flags
 from classifier.infra.config import settings
 from classifier.infra.pii_scrubber import scrub
-from classifier.config.feature_flags import feature_flags
+
 from .prompt import _SCHEMA, _build_contents
 
 logger = logging.getLogger(__name__)
@@ -102,11 +103,15 @@ def _retry_after_seconds(exc) -> float | None:
         if isinstance(val, dict):
             ra = val.get("Retry-After") or val.get("retry-after")
             if ra:
-                try: return float(ra)
-                except (TypeError, ValueError): pass
+                try:
+                    return float(ra)
+                except (TypeError, ValueError):
+                    pass
         else:
-            try: return float(val)
-            except (TypeError, ValueError): pass
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                pass
     return None
 
 
