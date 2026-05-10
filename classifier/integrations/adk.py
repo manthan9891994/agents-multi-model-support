@@ -17,6 +17,7 @@ The callback inspects each `LlmRequest`, extracts the user's task + context
 signals (call number, errors, multimodal data, tool count), classifies via
 the router, and overwrites `llm_request.model` with the selected model.
 """
+
 from __future__ import annotations
 
 import collections as _collections
@@ -82,22 +83,19 @@ def _extract_context_signals(llm_request, agent_name: str):
     _call_counter[agent_name] = _call_counter.get(agent_name, 0) + 1
     call_number = _call_counter[agent_name]
 
-    total_chars   = 0
-    last_role     = "user"
+    total_chars = 0
+    last_role = "user"
     last_non_user = ""
     has_multimodal = False
 
     for content in llm_request.contents:
         last_role = content.role or "user"
-        for part in (content.parts or []):
+        for part in content.parts or []:
             text = getattr(part, "text", "") or ""
             total_chars += len(text)
             if content.role in ("tool", "model"):
                 last_non_user = text
-            if (
-                getattr(part, "inline_data", None) is not None
-                or getattr(part, "file_data", None) is not None
-            ):
+            if getattr(part, "inline_data", None) is not None or getattr(part, "file_data", None) is not None:
                 has_multimodal = True
 
     has_error = False
@@ -158,19 +156,26 @@ def dynamic_model_selector(callback_context, llm_request):
     # Bounded LRU + stable key via invocation_id / callback_context.state to
     # prevent leaks if after_model_callback never fires (agent crash).
     import time
-    _store_pending(callback_context, {
-        "decision_id": decision.decision_id,
-        "model":       decision.model_name,
-        "task":        task,
-        "t0":          time.perf_counter(),
-    })
+
+    _store_pending(
+        callback_context,
+        {
+            "decision_id": decision.decision_id,
+            "model": decision.model_name,
+            "task": task,
+            "t0": time.perf_counter(),
+        },
+    )
 
     logger.info(
         "Model selected | %s => %s [%s | %s | %s | call=%d | ctx_tokens=%d%s%s]",
-        original, decision.model_name,
+        original,
+        decision.model_name,
         decision.tier.value.upper(),
-        decision.task_type.value, decision.complexity.value,
-        ctx_signals.call_number, ctx_signals.total_context_tokens,
+        decision.task_type.value,
+        decision.complexity.value,
+        ctx_signals.call_number,
+        ctx_signals.total_context_tokens,
         " | PII" if decision.compliance_flag else "",
         f" | tools={ctx_signals.available_tools}" if ctx_signals.available_tools else "",
     )
@@ -190,6 +195,7 @@ def report_model_outcome(callback_context, llm_response):
         )
     """
     import time
+
     pending = _pop_pending(callback_context)
     if pending is None:
         return None
@@ -200,30 +206,35 @@ def report_model_outcome(callback_context, llm_response):
     wall_ms = (time.perf_counter() - pending["t0"]) * 1000
 
     # Try to extract usage / response text from various ADK response shapes
-    tokens_in  = count_tokens(pending["task"], model=pending["model"])
+    tokens_in = count_tokens(pending["task"], model=pending["model"])
     tokens_out = 0
-    success    = True
-    error      = None
+    success = True
+    error = None
     try:
         usage = getattr(llm_response, "usage_metadata", None) or {}
         if hasattr(usage, "get"):
-            tokens_in  = int(usage.get("prompt_token_count", tokens_in))
+            tokens_in = int(usage.get("prompt_token_count", tokens_in))
             tokens_out = int(usage.get("candidates_token_count", 0))
         else:
-            tokens_in  = int(getattr(usage, "prompt_token_count", tokens_in))
+            tokens_in = int(getattr(usage, "prompt_token_count", tokens_in))
             tokens_out = int(getattr(usage, "candidates_token_count", 0))
     except Exception:
         # Fall through with the heuristic count
-        for content in (getattr(llm_response, "content", None) or []):
+        for content in getattr(llm_response, "content", None) or []:
             for part in getattr(content, "parts", []) or []:
                 if getattr(part, "text", None):
                     tokens_out += count_tokens(part.text, model=pending["model"])
 
-    log_outcome(OutcomeRecord(
-        decision_id=pending["decision_id"],
-        tokens_in=tokens_in, tokens_out=tokens_out,
-        wall_ms=wall_ms, success=success, error_message=error,
-    ))
+    log_outcome(
+        OutcomeRecord(
+            decision_id=pending["decision_id"],
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            wall_ms=wall_ms,
+            success=success,
+            error_message=error,
+        )
+    )
     return None
 
 

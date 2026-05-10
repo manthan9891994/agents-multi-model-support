@@ -3,6 +3,7 @@
 The encoder and MLPs are mocked at the module level. Sentence-transformers does
 NOT need to be installed for these tests.
 """
+
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -13,6 +14,7 @@ import pytest
 def reset_head_singletons():
     """Reset module-level cache between tests."""
     import classifier.layers.layer3.embed_classifier as eh
+
     eh._bundle = None
     eh._load_failed = False
     yield
@@ -31,9 +33,9 @@ def _make_mock_bundle(tt_label: str, tt_prob: float, cx_label: str, cx_prob: flo
     cx_clf.classes_ = ["filler", cx_label]
 
     return {
-        "task_type_clf":      tt_clf,
-        "complexity_clf":     cx_clf,
-        "task_type_classes":  ["filler", tt_label],
+        "task_type_clf": tt_clf,
+        "complexity_clf": cx_clf,
+        "task_type_classes": ["filler", tt_label],
         "complexity_classes": ["filler", cx_label],
     }
 
@@ -43,10 +45,12 @@ def _patch_encoder(monkeypatch, vec=None):
     if vec is None:
         vec = np.random.rand(384).astype(np.float32)
     import classifier.ml.embeddings as emb
+
     monkeypatch.setattr(emb, "encode_one", lambda text: vec)
 
 
 # ── Happy path ────────────────────────────────────────────────────────────────
+
 
 def test_confident_head_returns_decision(monkeypatch):
     import classifier.layers.layer3.embed_classifier as eh
@@ -59,9 +63,9 @@ def test_confident_head_returns_decision(monkeypatch):
     assert result is not None
 
     task_type, complexity, tier, conf, reasoning = result
-    assert task_type  == TaskType.CODE_CREATION
+    assert task_type == TaskType.CODE_CREATION
     assert complexity == TaskComplexity.STANDARD
-    assert tier       == ModelTier.MEDIUM
+    assert tier == ModelTier.MEDIUM
     assert 0.92 < conf < 0.93  # geo-mean of 0.95 and 0.90
     assert reasoning.startswith("layer3 | head | code_creation/standard")
 
@@ -78,6 +82,7 @@ def test_reasoning_includes_both_head_probs(monkeypatch):
 
 
 # ── Abstain logic ─────────────────────────────────────────────────────────────
+
 
 def test_low_confidence_abstains(monkeypatch):
     import classifier.layers.layer3.embed_classifier as eh
@@ -104,6 +109,7 @@ def test_asymmetric_confidence_abstains(monkeypatch):
 
 # ── Failure modes ─────────────────────────────────────────────────────────────
 
+
 def test_missing_model_returns_none(tmp_path, monkeypatch):
     """No trained model on disk → returns None gracefully → cascade falls to L2."""
     import classifier.layers.layer3.embed_classifier as eh
@@ -119,6 +125,7 @@ def test_missing_model_returns_none(tmp_path, monkeypatch):
 
 def test_load_failed_short_circuits():
     import classifier.layers.layer3.embed_classifier as eh
+
     eh._load_failed = True
     assert eh._load_bundle() is None
 
@@ -148,6 +155,7 @@ def test_unknown_label_returns_none(monkeypatch):
 
 # ── History context ──────────────────────────────────────────────────────────
 
+
 def test_history_prepended_to_input(monkeypatch):
     import classifier.layers.layer3.embed_classifier as eh
     import classifier.ml.embeddings as emb
@@ -155,9 +163,11 @@ def test_history_prepended_to_input(monkeypatch):
     eh._bundle = _make_mock_bundle("code_creation", 0.95, "simple", 0.92)
 
     captured: list[str] = []
+
     def fake_encode(text):
         captured.append(text)
         return np.random.rand(384).astype(np.float32)
+
     monkeypatch.setattr(emb, "encode_one", fake_encode)
 
     eh.classify_layer3_head("now make it faster", history=["implement binary search"])
@@ -168,6 +178,7 @@ def test_history_prepended_to_input(monkeypatch):
 
 
 # ── Strategy router ──────────────────────────────────────────────────────────
+
 
 def test_strategy_router_dispatches_head(monkeypatch):
     """settings.layer3_strategy='head' → calls embed_classifier implementation."""
@@ -190,6 +201,7 @@ def test_strategy_router_dispatches_head(monkeypatch):
 
 
 # ── Cascade integration ──────────────────────────────────────────────────────
+
 
 def test_cascade_l3_head_skips_l2(monkeypatch):
     """When L3 head is confident, L2 should not fire."""
@@ -214,6 +226,7 @@ def test_cascade_l3_head_skips_l2(monkeypatch):
 
         with patch("classifier.layers.layer2.api.genai.Client") as mock_l2:
             from classifier import classify_task
+
             decision = classify_task("xyzzy frobnicate quuxify wibble", provider="google")
 
         assert decision.layer_used == "layer3"

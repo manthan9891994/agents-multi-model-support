@@ -17,6 +17,7 @@ Two patterns:
 2. **`DynamicModel(provider=...)`** — wrapper that classifies each call's prompt
    and dispatches to the routed underlying model.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,12 +27,12 @@ logger = logging.getLogger(__name__)
 
 # DMR provider -> LiteLLM provider prefix
 _PROVIDER_PREFIX = {
-    "google":    "gemini",
+    "google": "gemini",
     "anthropic": "anthropic",
-    "openai":    "openai",
-    "groq":      "groq",
-    "mistral":   "mistral",
-    "cohere":    "cohere",
+    "openai": "openai",
+    "groq": "groq",
+    "mistral": "mistral",
+    "cohere": "cohere",
 }
 
 
@@ -54,7 +55,9 @@ def _route_one(task: str, provider: str | None, fallback_model: str | None) -> s
         logger.info(
             "smolagents: routed [%s | %s/%s] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value, model,
+            decision.task_type.value,
+            decision.complexity.value,
+            model,
         )
     except ClassificationError:
         if not fallback_model:
@@ -74,9 +77,7 @@ def get_model(
     try:
         from smolagents import LiteLLMModel
     except ImportError as exc:
-        raise ImportError(
-            "smolagents is not installed. Install: pip install smolagents"
-        ) from exc
+        raise ImportError("smolagents is not installed. Install: pip install smolagents") from exc
 
     qualified = _route_one(task, provider, fallback_model)
     return LiteLLMModel(model_id=qualified, **model_kwargs)

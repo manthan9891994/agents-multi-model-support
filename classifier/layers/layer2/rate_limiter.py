@@ -7,12 +7,12 @@ from classifier.infra.config import settings
 
 class _RateLimiter:
     def __init__(self, max_rpm: int):
-        self._lock  = threading.Lock()
+        self._lock = threading.Lock()
         self._calls: deque[float] = deque()
-        self._max   = max_rpm
+        self._max = max_rpm
 
     def allow(self) -> bool:
-        now    = time.time()
+        now = time.time()
         cutoff = now - 60
         with self._lock:
             while self._calls and self._calls[0] < cutoff:

@@ -8,6 +8,7 @@ class _OpenEnumMeta(type(Enum)):
     Used to make TaskType and TaskComplexity user-extensible without breaking
     existing `TaskType.REASONING` member access.
     """
+
     def __call__(cls, value):
         # Look up dynamic registry first
         dyn = getattr(cls, "_dynamic_members_", {})
@@ -32,13 +33,17 @@ def _add_member(enum_cls, name: str, value: str):
     # Build a lightweight member object that quacks like an Enum member
     class _DynamicMember:
         __slots__ = ("name", "value")
+
         def __init__(self, name, value):
-            self.name  = name
+            self.name = name
             self.value = value
+
         def __repr__(self):
             return f"<{enum_cls.__name__}.{self.name}: {self.value!r}>"
+
         def __eq__(self, other):
             return getattr(other, "value", None) == self.value
+
         def __hash__(self):
             return hash((enum_cls.__name__, self.value))
 
@@ -49,9 +54,9 @@ def _add_member(enum_cls, name: str, value: str):
 
 
 class ModelTier(Enum):
-    LOW    = "low"
+    LOW = "low"
     MEDIUM = "medium"
-    HIGH   = "high"
+    HIGH = "high"
 
 
 # Configurable tier ordering. Updated by set_tier_levels() to support 4+ tiers.
@@ -92,21 +97,21 @@ def list_tier_levels() -> list[str]:
 
 
 class TaskType(Enum):
-    REASONING     = "reasoning"
-    THINKING      = "thinking"
-    ANALYZING     = "analyzing"
+    REASONING = "reasoning"
+    THINKING = "thinking"
+    ANALYZING = "analyzing"
     CODE_CREATION = "code_creation"
-    DOC_CREATION  = "doc_creation"
-    TRANSLATION   = "translation"
-    MATH          = "math"
-    CONVERSATION  = "conversation"
-    MULTIMODAL    = "multimodal"
+    DOC_CREATION = "doc_creation"
+    TRANSLATION = "translation"
+    MATH = "math"
+    CONVERSATION = "conversation"
+    MULTIMODAL = "multimodal"
 
 
 class TaskComplexity(Enum):
-    SIMPLE   = "simple"
+    SIMPLE = "simple"
     STANDARD = "standard"
-    COMPLEX  = "complex"
+    COMPLEX = "complex"
     RESEARCH = "research"
 
 
@@ -153,49 +158,51 @@ def register_complexity(value: str, *, name: str | None = None) -> "TaskComplexi
 def _new_decision_id() -> str:
     """UUID4-based decision id used to join decisions ⨝ outcomes."""
     import uuid
+
     return uuid.uuid4().hex[:16]
 
 
 @dataclass
 class ClassificationDecision:
-    model_name:      str
-    tier:            ModelTier
-    task_type:       TaskType
-    complexity:      TaskComplexity
-    reasoning:       str
-    confidence:      float
-    provider:        str
-    layer_used:      str   = "layer1"
-    latency_ms:      float = 0.0
-    compliance_flag: bool  = False  # PII/PHI/secret detected in task
-    disagreement:    bool  = False  # L1 and L2 disagreed on classification
-    decision_id:     str   = field(default_factory=_new_decision_id)
-    exploration:     bool  = False  # set True by Explorer when this call is a random sample
-    cached:          bool  = False  # True when returned from in-process or pluggable cache
-    cached_from:     str   = ""     # decision_id of the original (uncached) decision
+    model_name: str
+    tier: ModelTier
+    task_type: TaskType
+    complexity: TaskComplexity
+    reasoning: str
+    confidence: float
+    provider: str
+    layer_used: str = "layer1"
+    latency_ms: float = 0.0
+    compliance_flag: bool = False  # PII/PHI/secret detected in task
+    disagreement: bool = False  # L1 and L2 disagreed on classification
+    decision_id: str = field(default_factory=_new_decision_id)
+    exploration: bool = False  # set True by Explorer when this call is a random sample
+    cached: bool = False  # True when returned from in-process or pluggable cache
+    cached_from: str = ""  # decision_id of the original (uncached) decision
 
     def to_dict(self) -> dict:
         """Serialise to a JSON-safe dict (enums → string values)."""
         return {
-            "model_name":      self.model_name,
-            "tier":            self.tier.value,
-            "task_type":       self.task_type.value,
-            "complexity":      self.complexity.value,
-            "reasoning":       self.reasoning,
-            "confidence":      self.confidence,
-            "provider":        self.provider,
-            "layer_used":      self.layer_used,
-            "latency_ms":      self.latency_ms,
+            "model_name": self.model_name,
+            "tier": self.tier.value,
+            "task_type": self.task_type.value,
+            "complexity": self.complexity.value,
+            "reasoning": self.reasoning,
+            "confidence": self.confidence,
+            "provider": self.provider,
+            "layer_used": self.layer_used,
+            "latency_ms": self.latency_ms,
             "compliance_flag": self.compliance_flag,
-            "disagreement":    self.disagreement,
-            "decision_id":     self.decision_id,
-            "exploration":     self.exploration,
-            "cached":          self.cached,
-            "cached_from":     self.cached_from,
+            "disagreement": self.disagreement,
+            "decision_id": self.decision_id,
+            "exploration": self.exploration,
+            "cached": self.cached,
+            "cached_from": self.cached_from,
         }
 
     def to_json(self) -> str:
         import json
+
         return json.dumps(self.to_dict())
 
     @classmethod
@@ -206,41 +213,44 @@ class ClassificationDecision:
         minted but this breaks decision ⨝ outcome joins for the row.
         """
         import logging as _log
+
         if not data.get("decision_id"):
             _log.getLogger(__name__).warning(
                 "ClassificationDecision.from_dict: missing decision_id — "
                 "minting a new one. Joins against outcome logs will fail for this row."
             )
         return cls(
-            model_name      = data["model_name"],
-            tier            = ModelTier(data["tier"]),
-            task_type       = TaskType(data["task_type"]),
-            complexity      = TaskComplexity(data["complexity"]),
-            reasoning       = data.get("reasoning", ""),
-            confidence      = float(data.get("confidence", 0.0)),
-            provider        = data.get("provider", "google"),
-            layer_used      = data.get("layer_used", "layer1"),
-            latency_ms      = float(data.get("latency_ms", 0.0)),
-            compliance_flag = bool(data.get("compliance_flag", False)),
-            disagreement    = bool(data.get("disagreement", False)),
-            decision_id     = data.get("decision_id") or _new_decision_id(),
-            exploration     = bool(data.get("exploration", False)),
-            cached          = bool(data.get("cached", False)),
-            cached_from     = data.get("cached_from", "") or "",
+            model_name=data["model_name"],
+            tier=ModelTier(data["tier"]),
+            task_type=TaskType(data["task_type"]),
+            complexity=TaskComplexity(data["complexity"]),
+            reasoning=data.get("reasoning", ""),
+            confidence=float(data.get("confidence", 0.0)),
+            provider=data.get("provider", "google"),
+            layer_used=data.get("layer_used", "layer1"),
+            latency_ms=float(data.get("latency_ms", 0.0)),
+            compliance_flag=bool(data.get("compliance_flag", False)),
+            disagreement=bool(data.get("disagreement", False)),
+            decision_id=data.get("decision_id") or _new_decision_id(),
+            exploration=bool(data.get("exploration", False)),
+            cached=bool(data.get("cached", False)),
+            cached_from=data.get("cached_from", "") or "",
         )
 
     @classmethod
     def from_json(cls, raw: str) -> "ClassificationDecision":
         import json
+
         return cls.from_dict(json.loads(raw))
 
 
 @dataclass
 class ContextSignals:
     """Signals from the full LLM request for agent mid-flight tier adjustment."""
-    total_context_tokens: int  = 0
-    call_number:          int  = 1
-    has_error:            bool = False
-    last_role:            str  = "user"
-    has_multimodal:       bool = False  # inline_data or file_data parts in request
-    available_tools:      int  = 0      # number of tools exposed to the agent
+
+    total_context_tokens: int = 0
+    call_number: int = 1
+    has_error: bool = False
+    last_role: str = "user"
+    has_multimodal: bool = False  # inline_data or file_data parts in request
+    available_tools: int = 0  # number of tools exposed to the agent

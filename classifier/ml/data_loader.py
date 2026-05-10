@@ -3,6 +3,7 @@
 Data format (one JSON object per line):
     {"task": "...", "task_type": "code_creation", "complexity": "standard"}
 """
+
 from __future__ import annotations
 
 import json
@@ -24,8 +25,8 @@ def load_examples(
     if include_synthetic and _SYNTHETIC_FILE.exists():
         sources.append(_SYNTHETIC_FILE)
 
-    texts:        list[str] = []
-    task_types:   list[str] = []
+    texts: list[str] = []
+    task_types: list[str] = []
     complexities: list[str] = []
 
     for path in sources:

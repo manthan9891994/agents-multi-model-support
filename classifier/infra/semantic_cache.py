@@ -1,5 +1,6 @@
 """Optional embedding-based semantic cache. Falls back gracefully if
 sentence-transformers or numpy are not installed."""
+
 import threading
 from typing import TYPE_CHECKING
 
@@ -18,6 +19,7 @@ def _get_model():
                 try:
                     import numpy  # noqa: F401
                     from sentence_transformers import SentenceTransformer
+
                     _model = SentenceTransformer("all-MiniLM-L6-v2")
                 except ImportError:
                     _model = False  # mark as unavailable
@@ -40,6 +42,7 @@ class SemanticCache:
             return None
         try:
             import numpy as np
+
             vec = model.encode(task, normalize_embeddings=True)
             with self._lock:
                 if not self._embeddings:

@@ -23,6 +23,7 @@ Or use the `Router.report_outcome(...)` shortcut that wraps this.
 Pluggable backend: identical mechanism to `decision_logger._backend` —
 set with `Router(outcome_logger=KafkaLoggerBackend(...))`.
 """
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_lock     = threading.Lock()
+_lock = threading.Lock()
 _LOG_FILE = Path(__file__).parent.parent.parent / "routing_outcomes.jsonl"
 _TEST_LOG = Path(__file__).parent.parent.parent / "routing_outcomes.test.jsonl"
 
@@ -60,21 +61,20 @@ class OutcomeRecord:
     tokenizer (e.g. word count) rather than the provider's `usage_metadata`.
     The auto-labeler can downweight or skip estimated rows.
     """
-    decision_id:    str
-    tokens_in:      int                  = 0
-    tokens_out:     int                  = 0
-    tokens_estimated: bool               = False
-    wall_ms:        float                = 0.0
-    success:        bool                 = True
-    cost_usd:       float | None         = None
-    user_retried:   bool                 = False
-    user_escalated_model: str | None     = None
-    user_feedback:  str | None           = None       # "up" | "down" | None
-    edit_distance:  int | None           = None       # if user edited the response
-    error_message:  str | None           = None
-    timestamp:      str                  = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+
+    decision_id: str
+    tokens_in: int = 0
+    tokens_out: int = 0
+    tokens_estimated: bool = False
+    wall_ms: float = 0.0
+    success: bool = True
+    cost_usd: float | None = None
+    user_retried: bool = False
+    user_escalated_model: str | None = None
+    user_feedback: str | None = None  # "up" | "down" | None
+    edit_distance: int | None = None  # if user edited the response
+    error_message: str | None = None
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 def _redact_outcome(entry: dict) -> dict:
@@ -86,6 +86,7 @@ def _redact_outcome(entry: dict) -> dict:
     are passed through unchanged.
     """
     from classifier.infra.decision_logger import _redact_pii
+
     redacted = dict(entry)
     for key in ("error_message", "user_escalated_model"):
         val = redacted.get(key)
@@ -189,6 +190,7 @@ def prune_old_outcomes(*, days: int = 90) -> int:
         0 4 * * * dmr stats prune --days 90
     """
     from datetime import datetime, timedelta, timezone
+
     log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
     if not log_file.exists():
         return 0
@@ -204,7 +206,7 @@ def prune_old_outcomes(*, days: int = 90) -> int:
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
-                kept_lines.append(line)   # keep malformed lines for debugging
+                kept_lines.append(line)  # keep malformed lines for debugging
                 continue
             ts = rec.get("timestamp", "")
             if ts and ts < cutoff:
@@ -221,7 +223,7 @@ def prune_old_outcomes(*, days: int = 90) -> int:
 
 def join_decisions_outcomes(
     decisions: list[dict],
-    outcomes:  list[dict],
+    outcomes: list[dict],
 ) -> list[dict]:
     """Inner-join decisions ⨝ outcomes on `decision_id`. Decisions without
     a matching outcome are dropped — the caller never reported what happened

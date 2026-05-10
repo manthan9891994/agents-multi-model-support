@@ -19,6 +19,7 @@ Supports two popular agent frameworks:
 Both return the model string / config dict that the respective framework needs —
 no wrapping of internal classes so you retain full framework behaviour.
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,33 +29,37 @@ logger = logging.getLogger(__name__)
 
 # Maps provider → API-key env var name (used in AutoGen llm_config)
 _PROVIDER_API_KEY_ENV = {
-    "google":    "GOOGLE_API_KEY",
+    "google": "GOOGLE_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
-    "openai":    "OPENAI_API_KEY",
+    "openai": "OPENAI_API_KEY",
 }
 
 # Maps provider → AutoGen api_type string
 _AUTOGEN_API_TYPE = {
-    "google":    "google",
+    "google": "google",
     "anthropic": "anthropic",
-    "openai":    "openai",
+    "openai": "openai",
 }
 
 
 def _classify(task: str, provider: str) -> tuple[str, Any]:
     """Return (model_name, decision). Shared by all helpers."""
     from classifier import classify_task
+
     decision = classify_task(task, provider=provider)
     logger.info(
         "AutoGen: routed [%s | %s/%s | conf=%.2f] → %s",
         decision.tier.value.upper(),
-        decision.task_type.value, decision.complexity.value,
-        decision.confidence, decision.model_name,
+        decision.task_type.value,
+        decision.complexity.value,
+        decision.confidence,
+        decision.model_name,
     )
     return decision.model_name, decision
 
 
 # ── AutoGen ──────────────────────────────────────────────────────────────────
+
 
 def get_autogen_llm_config(
     task: str,
@@ -100,11 +105,13 @@ def get_autogen_llm_config(
     api_key_env = _PROVIDER_API_KEY_ENV.get(resolved, "OPENAI_API_KEY")
     api_key = os.environ.get(api_key_env, "")
 
-    config_list = [{
-        "model":    model_name,
-        "api_key":  api_key,
-        "api_type": _AUTOGEN_API_TYPE.get(resolved, resolved),
-    }]
+    config_list = [
+        {
+            "model": model_name,
+            "api_key": api_key,
+            "api_type": _AUTOGEN_API_TYPE.get(resolved, resolved),
+        }
+    ]
     llm_config: dict = {"config_list": config_list}
     if extra_config:
         llm_config.update(extra_config)
@@ -112,6 +119,7 @@ def get_autogen_llm_config(
 
 
 # ── OpenAI Agents SDK ─────────────────────────────────────────────────────────
+
 
 def get_openai_agent_model(
     task: str,
@@ -154,6 +162,7 @@ def get_openai_agent_model(
 
 
 # ── DynamicAutoGenAgent helper ────────────────────────────────────────────────
+
 
 class DynamicModelRouter:
     """Utility class that re-classifies each new task and returns updated configs.

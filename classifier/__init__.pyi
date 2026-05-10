@@ -1,4 +1,5 @@
 """Type stubs for the classifier package public API."""
+
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -52,7 +53,6 @@ def classify_task(
     task_stable: bool = ...,
     user_id: str | None = ...,
 ) -> ClassificationDecision: ...
-
 def route_model(
     provider: str | None = ...,
     *,
@@ -60,7 +60,6 @@ def route_model(
     fallback_model: str | None = ...,
     inject_as: str = ...,
 ) -> Callable[[F], F]: ...
-
 def record_feedback(
     task: str,
     expected_type: str,

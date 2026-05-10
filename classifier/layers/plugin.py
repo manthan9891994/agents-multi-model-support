@@ -20,6 +20,7 @@ The cascade fires plugins in the order they were registered, at the position
 declared by `runs_after`. If a plugin returns a non-None result, the cascade
 treats it like a normal layer outcome.
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,11 +39,11 @@ class Layer(Protocol):
 
 # {position: [layers_in_registration_order]}
 _PLUGINS: dict[str, list[Layer]] = {
-    "pre":    [],
+    "pre": [],
     "layer1": [],
     "layer3": [],
     "layer2": [],
-    "post":   [],
+    "post": [],
 }
 
 

@@ -14,6 +14,7 @@ Pattern:
     kernel = sk.Kernel()
     kernel.add_service(get_chat_service("Summarise this contract"))
 """
+
 from __future__ import annotations
 
 import importlib
@@ -24,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 # Provider -> (package, class name)
 _PROVIDER_MAP = {
-    "google":    ("semantic_kernel.connectors.ai.google.google_ai", "GoogleAIChatCompletion"),
-    "anthropic": ("semantic_kernel.connectors.ai.anthropic",        "AnthropicChatCompletion"),
-    "openai":    ("semantic_kernel.connectors.ai.open_ai",          "OpenAIChatCompletion"),
+    "google": ("semantic_kernel.connectors.ai.google.google_ai", "GoogleAIChatCompletion"),
+    "anthropic": ("semantic_kernel.connectors.ai.anthropic", "AnthropicChatCompletion"),
+    "openai": ("semantic_kernel.connectors.ai.open_ai", "OpenAIChatCompletion"),
 }
 
 
@@ -72,7 +73,9 @@ def get_chat_service(
         logger.info(
             "SemanticKernel: routed [%s | %s/%s] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            model_name,
         )
     except ClassificationError:
         if not fallback_model:

@@ -15,6 +15,7 @@ Strict mode also redacts:
   - All-caps name patterns (FIRSTNAME LASTNAME)
   - Address-like patterns
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,15 +31,17 @@ logger = logging.getLogger(__name__)
 _REGEX_TIMEOUT_SECS = 1.0
 
 # ── Patterns ──────────────────────────────────────────────────────────────────
-_MRN     = re.compile(r"\b(?:MRN|mrn|Medical Record(?:\s+Number)?)[:\s#]*\d{6,12}\b")
-_SSN     = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-_DOB     = re.compile(r"\b(?:DOB|dob|D\.O\.B\.|Date of [Bb]irth)[:\s]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b")
-_DATE    = re.compile(r"\b\d{1,2}/\d{1,2}/\d{4}\b")  # generic date — caught after DOB
-_PHONE   = re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
-_EMAIL   = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
-_TITLE   = re.compile(r"\b(?:Dr|Mr|Mrs|Ms|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b")
+_MRN = re.compile(r"\b(?:MRN|mrn|Medical Record(?:\s+Number)?)[:\s#]*\d{6,12}\b")
+_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+_DOB = re.compile(r"\b(?:DOB|dob|D\.O\.B\.|Date of [Bb]irth)[:\s]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b")
+_DATE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{4}\b")  # generic date — caught after DOB
+_PHONE = re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
+_TITLE = re.compile(r"\b(?:Dr|Mr|Mrs|Ms|Prof)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b")
 _CAPS_NAME = re.compile(r"\b[A-Z][A-Z]+\s+[A-Z][A-Z]+\b")  # JOHN DOE
-_ADDRESS = re.compile(r"\b\d+\s+[A-Z][a-z]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr|Boulevard|Blvd)\b")
+_ADDRESS = re.compile(
+    r"\b\d+\s+[A-Z][a-z]+\s+(?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr|Boulevard|Blvd)\b"
+)
 
 
 @dataclass
@@ -49,7 +52,7 @@ class ScrubResult:
 
 
 # Extra patterns registered at runtime (e.g. via Router(extra_pii_patterns=...))
-_extra_patterns: list[tuple] = []   # list of (compiled_regex, replacement_token)
+_extra_patterns: list[tuple] = []  # list of (compiled_regex, replacement_token)
 
 
 def _validate_pattern(pat) -> bool:
@@ -87,8 +90,9 @@ def register_extra_patterns(patterns: list[tuple]) -> None:
             continue
         if not _validate_pattern(pat):
             logger.warning(
-                "pii_scrubber: rejected pattern %r — exceeded %.1fs timeout "
-                "(possible regex DoS)", getattr(pat, "pattern", pat), _REGEX_TIMEOUT_SECS,
+                "pii_scrubber: rejected pattern %r — exceeded %.1fs timeout (possible regex DoS)",
+                getattr(pat, "pattern", pat),
+                _REGEX_TIMEOUT_SECS,
             )
             continue
         _extra_patterns.append((pat, tok))
@@ -117,10 +121,10 @@ def scrub(text: str, strict: bool = False) -> ScrubResult:
 
     # Order matters — DOB before generic date, MRN before bare numbers
     for pat, token in [
-        (_MRN,   "[MRN]"),
-        (_SSN,   "[SSN]"),
-        (_DOB,   "[DOB]"),
-        (_DATE,  "[DATE]"),
+        (_MRN, "[MRN]"),
+        (_SSN, "[SSN]"),
+        (_DOB, "[DOB]"),
+        (_DATE, "[DATE]"),
         (_PHONE, "[PHONE]"),
         (_EMAIL, "[EMAIL]"),
         (_TITLE, "[NAME]"),

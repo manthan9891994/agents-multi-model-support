@@ -1,4 +1,5 @@
 """Unit tests for PII scrubber."""
+
 from classifier.infra.pii_scrubber import scrub
 
 
@@ -71,7 +72,7 @@ def test_clinical_context_preserved():
 
 def test_strict_mode_catches_caps_names():
     text = "Patient JOHN SMITH presents with chest pain."
-    r_loose  = scrub(text, strict=False)
+    r_loose = scrub(text, strict=False)
     r_strict = scrub(text, strict=True)
     assert r_loose.was_scrubbed is False
     assert r_strict.was_scrubbed is True
@@ -101,6 +102,7 @@ def test_idempotent_scrub():
 def test_layer2_uses_scrubber(monkeypatch):
     """L2 API call should scrub task before sending to Gemini."""
     from classifier.layers.layer2 import api as l2_api
+
     # Reset shared client + breaker so the mock is seen and breaker is closed.
     l2_api._shared_client = None
     l2_api._circuit_breaker._failures = 0
@@ -108,13 +110,17 @@ def test_layer2_uses_scrubber(monkeypatch):
     captured = {}
 
     class FakeClient:
-        def __init__(self, *a, **kw): pass
+        def __init__(self, *a, **kw):
+            pass
+
         class models:
             @staticmethod
             def generate_content(model, contents, config):
                 captured["contents"] = contents
+
                 class FakeResp:
                     text = '{"task_type": "reasoning", "complexity": "simple", "confidence": 0.9, "reasoning": "test"}'
+
                 return FakeResp()
 
     monkeypatch.setattr(l2_api.genai, "Client", FakeClient)

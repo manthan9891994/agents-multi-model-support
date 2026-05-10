@@ -3,13 +3,18 @@ import random
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from google import genai
-
 from classifier.config.feature_flags import feature_flags
 from classifier.infra.config import settings
 from classifier.infra.pii_scrubber import scrub
 
 from .prompt import _SCHEMA, _build_contents
+
+# google-genai is an optional dep. Import lazily so the package stays usable
+# without it (e.g. user only configures Anthropic/OpenAI providers).
+try:
+    from google import genai
+except ImportError:
+    genai = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,7 @@ def _scrub_for_external(task: str, history: list[str] | None) -> tuple[str, list
         logger.info("layer2: PII scrubbed before API call — tokens=%s", matches)
     return res_task.text, new_history, matches
 
+
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="layer2")
 _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
@@ -43,10 +49,11 @@ _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 class _CircuitBreaker:
     def __init__(self, failure_threshold: int = 5, cooldown_secs: float = 60.0):
         self.failure_threshold = failure_threshold
-        self.cooldown_secs     = cooldown_secs
-        self._failures   = 0
-        self._opened_at  = 0.0
+        self.cooldown_secs = cooldown_secs
+        self._failures = 0
+        self._opened_at = 0.0
         import threading as _t
+
         self._lock = _t.Lock()
 
     def is_open(self) -> bool:
@@ -69,8 +76,9 @@ class _CircuitBreaker:
             if self._failures == self.failure_threshold:
                 self._opened_at = time.time()
                 logger.warning(
-                    "layer2: circuit breaker OPEN — %d consecutive failures, "
-                    "skipping L2 for %.0fs", self._failures, self.cooldown_secs,
+                    "layer2: circuit breaker OPEN — %d consecutive failures, skipping L2 for %.0fs",
+                    self._failures,
+                    self.cooldown_secs,
                 )
 
 
@@ -87,9 +95,14 @@ def _get_client():
     global _client_lock, _shared_client
     if _client_lock is None:
         import threading as _t
+
         _client_lock = _t.Lock()
     with _client_lock:
         if _shared_client is None:
+            if genai is None:
+                raise ImportError(
+                    "google-genai not installed. Install with: pip install 'dynamic-model-router[google]'"
+                )
             _shared_client = genai.Client(api_key=settings.google_api_key)
         return _shared_client
 
@@ -119,17 +132,19 @@ def _retry_after_seconds(exc) -> float | None:
 _retry_policy: dict = {"max_attempts": 3, "initial_delay": 0.2, "backoff": 3.0}
 
 
-def configure_retry_policy(*, max_attempts: int = 3, initial_delay: float = 0.2, backoff: float = 3.0) -> None:
-    _retry_policy["max_attempts"]  = max_attempts
+def configure_retry_policy(
+    *, max_attempts: int = 3, initial_delay: float = 0.2, backoff: float = 3.0
+) -> None:
+    _retry_policy["max_attempts"] = max_attempts
     _retry_policy["initial_delay"] = initial_delay
-    _retry_policy["backoff"]       = backoff
+    _retry_policy["backoff"] = backoff
 
 
 def _call_with_retry(fn, *args, max_attempts: int | None = None, **kwargs):
     """Exponential backoff retry for retryable HTTP errors. Honors Retry-After."""
     max_attempts = max_attempts or _retry_policy["max_attempts"]
-    delay        = _retry_policy["initial_delay"]
-    backoff      = _retry_policy["backoff"]
+    delay = _retry_policy["initial_delay"]
+    backoff = _retry_policy["backoff"]
     last_exc = None
     for attempt in range(max_attempts):
         try:
@@ -144,7 +159,9 @@ def _call_with_retry(fn, *args, max_attempts: int | None = None, **kwargs):
                 sleep_for = ra if ra is not None else delay + random.uniform(0, 0.1)
                 logger.info(
                     "layer2: retryable error (status=%s attempt=%d) — sleeping %.2fs",
-                    status, attempt + 1, sleep_for,
+                    status,
+                    attempt + 1,
+                    sleep_for,
                 )
                 time.sleep(sleep_for)
                 delay *= backoff
@@ -169,6 +186,7 @@ def _call_api_with_model(task: str, history: list[str] | None, model: str):
 
     provider = _resolve_l2_provider()
     from classifier.layers.layer2.providers import get_l2_caller
+
     caller = get_l2_caller(provider)
     if caller is None:
         # Fall back to legacy in-line Google path so existing setups keep working
@@ -190,7 +208,7 @@ def _legacy_google_caller(task, history, model, schema):
     """Original inlined Google caller — kept for back-compat when providers/ pkg
     isn't importable for some reason."""
     client = _get_client()
-    cfg    = genai.types.GenerateContentConfig(
+    cfg = genai.types.GenerateContentConfig(
         temperature=0.0,
         max_output_tokens=300,
         response_mime_type="application/json",

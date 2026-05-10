@@ -3,6 +3,7 @@
 All tests mock the transformers pipeline. transformers does NOT need to be installed
 to run this test file; the lazy-loaded pipeline is replaced by a MagicMock.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,6 +13,7 @@ import pytest
 def reset_zeroshot_singletons():
     """Reset module-level pipeline cache between tests."""
     import classifier.layers.layer3.zeroshot as zs
+
     zs._pipeline = None
     zs._load_failed = False
     yield
@@ -41,6 +43,7 @@ def _make_mock_pipe(tt_label: str, tt_score: float, cx_label: str, cx_score: flo
 
 # ── Happy path ────────────────────────────────────────────────────────────────
 
+
 def test_confident_zeroshot_returns_decision():
     from classifier.core.types import ModelTier, TaskComplexity, TaskType
     from classifier.layers.layer3 import zeroshot as zs
@@ -54,9 +57,9 @@ def test_confident_zeroshot_returns_decision():
     assert result is not None
 
     task_type, complexity, tier, conf, reasoning = result
-    assert task_type  == TaskType.CODE_CREATION
+    assert task_type == TaskType.CODE_CREATION
     assert complexity == TaskComplexity.STANDARD
-    assert tier       == ModelTier.MEDIUM
+    assert tier == ModelTier.MEDIUM
     # Geometric mean of 0.95 and 0.90 ≈ 0.924
     assert 0.92 < conf < 0.93
     assert reasoning.startswith("layer3 | zeroshot | code_creation/standard")
@@ -77,6 +80,7 @@ def test_reasoning_string_includes_both_probs():
 
 
 # ── Abstain logic ─────────────────────────────────────────────────────────────
+
 
 def test_low_confidence_abstains():
     """Geometric mean below threshold → returns None → cascade falls to L2."""
@@ -108,6 +112,7 @@ def test_asymmetric_confidence_abstains():
 
 # ── Failure modes (return None gracefully) ────────────────────────────────────
 
+
 def test_transformers_not_installed_returns_none():
     """When transformers package missing, _load_pipeline returns None → classify returns None."""
     from classifier.layers.layer3 import zeroshot as zs
@@ -138,6 +143,7 @@ def test_load_failed_short_circuits():
 
 # ── History-aware truncation ──────────────────────────────────────────────────
 
+
 def test_history_is_prepended_to_input():
     """Last history turn should be visible to the NLI model for continuation cases."""
     from classifier.core.types import TaskComplexity, TaskType
@@ -157,6 +163,7 @@ def test_history_is_prepended_to_input():
 
 
 # ── Strategy router ───────────────────────────────────────────────────────────
+
 
 def test_strategy_router_dispatches_zeroshot():
     """settings.layer3_strategy='zeroshot' → calls zeroshot implementation."""
@@ -205,6 +212,7 @@ def test_strategy_router_unknown_returns_none():
 
 # ── Cascade integration: L3 confident → skips L2 ──────────────────────────────
 
+
 def test_cascade_l3_confident_skips_l2():
     """When L3 returns a confident result, L2 should not fire even if L1 was low-conf."""
     from classifier.core.types import TaskComplexity, TaskType
@@ -232,6 +240,7 @@ def test_cascade_l3_confident_skips_l2():
 
         with patch("classifier.layers.layer2.api.genai.Client") as mock_l2_client:
             from classifier import classify_task
+
             decision = classify_task(ambiguous_task, provider="google")
 
         assert decision.layer_used == "layer3", (
@@ -263,6 +272,7 @@ def test_cascade_l3_abstains_falls_through_to_l1():
         settings.layer3_enabled = True
         settings.layer2_enabled = False  # force L1 fallback after L3 abstain
         from classifier import classify_task
+
         decision = classify_task("Write a README", provider="google")
         # Layer 1 handled it (L3 abstained, L2 disabled)
         assert decision.layer_used == "layer1"

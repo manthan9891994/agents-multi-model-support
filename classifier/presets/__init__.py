@@ -9,6 +9,7 @@ Available presets:
     legal      — skeleton — extend with your firm's vocab
     fintech    — skeleton — extend with your domain vocab
 """
+
 from collections.abc import Callable
 
 _REGISTRY: dict[str, Callable[[], dict]] = {}
@@ -22,10 +23,7 @@ def register(name: str, factory: Callable[[], dict]) -> None:
 def load_preset(name: str) -> dict:
     """Load a preset config dict by name. Raises KeyError if unknown."""
     if name not in _REGISTRY:
-        raise KeyError(
-            f"Unknown preset: {name!r}. "
-            f"Available: {sorted(_REGISTRY.keys())}"
-        )
+        raise KeyError(f"Unknown preset: {name!r}. Available: {sorted(_REGISTRY.keys())}")
     return _REGISTRY[name]()
 
 
@@ -38,5 +36,5 @@ def available() -> list[str]:
 from classifier.presets import fintech, healthcare, legal  # noqa: E402, F401
 
 register("healthcare", healthcare.config)
-register("legal",      legal.config)
-register("fintech",    fintech.config)
+register("legal", legal.config)
+register("fintech", fintech.config)

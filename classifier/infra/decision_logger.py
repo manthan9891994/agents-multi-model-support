@@ -1,4 +1,5 @@
 """Logs every classification decision as a JSONL entry for analysis and retraining."""
+
 import json
 import logging
 import os
@@ -13,20 +14,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_lock     = threading.Lock()
+_lock = threading.Lock()
 _LOG_FILE = Path(__file__).parent.parent.parent / "routing_decisions.jsonl"
 _TEST_LOG = Path(__file__).parent.parent.parent / "routing_decisions.test.jsonl"
 
 # PII patterns — spans matched here are replaced with [REDACTED] before logging
 _REDACT_PATTERNS = [
-    re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                                         # SSN
-    re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b"),                                   # credit card
-    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),                                   # email
-    re.compile(r"\b\+?1?[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b"),             # phone
-    re.compile(r"\b(sk-|pk_|AIza|ghp_|xox[baprs]-)[A-Za-z0-9_-]{16,}"),           # API key
+    re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),  # SSN
+    re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b"),  # credit card
+    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),  # email
+    re.compile(r"\b\+?1?[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b"),  # phone
+    re.compile(r"\b(sk-|pk_|AIza|ghp_|xox[baprs]-)[A-Za-z0-9_-]{16,}"),  # API key
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),  # JWT
-    re.compile(r"\bMRN[\s:]*\d{4,}\b", re.IGNORECASE),                            # MRN
-    re.compile(r"\bDOB[\s:]*\d{4}-\d{2}-\d{2}\b", re.IGNORECASE),                # DOB
+    re.compile(r"\bMRN[\s:]*\d{4,}\b", re.IGNORECASE),  # MRN
+    re.compile(r"\bDOB[\s:]*\d{4}-\d{2}-\d{2}\b", re.IGNORECASE),  # DOB
 ]
 
 
@@ -40,7 +41,7 @@ def _is_test_mode() -> bool:
     return os.environ.get("CLASSIFIER_TEST_MODE", "").lower() in ("1", "true", "yes")
 
 
-_backend = None   # set by Router(decision_logger=...) — None falls back to default JSONL
+_backend = None  # set by Router(decision_logger=...) — None falls back to default JSONL
 
 
 def read_decisions(
@@ -100,23 +101,23 @@ def log_decision(
 ) -> None:
     safe_preview = _redact_pii(task[:200])
     entry = {
-        "timestamp":       datetime.now(timezone.utc).isoformat(),
-        "decision_id":     getattr(decision, "decision_id", ""),   # join key for outcome log
-        "task_preview":    safe_preview,
-        "task_length":     len(task or ""),
-        "layer":           layer_used,
-        "model":           decision.model_name,
-        "tier":            decision.tier.value,
-        "task_type":       decision.task_type.value,
-        "complexity":      decision.complexity.value,
-        "confidence":      round(decision.confidence, 4),
-        "latency_ms":      round(latency_ms, 2),
-        "provider":        decision.provider,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "decision_id": getattr(decision, "decision_id", ""),  # join key for outcome log
+        "task_preview": safe_preview,
+        "task_length": len(task or ""),
+        "layer": layer_used,
+        "model": decision.model_name,
+        "tier": decision.tier.value,
+        "task_type": decision.task_type.value,
+        "complexity": decision.complexity.value,
+        "confidence": round(decision.confidence, 4),
+        "latency_ms": round(latency_ms, 2),
+        "provider": decision.provider,
         "compliance_flag": decision.compliance_flag,
-        "disagreement":    decision.disagreement,
-        "exploration":     getattr(decision, "exploration", False),
-        "cached":          getattr(decision, "cached", False),
-        "cached_from":     getattr(decision, "cached_from", ""),
+        "disagreement": decision.disagreement,
+        "exploration": getattr(decision, "exploration", False),
+        "cached": getattr(decision, "cached", False),
+        "cached_from": getattr(decision, "cached_from", ""),
     }
 
     # Pluggable backend takes precedence

@@ -18,6 +18,7 @@ One pattern:
     pipe.add_component("llm", gen)
     result = pipe.run({"llm": {"prompt": "Summarise this contract"}})
 """
+
 from __future__ import annotations
 
 import importlib
@@ -28,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Provider -> (package, class name) for the appropriate Haystack generator
 _PROVIDER_MAP = {
-    "google":    ("haystack_integrations.components.generators.google_genai", "GoogleGenAIGenerator"),
-    "anthropic": ("haystack_integrations.components.generators.anthropic",    "AnthropicGenerator"),
-    "openai":    ("haystack.components.generators",                            "OpenAIGenerator"),
+    "google": ("haystack_integrations.components.generators.google_genai", "GoogleGenAIGenerator"),
+    "anthropic": ("haystack_integrations.components.generators.anthropic", "AnthropicGenerator"),
+    "openai": ("haystack.components.generators", "OpenAIGenerator"),
 }
 
 
@@ -47,13 +48,12 @@ def _build_generator(model_name: str, provider: str, **kwargs: Any) -> Any:
     except ImportError as exc:
         # Map back to the user-facing extras hint
         hint = {
-            "google":    "google-ai-haystack",
+            "google": "google-ai-haystack",
             "anthropic": "anthropic-haystack",
-            "openai":    "haystack-ai",
+            "openai": "haystack-ai",
         }.get(provider, pkg.replace("_", "-"))
         raise ImportError(
-            f"Haystack provider package '{pkg}' is not installed. "
-            f"Install with: pip install {hint}"
+            f"Haystack provider package '{pkg}' is not installed. Install with: pip install {hint}"
         ) from exc
 
     return cls(model=model_name, **kwargs)
@@ -78,7 +78,9 @@ def get_generator(
         logger.info(
             "Haystack: routed [%s | %s/%s] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            model_name,
         )
     except ClassificationError:
         if not fallback_model:

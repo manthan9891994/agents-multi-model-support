@@ -6,6 +6,7 @@ file is missing → returns None gracefully (cascade falls through to L2).
 Latency:  ~10–15ms per call (CPU)
 Accuracy: ~85–90% on confident decisions (depends on training data)
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,6 +53,7 @@ def _load_bundle():
             return None
         try:
             import joblib
+
             _bundle = joblib.load(_MODEL_PATH)
             logger.info("layer3.head: loaded model from %s", _MODEL_PATH.name)
             return _bundle
@@ -72,6 +74,7 @@ def classify_layer3_head(
 
     try:
         from classifier.ml.embeddings import encode_one
+
         # Combine with last history turn for continuation context
         text = task[:512]
         if history:
@@ -97,7 +100,7 @@ def classify_layer3_head(
         cx_label = bundle["complexity_classes"][cx_idx]
 
         try:
-            task_type  = TaskType(tt_label)
+            task_type = TaskType(tt_label)
             complexity = TaskComplexity(cx_label)
         except ValueError as exc:
             logger.warning("layer3.head: unknown label in bundle — %s", exc)
@@ -109,7 +112,10 @@ def classify_layer3_head(
         if confidence < settings.layer3_confidence_threshold:
             logger.debug(
                 "layer3.head: abstaining — conf=%.2f < %.2f (tt=%.2f cx=%.2f)",
-                confidence, settings.layer3_confidence_threshold, tt_prob, cx_prob,
+                confidence,
+                settings.layer3_confidence_threshold,
+                tt_prob,
+                cx_prob,
             )
             return None
 

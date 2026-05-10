@@ -6,6 +6,7 @@ To make it production-grade, add:
   - Account number / card patterns as PII
   - Training data from past tickets / queries
 """
+
 from __future__ import annotations
 
 import re
@@ -15,22 +16,51 @@ from classifier.layers.layer1.keyword_pack import KeywordPack
 
 _FINTECH_PACK = (
     KeywordPack.builder("fintech")
-    .add(TaskType.REASONING, [
-        "risk-adjusted", "hedging strategy", "portfolio rebalance",
-        "options pricing", "yield curve", "duration",
-    ])
-    .add(TaskType.MATH, [
-        "var", "value at risk", "sharpe ratio", "alpha", "beta",
-        "expected return", "volatility", "correlation matrix",
-    ])
-    .add(TaskType.ANALYZING, [
-        "market data", "trade reconciliation", "p&l", "exposure",
-        "compliance check", "kyc", "aml",
-    ])
-    .add(TaskType.DOC_CREATION, [
-        "compliance filing", "audit report", "trade confirmation",
-        "policy document",
-    ])
+    .add(
+        TaskType.REASONING,
+        [
+            "risk-adjusted",
+            "hedging strategy",
+            "portfolio rebalance",
+            "options pricing",
+            "yield curve",
+            "duration",
+        ],
+    )
+    .add(
+        TaskType.MATH,
+        [
+            "var",
+            "value at risk",
+            "sharpe ratio",
+            "alpha",
+            "beta",
+            "expected return",
+            "volatility",
+            "correlation matrix",
+        ],
+    )
+    .add(
+        TaskType.ANALYZING,
+        [
+            "market data",
+            "trade reconciliation",
+            "p&l",
+            "exposure",
+            "compliance check",
+            "kyc",
+            "aml",
+        ],
+    )
+    .add(
+        TaskType.DOC_CREATION,
+        [
+            "compliance filing",
+            "audit report",
+            "trade confirmation",
+            "policy document",
+        ],
+    )
     .escalator("multi-asset", weight=1)
     .escalator("regulatory filing", weight=2)
     .min_tier("kyc", ModelTier.MEDIUM)
@@ -54,5 +84,5 @@ def config() -> dict:
     """Return Router kwargs for the fintech domain."""
     return {
         "extra_keyword_packs": [_FINTECH_PACK],
-        "extra_pii_patterns":  _FINTECH_PII,
+        "extra_pii_patterns": _FINTECH_PII,
     }

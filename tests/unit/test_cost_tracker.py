@@ -1,4 +1,5 @@
 """Unit tests for classifier/infra/cost_tracker.py."""
+
 import os
 
 import pytest
@@ -52,12 +53,13 @@ def test_unknown_model_uses_default_rate():
 def test_register_model_cost():
     """Custom models can be registered with their own pricing."""
     from classifier.infra.cost_tracker import get_model_cost, register_model_cost
+
     register_model_cost("test-model-xyz", input_per_1m=2.0, output_per_1m=6.0)
     assert get_model_cost("test-model-xyz") == {"input": 2.0, "output": 6.0}
 
     t = CostTracker(monthly_budget_usd=100.0)
     cost = t.record("test-model-xyz", input_tokens=1_000_000, output_tokens=1_000_000)
-    assert cost == pytest.approx(8.0)   # 2.0 + 6.0
+    assert cost == pytest.approx(8.0)  # 2.0 + 6.0
 
 
 def test_summary_structure():

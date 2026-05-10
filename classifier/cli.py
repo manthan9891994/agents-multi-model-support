@@ -10,6 +10,7 @@ Subcommands:
 
 Run `dmr <subcommand> --help` for details on each.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,6 +21,7 @@ from pathlib import Path
 
 def _cmd_classify(args) -> int:
     from classifier import Router
+
     if args.config:
         router = Router.from_yaml(args.config)
     elif args.preset:
@@ -28,15 +30,15 @@ def _cmd_classify(args) -> int:
         router = Router()
     decision = router.classify(args.task, provider=args.provider)
     out = {
-        "task":           args.task[:80] + ("…" if len(args.task) > 80 else ""),
-        "tier":           decision.tier.value,
-        "model":          decision.model_name,
-        "task_type":      decision.task_type.value,
-        "complexity":     decision.complexity.value,
-        "confidence":     round(decision.confidence, 3),
-        "layer_used":     decision.layer_used,
+        "task": args.task[:80] + ("…" if len(args.task) > 80 else ""),
+        "tier": decision.tier.value,
+        "model": decision.model_name,
+        "task_type": decision.task_type.value,
+        "complexity": decision.complexity.value,
+        "confidence": round(decision.confidence, 3),
+        "layer_used": decision.layer_used,
         "compliance_flag": decision.compliance_flag,
-        "reasoning":      decision.reasoning,
+        "reasoning": decision.reasoning,
     }
     print(json.dumps(out, indent=2))
     return 0
@@ -44,6 +46,7 @@ def _cmd_classify(args) -> int:
 
 def _cmd_train(args) -> int:
     from classifier.ml.train import train_from_data
+
     metadata = train_from_data(
         data_path=Path(args.data),
         output_path=Path(args.output) if args.output else None,
@@ -55,11 +58,15 @@ def _cmd_train(args) -> int:
 
 def _cmd_generate_data(args) -> int:
     from classifier.ml.generate_synthetic import main as gen_main
+
     sys.argv = [
         "generate_synthetic",
-        "--per-slot", str(args.per_slot),
-        "--domain", args.domain or "",
-        "--model", args.model,
+        "--per-slot",
+        str(args.per_slot),
+        "--domain",
+        args.domain or "",
+        "--model",
+        args.model,
     ]
     if args.out:
         sys.argv.extend(["--out", args.out])
@@ -70,11 +77,12 @@ def _cmd_generate_data(args) -> int:
 def _cmd_stats(args) -> int:
     """Reuse the existing stats CLI."""
     from classifier.stats import cmd_cost, cmd_disagreements, cmd_summary
+
     sub = args.sub or "summary"
     handler = {
-        "summary":       cmd_summary,
+        "summary": cmd_summary,
         "disagreements": cmd_disagreements,
-        "cost":          cmd_cost,
+        "cost": cmd_cost,
     }[sub]
     handler(args)
     return 0
@@ -176,14 +184,16 @@ def _cmd_eval(args) -> int:
             correct += 1
             stats["correct"] += 1
         else:
-            mismatches.append({
-                "task":      task[:80],
-                "expected":  expected_tier,
-                "predicted": predicted,
-            })
+            mismatches.append(
+                {
+                    "task": task[:80],
+                    "expected": expected_tier,
+                    "predicted": predicted,
+                }
+            )
 
     if total == 0:
-        print("No valid rows found. Each line needs {\"task\": \"...\", \"tier\": \"low|medium|high\"}")
+        print('No valid rows found. Each line needs {"task": "...", "tier": "low|medium|high"}')
         return 1
 
     accuracy = correct / total
@@ -191,22 +201,21 @@ def _cmd_eval(args) -> int:
     print(f"  Overall accuracy: {accuracy:.1%}  ({correct}/{total})")
     print()
     print(f"  {'Tier':<10} {'Correct':>8} {'Total':>8} {'Accuracy':>10}")
-    print(f"  {'-'*40}")
+    print(f"  {'-' * 40}")
     for tier, s in sorted(per_tier.items()):
-        acc = s['correct'] / s['total'] if s['total'] else 0
+        acc = s["correct"] / s["total"] if s["total"] else 0
         print(f"  {tier:<10} {s['correct']:>8} {s['total']:>8} {acc:>9.1%}")
 
     if mismatches and args.show_errors:
         print(f"\n  Mismatches ({len(mismatches)}):")
-        for m in mismatches[:args.limit]:
+        for m in mismatches[: args.limit]:
             print(f"    expected={m['expected']:6}  predicted={m['predicted']:6}  task={m['task']!r}")
 
     out = {
         "accuracy": round(accuracy, 4),
-        "correct":  correct,
-        "total":    total,
-        "per_tier": {k: {"accuracy": round(v["correct"]/v["total"], 4), **v}
-                     for k, v in per_tier.items()},
+        "correct": correct,
+        "total": total,
+        "per_tier": {k: {"accuracy": round(v["correct"] / v["total"], 4), **v} for k, v in per_tier.items()},
     }
     if args.output:
         Path(args.output).write_text(json.dumps(out, indent=2), encoding="utf-8")
@@ -230,6 +239,7 @@ def _cmd_models(args) -> int:
     if sub == "list":
         from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
         from classifier.infra.cost_tracker import COST_TABLE
+
         if not MODEL_REGISTRY:
             print("No providers registered. Try: dmr models load default")
             return 0
@@ -240,13 +250,14 @@ def _cmd_models(args) -> int:
                 t = tier.value if hasattr(tier, "value") else str(tier)
                 cost = COST_TABLE.get(model, {})
                 caps = MODEL_CAPABILITIES.get(model, {})
-                cw   = caps.get("context_window", "?")
+                cw = caps.get("context_window", "?")
                 cstr = f"${cost.get('input', '?')}/${cost.get('output', '?')} per 1M" if cost else "(no cost)"
                 print(f"    {t:8} -> {model:35} | {cstr} | ctx={cw}")
         return 0
 
     if sub == "export":
         from classifier.core.registry_loader import export_to_yaml
+
         out = args.output or "models.yaml"
         export_to_yaml(out)
         print(f"Wrote runtime registry to {out}.")
@@ -254,16 +265,17 @@ def _cmd_models(args) -> int:
 
     if sub in ("load", "pull"):
         from classifier.core.registry_loader import clear_registry, load_registry
+
         if args.replace:
             clear_registry()
         source = args.source or "default"
         meta = load_registry(source)
-        print(f"Loaded {meta['providers']} providers, {meta['models']} models "
-              f"(version={meta['version']}).")
+        print(f"Loaded {meta['providers']} providers, {meta['models']} models (version={meta['version']}).")
         return 0
 
     if sub == "clear":
         from classifier.core.registry_loader import clear_registry
+
         clear_registry()
         print("Registry cleared.")
         return 0
@@ -274,6 +286,7 @@ def _cmd_models(args) -> int:
 
 def _cmd_presets(args) -> int:
     from classifier.presets import available
+
     print("Available domain presets:")
     for name in available():
         print(f"  - {name}")
@@ -286,12 +299,21 @@ def _cmd_version(args) -> int:
     import platform
 
     from classifier import __version__
+
     out = {
         "dynamic_model_router": __version__,
-        "python":               platform.python_version(),
-        "platform":             platform.platform(),
+        "python": platform.python_version(),
+        "platform": platform.platform(),
     }
-    for dep in ("pydantic", "pydantic_settings", "yaml", "sklearn", "sentence_transformers", "google.genai", "joblib"):
+    for dep in (
+        "pydantic",
+        "pydantic_settings",
+        "yaml",
+        "sklearn",
+        "sentence_transformers",
+        "google.genai",
+        "joblib",
+    ):
         try:
             mod = __import__(dep.split(".")[0])
             for part in dep.split(".")[1:]:
@@ -330,9 +352,9 @@ def _cmd_relabel(args) -> int:
             since = (now - timedelta(**kwargs)).isoformat()
 
     labeler = AutoLabeler(
-        min_confidence    = float(args.min_confidence),
-        skip_cached       = not args.include_cached,
-        skip_exploration  = not args.include_exploration,
+        min_confidence=float(args.min_confidence),
+        skip_cached=not args.include_cached,
+        skip_exploration=not args.include_exploration,
     )
     rows = labeler.run(since=since, until=args.until)
 
@@ -352,6 +374,7 @@ def _cmd_relabel(args) -> int:
 def _cmd_prune(args) -> int:
     """Delete outcome rows older than --days from routing_outcomes.jsonl."""
     from classifier.infra.outcome_logger import prune_old_outcomes
+
     days = int(args.days)
     pruned = prune_old_outcomes(days=days)
     print(f"Pruned {pruned} outcome row(s) older than {days} days.")
@@ -362,17 +385,20 @@ def _cmd_doctor(args) -> int:
     """Diagnose configuration issues. Reports OK/WARN/FAIL for each check."""
     import importlib
 
-    checks: list[tuple[str, str, str]] = []   # (name, status, detail)
+    checks: list[tuple[str, str, str]] = []  # (name, status, detail)
 
     def add(name, ok_or_warn, detail):
         checks.append((name, ok_or_warn, detail))
 
     # 1. Python version
     import sys
+
     pv = sys.version_info
-    add("Python version",
+    add(
+        "Python version",
         "OK" if pv >= (3, 10) else "FAIL",
-        f"{pv.major}.{pv.minor}.{pv.micro} (need >= 3.10)")
+        f"{pv.major}.{pv.minor}.{pv.micro} (need >= 3.10)",
+    )
 
     # 2. Required deps
     for mod, extra in (("pydantic_settings", "core"), ("yaml", "core"), ("dotenv", "core")):
@@ -384,14 +410,16 @@ def _cmd_doctor(args) -> int:
 
     # 3. Optional deps for L2/L3
     optional = [
-        ("google.genai",          "google",    "Layer 2 fallback"),
-        ("sentence_transformers", "ml",        "Layer 3 ML head"),
-        ("sklearn",               "ml",        "Layer 3 ML head"),
-        ("joblib",                "ml",        "Layer 3 model loading"),
+        ("google.genai", "google", "Layer 2 fallback"),
+        ("sentence_transformers", "ml", "Layer 3 ML head"),
+        ("sklearn", "ml", "Layer 3 ML head"),
+        ("joblib", "ml", "Layer 3 model loading"),
     ]
     for mod, extra, purpose in optional:
         try:
-            importlib.import_module(mod.replace(".", "_") if mod == "google.genai" else mod) if mod != "google.genai" else __import__(mod)
+            importlib.import_module(
+                mod.replace(".", "_") if mod == "google.genai" else mod
+            ) if mod != "google.genai" else __import__(mod)
             add(f"opt:{mod}", "OK", f"installed ({purpose})")
         except ImportError:
             add(f"opt:{mod}", "WARN", f"missing — pip install dynamic-model-router[{extra}] for {purpose}")
@@ -399,6 +427,7 @@ def _cmd_doctor(args) -> int:
     # 4. .env / API keys
     try:
         from classifier.infra.config import settings
+
         for prov in ("google", "anthropic", "openai"):
             try:
                 settings.api_key_for(prov)
@@ -412,6 +441,7 @@ def _cmd_doctor(args) -> int:
     # 5. L3 model file
     try:
         from classifier.layers.layer3 import embed_classifier
+
         if embed_classifier._MODEL_PATH.exists():
             sz = embed_classifier._MODEL_PATH.stat().st_size / 1024
             add("L3 model file", "OK", f"{embed_classifier._MODEL_PATH.name} ({sz:.0f}KB)")
@@ -423,6 +453,7 @@ def _cmd_doctor(args) -> int:
     # 6. Smoke test classify
     try:
         from classifier import Router
+
         d = Router(layer2_enabled=False, layer3_enabled=False).classify("hello")
         add("classify smoke test", "OK", f"tier={d.tier.value} model={d.model_name}")
     except Exception as exc:
@@ -441,7 +472,7 @@ def _cmd_doctor(args) -> int:
             warns += 1
         print(f"  [{icon[status]}] {name:<{width}} {status:<5} {detail}")
     print()
-    print(f"  Result: {len(checks)-fails-warns} ok, {warns} warning(s), {fails} failure(s)")
+    print(f"  Result: {len(checks) - fails - warns} ok, {warns} warning(s), {fails} failure(s)")
     return 0 if fails == 0 else 1
 
 
@@ -477,9 +508,9 @@ def _cmd_benchmark(args) -> int:
     n = len(latencies)
     print(f"  Total samples:   {n}")
     print(f"  Mean latency:    {statistics.mean(latencies):>7.2f} ms")
-    print(f"  p50 (median):    {latencies[n//2]:>7.2f} ms")
-    print(f"  p95:             {latencies[int(n*0.95)]:>7.2f} ms")
-    print(f"  p99:             {latencies[int(n*0.99)]:>7.2f} ms")
+    print(f"  p50 (median):    {latencies[n // 2]:>7.2f} ms")
+    print(f"  p95:             {latencies[int(n * 0.95)]:>7.2f} ms")
+    print(f"  p99:             {latencies[int(n * 0.99)]:>7.2f} ms")
     print(f"  max:             {max(latencies):>7.2f} ms")
     print(f"  min:             {min(latencies):>7.2f} ms")
     return 0
@@ -517,9 +548,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # stats
     p = sub.add_parser("stats", help="Routing statistics from decision log")
-    p.add_argument("sub", nargs="?", default="summary",
-                   choices=["summary", "disagreements", "cost"],
-                   help="Which view (default: summary)")
+    p.add_argument(
+        "sub",
+        nargs="?",
+        default="summary",
+        choices=["summary", "disagreements", "cost"],
+        help="Which view (default: summary)",
+    )
     p.add_argument("--since", default="24h", help="Window: 60m | 24h | 7d | 30d")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=_cmd_stats)
@@ -544,14 +579,23 @@ def main(argv: list[str] | None = None) -> int:
 
     # models — registry management
     p = sub.add_parser("models", help="Manage the model/cost/capability registry")
-    p.add_argument("action", nargs="?", default="list",
-                   choices=["list", "export", "load", "pull", "clear"],
-                   help="What to do (default: list)")
-    p.add_argument("source",  nargs="?", default=None,
-                   help="Registry source for load/pull (path, URL, or 'default'/'empty')")
+    p.add_argument(
+        "action",
+        nargs="?",
+        default="list",
+        choices=["list", "export", "load", "pull", "clear"],
+        help="What to do (default: list)",
+    )
+    p.add_argument(
+        "source",
+        nargs="?",
+        default=None,
+        help="Registry source for load/pull (path, URL, or 'default'/'empty')",
+    )
     p.add_argument("--output", default=None, help="Output path for export (default: models.yaml)")
-    p.add_argument("--replace", action="store_true",
-                   help="Clear runtime registry before loading (instead of merging)")
+    p.add_argument(
+        "--replace", action="store_true", help="Clear runtime registry before loading (instead of merging)"
+    )
     p.set_defaults(func=_cmd_models)
 
     # version
@@ -569,17 +613,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # relabel — auto-label decision ⨝ outcome stream → training JSONL
     p = sub.add_parser("relabel", help="Weak-supervised auto-label production telemetry")
-    p.add_argument("--since", default=None,
-                   help="Relative window (e.g. 30d, 7d, 24h) or ISO timestamp")
+    p.add_argument("--since", default=None, help="Relative window (e.g. 30d, 7d, 24h) or ISO timestamp")
     p.add_argument("--until", default=None, help="ISO upper bound (default: now)")
-    p.add_argument("--min-confidence", type=float, default=0.7,
-                   help="Drop labels below this aggregated confidence (default 0.7)")
-    p.add_argument("--include-cached", action="store_true",
-                   help="Include cache-hit rows (default: skipped)")
-    p.add_argument("--include-exploration", action="store_true",
-                   help="Include exploration rows (default: skipped)")
-    p.add_argument("--out", default=None,
-                   help="Output JSONL path (default: labeled_from_telemetry.jsonl)")
+    p.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.7,
+        help="Drop labels below this aggregated confidence (default 0.7)",
+    )
+    p.add_argument("--include-cached", action="store_true", help="Include cache-hit rows (default: skipped)")
+    p.add_argument(
+        "--include-exploration", action="store_true", help="Include exploration rows (default: skipped)"
+    )
+    p.add_argument("--out", default=None, help="Output JSONL path (default: labeled_from_telemetry.jsonl)")
     p.set_defaults(func=_cmd_relabel)
 
     # benchmark

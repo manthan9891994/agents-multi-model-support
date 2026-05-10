@@ -1,4 +1,5 @@
 """Tests for input length guard, API key validation, and last-decision reset."""
+
 import pytest
 
 import classifier as pkg
@@ -26,7 +27,7 @@ def test_empty_task_raises_with_suggestion():
     with pytest.raises(ClassificationError) as exc_info:
         router.classify("")
     assert "empty" in str(exc_info.value).lower()
-    assert exc_info.value.suggestion   # has suggestion text
+    assert exc_info.value.suggestion  # has suggestion text
 
 
 def test_classification_error_attributes():
@@ -40,7 +41,7 @@ def test_classification_error_attributes():
 
 def test_reset_last_decision_clears_streaming_cache():
     router = Router(layer2_enabled=False, layer3_enabled=False)
-    router.classify("first task")   # populates _last_decision
+    router.classify("first task")  # populates _last_decision
     reset_last_decision()
     # Next streaming-debounce call should NOT return a stale decision
     # (we can't easily inspect internals, but at least the function runs)

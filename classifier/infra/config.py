@@ -19,15 +19,15 @@ class Settings(BaseSettings):
     )
 
     # ── API keys ──────────────────────────────────────────────────────────────
-    google_api_key:    str = ""
-    openai_api_key:    str = ""
+    google_api_key: str = ""
+    openai_api_key: str = ""
     anthropic_api_key: str = ""
 
     # ── Classifier behaviour ──────────────────────────────────────────────────
-    default_provider: str  = "google"
-    layer2_enabled:   bool = False
-    layer3_enabled:   bool = False
-    layer4_enabled:   bool = False
+    default_provider: str = "google"
+    layer2_enabled: bool = False
+    layer3_enabled: bool = False
+    layer4_enabled: bool = False
 
     # ── Cascade confidence thresholds ─────────────────────────────────────────
     layer3_confidence_threshold: float = 0.85
@@ -35,38 +35,38 @@ class Settings(BaseSettings):
 
     # ── Layer 3 settings ──────────────────────────────────────────────────────
     # Strategy: zeroshot (no data, ~80ms) | head (1.5K examples, ~15ms) | distilbert (5K, ~12ms)
-    layer3_strategy:           str   = "zeroshot"
+    layer3_strategy: str = "zeroshot"
     # Higher abstain threshold than `layer3_confidence_threshold` because zero-shot
     # is uncalibrated and tends to be over-confident on out-of-distribution inputs.
     layer3_zeroshot_threshold: float = 0.85
 
     # ── Layer 2 settings ──────────────────────────────────────────────────────
-    layer2_provider:             str   = ""    # "" = same as default_provider
-    layer2_model:                str   = "gemini-2.5-flash-lite"
-    layer2_timeout_ms:           int   = 3500
-    layer2_max_rpm:              int   = 100
-    layer2_fallback_model:       str   = ""
-    layer2_monthly_budget_usd:   float = 0.0  # 0 = auto (5% of monthly_budget_usd)
+    layer2_provider: str = ""  # "" = same as default_provider
+    layer2_model: str = "gemini-2.5-flash-lite"
+    layer2_timeout_ms: int = 3500
+    layer2_max_rpm: int = 100
+    layer2_fallback_model: str = ""
+    layer2_monthly_budget_usd: float = 0.0  # 0 = auto (5% of monthly_budget_usd)
 
     # ── PII / compliance ──────────────────────────────────────────────────────
-    pii_scrub_strict:            bool  = False  # also scrub all-caps names + addresses
+    pii_scrub_strict: bool = False  # also scrub all-caps names + addresses
 
     # ── Cache ─────────────────────────────────────────────────────────────────
-    cache_enabled:              bool  = True
-    cache_max_size:             int   = 10_000
-    cache_ttl_secs:             int   = 3600
-    semantic_cache_enabled:     bool  = False
-    semantic_cache_threshold:   float = 0.92
+    cache_enabled: bool = True
+    cache_max_size: int = 10_000
+    cache_ttl_secs: int = 3600
+    semantic_cache_enabled: bool = False
+    semantic_cache_threshold: float = 0.92
 
     # ── Cost / budget ─────────────────────────────────────────────────────────
     monthly_budget_usd: float = 1000.0
 
     # ── Decision logging ──────────────────────────────────────────────────────
-    log_decisions:  bool = True
-    debug_ab_mode:  bool = False
+    log_decisions: bool = True
+    debug_ab_mode: bool = False
 
     # ── Test mode ─────────────────────────────────────────────────────────────
-    classifier_test_mode: bool = False   # set CLASSIFIER_TEST_MODE=1 in env
+    classifier_test_mode: bool = False  # set CLASSIFIER_TEST_MODE=1 in env
 
     # ── Domain keyword packs ──────────────────────────────────────────────────
     keyword_packs: str = ""  # comma-separated names: "healthcare,fintech"
@@ -83,14 +83,12 @@ class Settings(BaseSettings):
 
     def api_key_for(self, provider: str) -> str:
         key_map = {
-            "google":    self.google_api_key,
-            "openai":    self.openai_api_key,
+            "google": self.google_api_key,
+            "openai": self.openai_api_key,
             "anthropic": self.anthropic_api_key,
         }
         if provider not in key_map:
-            raise ConfigurationError(
-                f"Unknown provider '{provider}'. Supported: {sorted(key_map)}"
-            )
+            raise ConfigurationError(f"Unknown provider '{provider}'. Supported: {sorted(key_map)}")
         key = key_map[provider]
         if not key or key.startswith("your_"):
             raise ConfigurationError(

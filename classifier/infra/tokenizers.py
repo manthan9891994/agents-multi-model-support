@@ -10,6 +10,7 @@ Use:
     from classifier.infra.tokenizers import count_tokens
     n = count_tokens("hello world", model="gpt-4o-mini")
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,6 +39,7 @@ def _wordcount(text: str) -> int:
 def _tiktoken(model: str) -> Callable[[str], int] | None:
     try:
         import tiktoken
+
         try:
             enc = tiktoken.encoding_for_model(model)
         except KeyError:
@@ -50,6 +52,7 @@ def _tiktoken(model: str) -> Callable[[str], int] | None:
 def _anthropic_tokenizer() -> Callable[[str], int] | None:
     try:
         from anthropic import Anthropic  # noqa: F401
+
         # Claude SDK exposes count_tokens via client; expensive — fall back to char/3.5
         return lambda text: max(1, len(text) // 4)
     except ImportError:

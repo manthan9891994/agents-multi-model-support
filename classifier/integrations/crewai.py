@@ -15,6 +15,7 @@ in dynamic routing:
 
 Both share the same routing logic — pick whichever fits your code shape.
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,9 +47,7 @@ def pick_llm_for_task(
     try:
         from crewai import LLM
     except ImportError as exc:
-        raise ImportError(
-            "CrewAI is not installed. Install with: pip install crewai"
-        ) from exc
+        raise ImportError("CrewAI is not installed. Install with: pip install crewai") from exc
 
     from classifier import classify_task
     from classifier.core.exceptions import ClassificationError
@@ -62,13 +61,14 @@ def pick_llm_for_task(
         logger.info(
             "CrewAI: routed [%s | %s/%s | conf=%.2f] → %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value,
-            decision.confidence, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            decision.confidence,
+            model_name,
         )
     except ClassificationError as exc:
         if fallback_model:
-            logger.warning("CrewAI: classification failed (%s) — using fallback %s",
-                           exc, fallback_model)
+            logger.warning("CrewAI: classification failed (%s) — using fallback %s", exc, fallback_model)
             model_name = fallback_model
         else:
             raise
@@ -80,9 +80,9 @@ def pick_llm_for_task(
 def _qualify_model(model_name: str, provider: str) -> str:
     """CrewAI / litellm uses provider-prefixed model names like 'gemini/gemini-2.5-flash'."""
     prefix_map = {
-        "google":    "gemini",
+        "google": "gemini",
         "anthropic": "anthropic",
-        "openai":    "openai",
+        "openai": "openai",
     }
     prefix = prefix_map.get(provider, provider)
     if model_name.startswith(f"{prefix}/"):
@@ -143,6 +143,7 @@ class DynamicLLM:
     def call(self, messages, *args, **kwargs):
         """Entry point CrewAI uses. Inspects messages, classifies, dispatches."""
         import time
+
         task_text = self._extract_task_text(messages)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
@@ -154,24 +155,32 @@ class DynamicLLM:
                 # CrewAI's LLM.call typically returns a string; we don't have token counts.
                 # Approximate with tokenizer for analytics.
                 from classifier.infra.tokenizers import count_tokens
-                tokens_in  = count_tokens(task_text, model=decision.model_name)
+
+                tokens_in = count_tokens(task_text, model=decision.model_name)
                 tokens_out = count_tokens(str(response), model=decision.model_name)
-                log_outcome(OutcomeRecord(
-                    decision_id=decision.decision_id,
-                    tokens_in=tokens_in, tokens_out=tokens_out,
-                    tokens_estimated=True,    # CrewAI returns text only; counts are heuristic
-                    wall_ms=(time.perf_counter() - t0) * 1000,
-                    success=True,
-                ))
+                log_outcome(
+                    OutcomeRecord(
+                        decision_id=decision.decision_id,
+                        tokens_in=tokens_in,
+                        tokens_out=tokens_out,
+                        tokens_estimated=True,  # CrewAI returns text only; counts are heuristic
+                        wall_ms=(time.perf_counter() - t0) * 1000,
+                        success=True,
+                    )
+                )
             return response
         except Exception as exc:
             if self._report_outcomes and decision is not None:
                 from classifier import OutcomeRecord, log_outcome
-                log_outcome(OutcomeRecord(
-                    decision_id=decision.decision_id,
-                    wall_ms=(time.perf_counter() - t0) * 1000,
-                    success=False, error_message=str(exc),
-                ))
+
+                log_outcome(
+                    OutcomeRecord(
+                        decision_id=decision.decision_id,
+                        wall_ms=(time.perf_counter() - t0) * 1000,
+                        success=False,
+                        error_message=str(exc),
+                    )
+                )
             raise
 
     @staticmethod

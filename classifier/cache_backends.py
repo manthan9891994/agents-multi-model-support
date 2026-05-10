@@ -12,6 +12,7 @@ Wire to a Router:
     from classifier.cache_backends import RedisCacheBackend
     router = Router(cache_backend=RedisCacheBackend(host="localhost"))
 """
+
 from __future__ import annotations
 
 import logging
@@ -67,8 +68,15 @@ class RedisCacheBackend:
     Stores ClassificationDecision objects as JSON; deserializes on get().
     """
 
-    def __init__(self, *, host: str = "localhost", port: int = 6379,
-                 db: int = 0, prefix: str = "dmr:cache:", **redis_kwargs):
+    def __init__(
+        self,
+        *,
+        host: str = "localhost",
+        port: int = 6379,
+        db: int = 0,
+        prefix: str = "dmr:cache:",
+        **redis_kwargs,
+    ):
         try:
             import redis
         except ImportError as exc:
@@ -85,6 +93,7 @@ class RedisCacheBackend:
             return None
         try:
             from classifier.core.types import ClassificationDecision
+
             return ClassificationDecision.from_json(raw.decode("utf-8"))
         except Exception as exc:
             logger.warning("RedisCacheBackend: deserialize failed: %s", exc)
@@ -107,6 +116,7 @@ class FileCacheBackend:
 
     def __init__(self, path: str = ".dmr_cache.jsonl"):
         from pathlib import Path
+
         self._path = Path(path)
         self._lock = threading.RLock()
         self._mem = InMemoryCacheBackend()
@@ -117,6 +127,7 @@ class FileCacheBackend:
             return
         try:
             import json
+
             for line in self._path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     rec = json.loads(line)
@@ -129,6 +140,7 @@ class FileCacheBackend:
 
     def set(self, key: str, value: Any, ttl: int) -> None:
         import json
+
         self._mem.set(key, value, ttl)
         with self._lock:
             try:
@@ -146,6 +158,12 @@ class FileCacheBackend:
 
 class NullCacheBackend:
     """No-op cache (always miss). Useful for testing and bypass."""
-    def get(self, key: str) -> Any | None: return None
-    def set(self, key: str, value: Any, ttl: int) -> None: pass
-    def clear(self) -> None: pass
+
+    def get(self, key: str) -> Any | None:
+        return None
+
+    def set(self, key: str, value: Any, ttl: int) -> None:
+        pass
+
+    def clear(self) -> None:
+        pass

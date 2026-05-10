@@ -1,4 +1,5 @@
 """Type stubs for classifier.router."""
+
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,6 @@ class Router:
         budget_usd: float | None = ...,
         cache_enabled: bool | None = ...,
     ) -> None: ...
-
     def classify(
         self,
         task: str,
@@ -46,7 +46,6 @@ class Router:
         context_signals: ContextSignals | None = ...,
         provider: str | None = ...,
     ) -> ClassificationDecision: ...
-
     def estimate_cost(
         self,
         task: str,
@@ -54,7 +53,6 @@ class Router:
         provider: str | None = ...,
         estimated_output_tokens: int = ...,
     ) -> dict[str, Any]: ...
-
     def train(
         self,
         data: str | Path,
@@ -62,12 +60,9 @@ class Router:
         output_path: str | Path | None = ...,
         max_iter: int = ...,
     ) -> dict[str, Any]: ...
-
     @classmethod
     def from_yaml(cls, path: str | Path) -> Router: ...
-
     @classmethod
     def from_preset(cls, name: str) -> Router: ...
-
 
 def classify(task: str, **kwargs: Any) -> ClassificationDecision: ...

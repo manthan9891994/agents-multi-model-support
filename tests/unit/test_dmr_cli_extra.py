@@ -1,4 +1,5 @@
 """Tests for the new dmr subcommands: doctor, version, benchmark."""
+
 import json
 import sys
 from io import StringIO
@@ -26,7 +27,7 @@ def test_version_subcommand_outputs_json():
 
 def test_doctor_subcommand_runs():
     rc, out = _run(["doctor"])
-    assert rc in (0, 1)   # 1 if any FAIL check
+    assert rc in (0, 1)  # 1 if any FAIL check
     assert "Result:" in out
     assert "Python version" in out
 
@@ -44,7 +45,7 @@ def test_help_lists_new_subcommands():
         try:
             main(["--help"])
         except SystemExit:
-            pass   # argparse exits 0 on --help
+            pass  # argparse exits 0 on --help
     out = captured.getvalue()
     assert "doctor" in out
     assert "version" in out

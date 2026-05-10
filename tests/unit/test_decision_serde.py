@@ -1,4 +1,5 @@
 """Round-trip tests for ClassificationDecision serde."""
+
 import json
 
 from classifier import classify_task
@@ -66,14 +67,16 @@ def test_real_decision_roundtrip():
 
 def test_from_dict_with_defaults():
     """Missing optional fields should fall back to defaults."""
-    d = ClassificationDecision.from_dict({
-        "model_name": "x",
-        "tier": "low",
-        "task_type": "conversation",
-        "complexity": "simple",
-        "reasoning": "",
-        "confidence": 0.5,
-        "provider": "google",
-    })
+    d = ClassificationDecision.from_dict(
+        {
+            "model_name": "x",
+            "tier": "low",
+            "task_type": "conversation",
+            "complexity": "simple",
+            "reasoning": "",
+            "confidence": 0.5,
+            "provider": "google",
+        }
+    )
     assert d.layer_used == "layer1"
     assert d.compliance_flag is False

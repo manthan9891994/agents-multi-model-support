@@ -1,5 +1,6 @@
 """Budget-aware cost tracking. Records token usage per model and signals downgrade
 when monthly spend exceeds the configured threshold."""
+
 import logging
 import os
 import threading
@@ -46,15 +47,17 @@ def _legacy_per_1m(model: str) -> float:
 class _LegacyCostMap(dict):
     def __getitem__(self, key):
         return _legacy_per_1m(key)
+
     def get(self, key, default=None):
         if key in COST_TABLE:
             return _legacy_per_1m(key)
         return default
+
     def __contains__(self, key):
         return key in COST_TABLE
 
 
-COST_PER_1M_TOKENS = _LegacyCostMap()   # back-compat shim
+COST_PER_1M_TOKENS = _LegacyCostMap()  # back-compat shim
 
 
 def _is_test_mode() -> bool:
@@ -63,14 +66,12 @@ def _is_test_mode() -> bool:
 
 @dataclass
 class UsageRecord:
-    model:         str
-    input_tokens:  int
+    model: str
+    input_tokens: int
     output_tokens: int
-    cost_usd:      float
-    category:      str  = "main"
-    timestamp:     str  = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    cost_usd: float
+    category: str = "main"
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class CostTracker:
@@ -105,7 +106,9 @@ class CostTracker:
                     category=category,
                 )
             )
-        logger.debug("Recorded %.6f USD for %s (%d/%d tokens) [%s]", cost, model, input_tokens, output_tokens, category)
+        logger.debug(
+            "Recorded %.6f USD for %s (%d/%d tokens) [%s]", cost, model, input_tokens, output_tokens, category
+        )
         return cost
 
     @property
@@ -153,16 +156,16 @@ class CostTracker:
             by_model: dict[str, float] = {}
             by_category: dict[str, float] = {}
             for r in self._records:
-                by_model[r.model]        = by_model.get(r.model, 0.0)        + r.cost_usd
-                by_category[r.category]  = by_category.get(r.category, 0.0)  + r.cost_usd
+                by_model[r.model] = by_model.get(r.model, 0.0) + r.cost_usd
+                by_category[r.category] = by_category.get(r.category, 0.0) + r.cost_usd
         return {
-            "total_cost_usd":   round(self.total_cost, 6),
-            "budget_usd":       self.monthly_budget,
+            "total_cost_usd": round(self.total_cost, 6),
+            "budget_usd": self.monthly_budget,
             "budget_remaining": round(self.budget_remaining, 6),
-            "utilization_pct":  round(self.budget_utilization * 100, 2),
-            "by_model":         {k: round(v, 6) for k, v in by_model.items()},
-            "by_category":      {k: round(v, 6) for k, v in by_category.items()},
-            "total_calls":      len(self._records),
+            "utilization_pct": round(self.budget_utilization * 100, 2),
+            "by_model": {k: round(v, 6) for k, v in by_model.items()},
+            "by_category": {k: round(v, 6) for k, v in by_category.items()},
+            "total_calls": len(self._records),
         }
 
 

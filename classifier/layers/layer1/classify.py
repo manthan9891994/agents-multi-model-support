@@ -35,8 +35,8 @@ def classify_layer1(
             "layer1 | trivial input → CONVERSATION/SIMPLE",
         )
 
-    t0     = time.perf_counter()
-    lower  = task.lower()
+    t0 = time.perf_counter()
+    lower = task.lower()
     tokens = _count_tokens(task, provider=provider)
 
     if feature_flags.continuation_detection and history and _CONTINUATION_RE.match(task.strip()):
@@ -49,15 +49,18 @@ def classify_layer1(
                         history_scores[ht] += weight
         best_history = max(history_scores, key=history_scores.get)
         if history_scores[best_history] >= 3:
-            task_type    = best_history
-            complexity   = _detect_complexity(lower, tokens)
-            tier         = TIER_MATRIX.get((task_type, complexity), ModelTier.MEDIUM)
+            task_type = best_history
+            complexity = _detect_complexity(lower, tokens)
+            tier = TIER_MATRIX.get((task_type, complexity), ModelTier.MEDIUM)
             domain_floor = _domain_min_tier(lower) if feature_flags.domain_escalation else None
             if domain_floor and _TIER_ORDER.index(domain_floor) > _TIER_ORDER.index(tier):
                 tier = domain_floor
             elapsed = (time.perf_counter() - t0) * 1000
             return (
-                task_type, complexity, tier, 0.80,
+                task_type,
+                complexity,
+                tier,
+                0.80,
                 f"layer1 | type={task_type.value} complexity={complexity.value} "
                 f"tokens={tokens} tier={tier.value} ({elapsed:.1f}ms) [continuation]",
             )
@@ -74,18 +77,18 @@ def classify_layer1(
                         h_scores[ht] += weight
         best_history = max(h_scores, key=h_scores.get)
         if h_scores[best_history] >= 4 and best_history != task_type:
-            task_type  = best_history
+            task_type = best_history
             confidence = min(confidence + 0.1, 1.0)
 
     lang = "en"
     if feature_flags.language_detection:
         lang = _detect_language(task)
         if lang != "en" and confidence < 0.60:
-            confidence   = min(confidence, 0.40)
+            confidence = min(confidence, 0.40)
             is_ambiguous = True
 
-    complexity   = _detect_complexity(lower, tokens)
-    tier         = TIER_MATRIX.get((task_type, complexity), ModelTier.MEDIUM)
+    complexity = _detect_complexity(lower, tokens)
+    tier = TIER_MATRIX.get((task_type, complexity), ModelTier.MEDIUM)
     domain_floor = _domain_min_tier(lower) if feature_flags.domain_escalation else None
 
     if domain_floor and _TIER_ORDER.index(domain_floor) > _TIER_ORDER.index(tier):
@@ -103,8 +106,7 @@ def classify_layer1(
 
     reason = (
         f"layer1 | type={task_type.value} complexity={complexity.value} "
-        f"tokens={tokens} tier={tier.value} ({elapsed:.1f}ms)"
-        + (f" [{', '.join(flags)}]" if flags else "")
+        f"tokens={tokens} tier={tier.value} ({elapsed:.1f}ms)" + (f" [{', '.join(flags)}]" if flags else "")
     )
     logger.debug(reason)
     return task_type, complexity, tier, confidence, reason

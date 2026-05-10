@@ -27,38 +27,34 @@ def _validate_l2_output(
     lower = task.lower()
 
     if l2_type not in _KEYWORD_OPTIONAL_TYPES:
-        scores    = _score_task_type(lower)
-        l2_score  = scores.get(l2_type, 0.0)
+        scores = _score_task_type(lower)
+        l2_score = scores.get(l2_type, 0.0)
         top_score = max(scores.values(), default=0.0)
-        top_type  = max(scores, key=scores.get)
+        top_type = max(scores, key=scores.get)
 
-        if (
-            l2_score <= 0
-            and top_score > 3
-            and top_type != l2_type
-        ):
-            l2_weight  = _TASK_TYPE_TIER_WEIGHT.get(l2_type, 0)
+        if l2_score <= 0 and top_score > 3 and top_type != l2_type:
+            l2_weight = _TASK_TYPE_TIER_WEIGHT.get(l2_type, 0)
             top_weight = _TASK_TYPE_TIER_WEIGHT.get(top_type, 0)
             if abs(top_weight - l2_weight) >= 2:
                 logger.debug(
                     "l2_validation: keyword cross-check failed — "
                     "type=%s (score=%.1f) but %s scores %.1f (tier diff=%d)",
-                    l2_type.value, l2_score, top_type.value, top_score,
+                    l2_type.value,
+                    l2_score,
+                    top_type.value,
+                    top_score,
                     abs(top_weight - l2_weight),
                 )
                 return False
 
-    is_trivial_classification = (
-        l2_type == TaskType.CONVERSATION
-        and l2_complexity == TaskComplexity.SIMPLE
-    )
+    is_trivial_classification = l2_type == TaskType.CONVERSATION and l2_complexity == TaskComplexity.SIMPLE
     if is_trivial_classification and l2_conf > 0.80:
         tokens = _count_tokens(task)
         if tokens > 60:
             logger.debug(
-                "l2_validation: complexity sanity failed — "
-                "conversation/simple conf=%.2f for %d-token task",
-                l2_conf, tokens,
+                "l2_validation: complexity sanity failed — conversation/simple conf=%.2f for %d-token task",
+                l2_conf,
+                tokens,
             )
             return False
 

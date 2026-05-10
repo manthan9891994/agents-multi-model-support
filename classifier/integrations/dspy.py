@@ -18,6 +18,7 @@ DSPy uses LiteLLM-style provider-qualified model names. Two patterns:
     with route("Translate to French"):
         out = my_module(text="Hello")
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,13 +29,13 @@ logger = logging.getLogger(__name__)
 
 # DMR provider -> LiteLLM provider prefix (DSPy uses LiteLLM under the hood)
 _PROVIDER_PREFIX = {
-    "google":    "gemini",
+    "google": "gemini",
     "anthropic": "anthropic",
-    "openai":    "openai",
-    "groq":      "groq",
-    "mistral":   "mistral",
-    "cohere":    "cohere",
-    "bedrock":   "bedrock",
+    "openai": "openai",
+    "groq": "groq",
+    "mistral": "mistral",
+    "cohere": "cohere",
+    "bedrock": "bedrock",
 }
 
 
@@ -57,7 +58,9 @@ def _route_one(task: str, provider: str | None, fallback_model: str | None) -> s
         logger.info(
             "DSPy: routed [%s | %s/%s] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value, model,
+            decision.task_type.value,
+            decision.complexity.value,
+            model,
         )
     except ClassificationError:
         if not fallback_model:
@@ -98,7 +101,8 @@ def route(
             output = my_dspy_module(input="...")
     """
     import dspy
-    new_lm  = get_lm(task, provider=provider, fallback_model=fallback_model, **lm_kwargs)
+
+    new_lm = get_lm(task, provider=provider, fallback_model=fallback_model, **lm_kwargs)
     prev_lm = dspy.settings.lm
     dspy.configure(lm=new_lm)
     try:

@@ -6,17 +6,18 @@ Bias range: [-0.5, +0.5]
 
 Biases decay with a 30-day half-life so old preferences don't lock users in.
 """
+
 import json
 import math
 import threading
 import time
 from pathlib import Path
 
-_DATA_FILE  = Path(__file__).parent.parent / "data" / "user_biases.json"
-_lock       = threading.Lock()
+_DATA_FILE = Path(__file__).parent.parent / "data" / "user_biases.json"
+_lock = threading.Lock()
 _DECAY_DAYS = 30
-_MAX_BIAS   = 0.5
-_NUDGE      = 0.1
+_MAX_BIAS = 0.5
+_NUDGE = 0.1
 
 _biases: dict[str, dict] = {}
 _loaded = False
@@ -70,6 +71,6 @@ def update_user_bias(
     with _lock:
         _ensure_loaded()
         entry = _biases.setdefault(user_id, {"bias": 0.0, "updated": time.time()})
-        entry["bias"]    = max(-_MAX_BIAS, min(_MAX_BIAS, entry["bias"] + delta))
+        entry["bias"] = max(-_MAX_BIAS, min(_MAX_BIAS, entry["bias"] + delta))
         entry["updated"] = time.time()
         _save()

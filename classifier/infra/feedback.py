@@ -1,4 +1,5 @@
 """Record classification feedback for retraining and accuracy tracking."""
+
 import json
 import logging
 import threading
@@ -25,12 +26,12 @@ def record_feedback(
     Pass user_id + tier_too_low/tier_too_high to update per-user tier bias.
     """
     entry = {
-        "task":                 task[:500],
-        "expected_type":        expected_type,
-        "expected_complexity":  expected_complexity,
-        "original_type":        original_type,
-        "original_complexity":  original_complexity,
-        "source":               "feedback",
+        "task": task[:500],
+        "expected_type": expected_type,
+        "expected_complexity": expected_complexity,
+        "original_type": original_type,
+        "original_complexity": original_complexity,
+        "source": "feedback",
     }
     try:
         with _lock:
@@ -43,6 +44,7 @@ def record_feedback(
     if user_id and (tier_too_low or tier_too_high):
         try:
             from classifier.infra.personalization import update_user_bias
+
             update_user_bias(user_id, tier_too_low=tier_too_low, tier_too_high=tier_too_high)
         except Exception as e:
             logger.debug("Personalization update skipped: %s", e)

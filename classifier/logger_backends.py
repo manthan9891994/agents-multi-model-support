@@ -11,6 +11,7 @@ Wire to a Router:
     from classifier.logger_backends import KafkaLoggerBackend
     router = Router(decision_logger=KafkaLoggerBackend(brokers=["k1:9092"], topic="dmr-decisions"))
 """
+
 from __future__ import annotations
 
 import json
@@ -32,6 +33,7 @@ class JSONLLoggerBackend:
     def __init__(self, path: str = "routing_decisions.jsonl"):
         import threading
         from pathlib import Path
+
         self._path = Path(path)
         self._lock = threading.Lock()
 
@@ -46,6 +48,7 @@ class JSONLLoggerBackend:
 
 class StdoutLoggerBackend:
     """Print JSON lines to stdout — for Kubernetes log-collector pipelines."""
+
     def log(self, entry: dict) -> None:
         sys.stdout.write(json.dumps(entry) + "\n")
         sys.stdout.flush()
@@ -53,7 +56,9 @@ class StdoutLoggerBackend:
 
 class NullLoggerBackend:
     """No-op backend. Useful for tests."""
-    def log(self, entry: dict) -> None: pass
+
+    def log(self, entry: dict) -> None:
+        pass
 
 
 class WebhookLoggerBackend:
@@ -63,16 +68,19 @@ class WebhookLoggerBackend:
     """
 
     def __init__(self, url: str, *, timeout: float = 2.0, headers: dict | None = None):
-        self._url     = url
+        self._url = url
         self._timeout = timeout
         self._headers = headers or {"Content-Type": "application/json"}
 
     def log(self, entry: dict) -> None:
         try:
             import urllib.request
+
             req = urllib.request.Request(
-                self._url, data=json.dumps(entry).encode("utf-8"),
-                headers=self._headers, method="POST",
+                self._url,
+                data=json.dumps(entry).encode("utf-8"),
+                headers=self._headers,
+                method="POST",
             )
             urllib.request.urlopen(req, timeout=self._timeout).read()
         except Exception as exc:
@@ -93,10 +101,12 @@ class KafkaLoggerBackend:
                 "KafkaLoggerBackend requires confluent-kafka. "
                 "Install: pip install 'dynamic-model-router[kafka]'"
             ) from exc
-        self._producer = Producer({
-            "bootstrap.servers": ",".join(brokers),
-            **producer_kwargs,
-        })
+        self._producer = Producer(
+            {
+                "bootstrap.servers": ",".join(brokers),
+                **producer_kwargs,
+            }
+        )
         self._topic = topic
 
     def log(self, entry: dict) -> None:
@@ -111,18 +121,23 @@ class S3LoggerBackend:
     """Buffered writes to S3 — flushes every N decisions or T seconds."""
 
     def __init__(
-        self, *, bucket: str, prefix: str = "dmr/", flush_interval: int = 60,
-        flush_size: int = 100, **boto3_kwargs,
+        self,
+        *,
+        bucket: str,
+        prefix: str = "dmr/",
+        flush_interval: int = 60,
+        flush_size: int = 100,
+        **boto3_kwargs,
     ):
         try:
             import boto3
         except ImportError as exc:
             raise ImportError(
-                "S3LoggerBackend requires boto3. "
-                "Install: pip install 'dynamic-model-router[s3]'"
+                "S3LoggerBackend requires boto3. Install: pip install 'dynamic-model-router[s3]'"
             ) from exc
         import threading
         import time
+
         self._client = boto3.client("s3", **boto3_kwargs)
         self._bucket = bucket
         self._prefix = prefix.rstrip("/") + "/"
@@ -134,6 +149,7 @@ class S3LoggerBackend:
 
     def log(self, entry: dict) -> None:
         import time
+
         with self._lock:
             self._buf.append(entry)
             now = time.time()
@@ -146,8 +162,9 @@ class S3LoggerBackend:
             return
         import time
         from datetime import datetime, timezone
+
         body = "\n".join(json.dumps(e) for e in self._buf).encode("utf-8")
-        key = f"{self._prefix}{datetime.now(timezone.utc).strftime('%Y/%m/%d/%H%M%S')}-{int(time.time()*1000)}.jsonl"
+        key = f"{self._prefix}{datetime.now(timezone.utc).strftime('%Y/%m/%d/%H%M%S')}-{int(time.time() * 1000)}.jsonl"
         try:
             self._client.put_object(Bucket=self._bucket, Key=key, Body=body)
             self._buf.clear()

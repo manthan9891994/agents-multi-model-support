@@ -14,6 +14,7 @@ Two patterns:
 2. **`DynamicLLM`** — a LlamaIndex-compatible LLM that classifies each prompt
    on `.complete()` / `.chat()` and dispatches to the right underlying model.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -24,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 # Provider → (package, class name) for the appropriate LlamaIndex LLM
 _PROVIDER_MAP = {
-    "google":    ("llama_index.llms.google_genai", "GoogleGenAI"),
-    "anthropic": ("llama_index.llms.anthropic",    "Anthropic"),
-    "openai":    ("llama_index.llms.openai",       "OpenAI"),
+    "google": ("llama_index.llms.google_genai", "GoogleGenAI"),
+    "anthropic": ("llama_index.llms.anthropic", "Anthropic"),
+    "openai": ("llama_index.llms.openai", "OpenAI"),
 }
 
 
@@ -67,8 +68,10 @@ def get_llm(
         logger.info(
             "LlamaIndex: routed [%s | %s/%s | conf=%.2f] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value,
-            decision.confidence, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            decision.confidence,
+            model_name,
         )
     except ClassificationError:
         if not fallback_model:
@@ -116,7 +119,9 @@ class DynamicLLM:
             return prompt
         if isinstance(prompt, list):
             for msg in reversed(prompt):
-                content = getattr(msg, "content", None) or (msg.get("content") if isinstance(msg, dict) else None)
+                content = getattr(msg, "content", None) or (
+                    msg.get("content") if isinstance(msg, dict) else None
+                )
                 if content:
                     return str(content)
         return str(prompt)

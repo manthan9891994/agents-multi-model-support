@@ -18,6 +18,7 @@ Two patterns:
     llm = DynamicChatModel(provider="google")
     chain = llm | StrOutputParser()
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Provider → langchain package + class name
 _PROVIDER_MAP = {
-    "google":    ("langchain_google_genai", "ChatGoogleGenerativeAI"),
-    "anthropic": ("langchain_anthropic",    "ChatAnthropic"),
-    "openai":    ("langchain_openai",       "ChatOpenAI"),
+    "google": ("langchain_google_genai", "ChatGoogleGenerativeAI"),
+    "anthropic": ("langchain_anthropic", "ChatAnthropic"),
+    "openai": ("langchain_openai", "ChatOpenAI"),
 }
 
 
@@ -44,12 +45,12 @@ def _build_chat_model(model_name: str, provider: str, **kwargs) -> Any:
     pkg, cls_name = _PROVIDER_MAP[provider]
     try:
         import importlib
+
         mod = importlib.import_module(pkg)
         cls = getattr(mod, cls_name)
     except ImportError as exc:
         raise ImportError(
-            f"LangChain provider package '{pkg}' is not installed. "
-            f"Install with: pip install {pkg}"
+            f"LangChain provider package '{pkg}' is not installed. Install with: pip install {pkg}"
         ) from exc
 
     return cls(model=model_name, **kwargs)
@@ -89,13 +90,14 @@ def get_chat_model(
         logger.info(
             "LangChain: routed [%s | %s/%s | conf=%.2f] → %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value,
-            decision.confidence, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            decision.confidence,
+            model_name,
         )
     except ClassificationError as exc:
         if fallback_model:
-            logger.warning("LangChain: classification failed (%s) — using fallback %s",
-                           exc, fallback_model)
+            logger.warning("LangChain: classification failed (%s) — using fallback %s", exc, fallback_model)
             model_name = fallback_model
         else:
             raise
@@ -156,21 +158,28 @@ class DynamicChatModel:
         if not self._report_outcomes or decision is None:
             return
         from classifier import OutcomeRecord, log_outcome
+
         usage = getattr(response, "usage_metadata", None) or {}
         if hasattr(usage, "get"):
-            tokens_in  = int(usage.get("input_tokens",  usage.get("prompt_tokens",     0)) or 0)
+            tokens_in = int(usage.get("input_tokens", usage.get("prompt_tokens", 0)) or 0)
             tokens_out = int(usage.get("output_tokens", usage.get("completion_tokens", 0)) or 0)
         else:
-            tokens_in  = int(getattr(usage, "input_tokens",  0) or 0)
+            tokens_in = int(getattr(usage, "input_tokens", 0) or 0)
             tokens_out = int(getattr(usage, "output_tokens", 0) or 0)
-        log_outcome(OutcomeRecord(
-            decision_id=decision.decision_id,
-            tokens_in=tokens_in, tokens_out=tokens_out,
-            wall_ms=wall_ms, success=success, error_message=error,
-        ))
+        log_outcome(
+            OutcomeRecord(
+                decision_id=decision.decision_id,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                wall_ms=wall_ms,
+                success=success,
+                error_message=error,
+            )
+        )
 
     def invoke(self, input, **kwargs) -> Any:
         import time
+
         task_text = self._extract_text(input)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
@@ -189,6 +198,7 @@ class DynamicChatModel:
         with `+` produces a single combined message we can read tokens from.
         """
         import time
+
         task_text = self._extract_text(input)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
@@ -204,6 +214,7 @@ class DynamicChatModel:
 
     async def ainvoke(self, input, **kwargs) -> Any:
         import time
+
         task_text = self._extract_text(input)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
@@ -217,6 +228,7 @@ class DynamicChatModel:
 
     async def astream(self, input, **kwargs):
         import time
+
         task_text = self._extract_text(input)
         llm, decision = self._classify_and_build(task_text)
         t0 = time.perf_counter()
@@ -232,6 +244,7 @@ class DynamicChatModel:
 
     async def abatch(self, inputs: list, **kwargs) -> list:
         import asyncio
+
         return await asyncio.gather(*[self.ainvoke(inp, **kwargs) for inp in inputs])
 
     def batch(self, inputs: list, **kwargs) -> list:
@@ -240,6 +253,7 @@ class DynamicChatModel:
     # LCEL pipe operator
     def __or__(self, other):
         from langchain_core.runnables import RunnableLambda, RunnableSequence
+
         return RunnableSequence(RunnableLambda(self.invoke), other)
 
     @staticmethod

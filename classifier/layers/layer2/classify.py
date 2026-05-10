@@ -14,7 +14,7 @@ from .validation import _validate_l2_output
 
 logger = logging.getLogger(__name__)
 
-_VALID_TASK_TYPES   = {t.value for t in TaskType}
+_VALID_TASK_TYPES = {t.value for t in TaskType}
 _VALID_COMPLEXITIES = {c.value for c in TaskComplexity}
 
 
@@ -30,14 +30,14 @@ def classify_layer2(
 
     response = None
     try:
-        future   = _executor.submit(_call_api, task, history)
+        future = _executor.submit(_call_api, task, history)
         response = future.result(timeout=settings.layer2_timeout_ms / 1000)
     except (_FuturesTimeout, Exception) as exc:
         logger.warning("layer2: primary model failed: %s", exc)
         if feature_flags.l2_fallback_model and settings.layer2_fallback_model:
             logger.info("layer2: trying fallback model %s", settings.layer2_fallback_model)
             try:
-                future   = _executor.submit(_call_api_with_model, task, history, settings.layer2_fallback_model)
+                future = _executor.submit(_call_api_with_model, task, history, settings.layer2_fallback_model)
                 response = future.result(timeout=settings.layer2_timeout_ms / 1000)
             except Exception as fallback_exc:
                 logger.warning("layer2: fallback also failed: %s", fallback_exc)
@@ -49,11 +49,11 @@ def classify_layer2(
         return None
 
     try:
-        data    = json.loads(response.text.replace("\n", " "))
-        tt_val  = str(data.get("task_type",  "")).lower().strip()
-        cx_val  = str(data.get("complexity", "")).lower().strip()
-        conf    = min(float(data.get("confidence", 0.5)), 0.85)
-        reason  = str(data.get("reason", "llm classifier"))
+        data = json.loads(response.text.replace("\n", " "))
+        tt_val = str(data.get("task_type", "")).lower().strip()
+        cx_val = str(data.get("complexity", "")).lower().strip()
+        conf = min(float(data.get("confidence", 0.5)), 0.85)
+        reason = str(data.get("reason", "llm classifier"))
 
         if tt_val not in _VALID_TASK_TYPES:
             logger.warning("layer2: unknown task_type=%r", tt_val)
@@ -62,28 +62,32 @@ def classify_layer2(
             logger.warning("layer2: unknown complexity=%r", cx_val)
             return None
 
-        task_type  = TaskType(tt_val)
+        task_type = TaskType(tt_val)
         complexity = TaskComplexity(cx_val)
 
         if feature_flags.l2_output_validation and not _validate_l2_output(task, task_type, complexity, conf):
             logger.warning(
                 "layer2: output validation rejected response "
                 "(type=%s complexity=%s conf=%.2f) — using L1 fallback",
-                tt_val, cx_val, conf,
+                tt_val,
+                cx_val,
+                conf,
             )
             return None
 
-        tier      = TIER_MATRIX[(task_type, complexity)]
+        tier = TIER_MATRIX[(task_type, complexity)]
         reasoning = f"layer2 | {reason} | conf={conf:.2f}"
 
         # Prefer real token counts from the API response; fall back to estimate.
         usage = getattr(response, "usage_metadata", None)
         if usage is not None:
-            input_tokens  = int(getattr(usage, "prompt_token_count", 0) or len(task) // 4 + 200)
+            input_tokens = int(getattr(usage, "prompt_token_count", 0) or len(task) // 4 + 200)
             output_tokens = int(getattr(usage, "candidates_token_count", 0) or 50)
         else:
             input_tokens, output_tokens = len(task) // 4 + 200, 50
-        cost_tracker.record(settings.layer2_model, input_tokens, output_tokens=output_tokens, category="layer2")
+        cost_tracker.record(
+            settings.layer2_model, input_tokens, output_tokens=output_tokens, category="layer2"
+        )
 
         return task_type, complexity, tier, conf, reasoning
 

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 def _load_keyword_packs() -> None:
     try:
         from classifier.infra.config import settings
+
         pack_names = [p.strip() for p in settings.keyword_packs.split(",") if p.strip()]
     except Exception:
         return
@@ -25,6 +26,7 @@ def _load_keyword_packs() -> None:
             continue
         try:
             import yaml
+
             with open(pack_file, encoding="utf-8") as f:
                 pack = yaml.safe_load(f)
 

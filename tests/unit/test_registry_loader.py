@@ -1,5 +1,6 @@
 """Tests for the YAML-driven registry — proves the package ships zero
 hardcoded model names or pricing in Python."""
+
 import os
 import textwrap
 from pathlib import Path
@@ -91,7 +92,7 @@ def test_load_from_dict(empty_registry):
         "version": "inline",
         "providers": {"my_co": {"tiers": {"low": "my-cheap", "high": "my-expensive"}}},
         "models": {
-            "my-cheap":     {"cost": {"input_per_1m": 0.1, "output_per_1m": 0.3}},
+            "my-cheap": {"cost": {"input_per_1m": 0.1, "output_per_1m": 0.3}},
             "my-expensive": {"cost": {"input_per_1m": 5.0, "output_per_1m": 15.0}},
         },
     }
@@ -149,6 +150,7 @@ def test_router_from_registry_classmethod(tmp_path: Path, empty_registry):
 def test_dmr_no_default_registry_env(empty_registry):
     """Manually invoking the auto-loader with the env var set yields empty state."""
     from classifier.core.registry_loader import _auto_load_at_import
+
     old = os.environ.get("DMR_NO_DEFAULT_REGISTRY")
     os.environ["DMR_NO_DEFAULT_REGISTRY"] = "1"
     try:

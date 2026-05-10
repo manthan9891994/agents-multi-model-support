@@ -1,4 +1,5 @@
 """Unit tests for the Router class — the high-level user-facing API."""
+
 import pytest
 
 from classifier import KeywordPack, Router, TaskType, classify
@@ -9,6 +10,7 @@ def reset_extras():
     """Wipe registered extra packs / pii patterns between tests."""
     from classifier.infra import pii_scrubber
     from classifier.layers.layer1 import keyword_pack
+
     keyword_pack.clear_registered()
     pii_scrubber.clear_extra_patterns()
     yield
@@ -17,6 +19,7 @@ def reset_extras():
 
 
 # ── Construction ──────────────────────────────────────────────────────────────
+
 
 def test_default_router_zero_config():
     r = Router()
@@ -31,6 +34,7 @@ def test_module_level_classify_function():
 
 
 # ── Layer toggles ─────────────────────────────────────────────────────────────
+
 
 def test_layer3_can_be_disabled():
     r = Router(layer3_enabled=False)
@@ -47,8 +51,9 @@ def test_layer2_can_be_disabled():
 
 # ── Threshold overrides ───────────────────────────────────────────────────────
 
+
 def test_thresholds_take_effect():
-    r  = Router(escalation_threshold=0.99, layer3_threshold=0.99)  # always escalate / abstain
+    r = Router(escalation_threshold=0.99, layer3_threshold=0.99)  # always escalate / abstain
     r2 = Router(escalation_threshold=0.50, layer3_threshold=0.50)  # rarely escalate / abstain
     d1 = r.classify("hello")
     d2 = r2.classify("hello")
@@ -58,10 +63,9 @@ def test_thresholds_take_effect():
 
 # ── Custom keyword packs ──────────────────────────────────────────────────────
 
+
 def test_custom_keyword_pack_injected():
-    pack = (KeywordPack.builder("test")
-            .add(TaskType.REASONING, ["xyzzy_unique_kw_001"])
-            .build())
+    pack = KeywordPack.builder("test").add(TaskType.REASONING, ["xyzzy_unique_kw_001"]).build()
     r = Router(extra_keyword_packs=[pack])
     d = r.classify("xyzzy_unique_kw_001 do this thing")
     assert d.task_type == TaskType.REASONING
@@ -70,6 +74,7 @@ def test_custom_keyword_pack_injected():
 def test_keyword_pack_idempotent_registration():
     """Registering the same pack twice should be a no-op."""
     from classifier.layers.layer1.keyword_pack import list_registered, register_extra_packs
+
     pack = KeywordPack.builder("dup").add(TaskType.REASONING, ["dup_kw"]).build()
     register_extra_packs([pack])
     register_extra_packs([pack])
@@ -78,10 +83,12 @@ def test_keyword_pack_idempotent_registration():
 
 # ── Custom PII patterns ───────────────────────────────────────────────────────
 
+
 def test_custom_pii_pattern_applied():
     import re
 
     from classifier.infra.pii_scrubber import scrub
+
     pattern = (re.compile(r"\bACCT-\d{6}\b"), "[ACCT]")
     Router(extra_pii_patterns=[pattern])
     res = scrub("Customer ACCT-123456 has overdue balance")
@@ -90,6 +97,7 @@ def test_custom_pii_pattern_applied():
 
 
 # ── Tier matrix override ──────────────────────────────────────────────────────
+
 
 def test_tier_matrix_override_applied_then_restored():
     from classifier.core.registry import TIER_MATRIX
@@ -105,6 +113,7 @@ def test_tier_matrix_override_applied_then_restored():
 
 
 # ── Presets ───────────────────────────────────────────────────────────────────
+
 
 def test_healthcare_preset_loads():
     r = Router.from_preset("healthcare")
@@ -131,14 +140,11 @@ def test_unknown_preset_raises():
 
 # ── YAML config ───────────────────────────────────────────────────────────────
 
+
 def test_from_yaml_loads_config(tmp_path):
     cfg = tmp_path / "dmr.yaml"
     cfg.write_text(
-        "providers:\n"
-        "  - google\n"
-        "layer1_enabled: true\n"
-        "layer2_enabled: false\n"
-        "layer3_enabled: false\n",
+        "providers:\n  - google\nlayer1_enabled: true\nlayer2_enabled: false\nlayer3_enabled: false\n",
         encoding="utf-8",
     )
     r = Router.from_yaml(cfg)
@@ -149,11 +155,7 @@ def test_from_yaml_loads_config(tmp_path):
 def test_from_yaml_keyword_packs(tmp_path):
     cfg = tmp_path / "dmr.yaml"
     cfg.write_text(
-        "keyword_packs:\n"
-        "  - name: yaml_test\n"
-        "    packs:\n"
-        "      reasoning:\n"
-        "        - yaml_unique_word_zzz\n",
+        "keyword_packs:\n  - name: yaml_test\n    packs:\n      reasoning:\n        - yaml_unique_word_zzz\n",
         encoding="utf-8",
     )
     r = Router.from_yaml(cfg)

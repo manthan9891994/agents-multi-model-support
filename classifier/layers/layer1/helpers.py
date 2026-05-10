@@ -1,9 +1,9 @@
 import re
 
 _CHARS_PER_TOKEN: dict[str, float] = {
-    "google":    4.0,
+    "google": 4.0,
     "anthropic": 4.5,
-    "openai":    4.0,
+    "openai": 4.0,
 }
 
 _TRIVIAL_ACKS = {"k", "ok", "okay", "thx", "ty", "ack", "noted", "sure", "yep", "nope", "yes", "no"}
@@ -13,7 +13,7 @@ _NEGATION_RE = re.compile(
     re.IGNORECASE,
 )
 
-_YES_NO_RE  = re.compile(r"^(can|could|should|would|is|are|does|do|has|have|will|was|were)\s", re.IGNORECASE)
+_YES_NO_RE = re.compile(r"^(can|could|should|would|is|are|does|do|has|have|will|was|were)\s", re.IGNORECASE)
 _WHAT_IS_RE = re.compile(r"^what (is|are|was|were)\s", re.IGNORECASE)
 
 _CONTINUATION_RE = re.compile(
@@ -40,9 +40,9 @@ def _detect_language(text: str) -> str:
     if not text:
         return "en"
     total = len(text)
-    cjk        = sum(1 for c in text if "一" <= c <= "鿿" or "぀" <= c <= "ヿ")
-    arabic     = sum(1 for c in text if "؀" <= c <= "ۿ")
-    cyrillic   = sum(1 for c in text if "Ѐ" <= c <= "ӿ")
+    cjk = sum(1 for c in text if "一" <= c <= "鿿" or "぀" <= c <= "ヿ")
+    arabic = sum(1 for c in text if "؀" <= c <= "ۿ")
+    cyrillic = sum(1 for c in text if "Ѐ" <= c <= "ӿ")
     devanagari = sum(1 for c in text if "ऀ" <= c <= "ॿ")
     if cjk / total > 0.15:
         return "zh"
@@ -66,6 +66,7 @@ def _negation_positions(lower: str) -> set[int]:
 def _count_tokens(text: str, provider: str = "google") -> int:
     try:
         import tiktoken
+
         enc = tiktoken.get_encoding("cl100k_base")
         raw = len(enc.encode(text))
         if provider == "anthropic":
@@ -81,8 +82,8 @@ def _extract_instruction(text: str) -> str:
     if last_q != -1:
         start = text.rfind("\n", 0, last_q)
         start = start + 1 if start != -1 else 0
-        end   = text.find("\n", last_q)
-        end   = end if end != -1 else len(text)
+        end = text.find("\n", last_q)
+        end = end if end != -1 else len(text)
         instruction = text[start:end].strip()
         if len(instruction) > 10:
             return instruction

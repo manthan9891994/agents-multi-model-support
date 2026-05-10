@@ -3,6 +3,7 @@
 When a (provider, tier) combination exceeds the SLO p95 threshold, is_degraded()
 returns True and classify_task() demotes one tier automatically.
 """
+
 import threading
 from collections import defaultdict, deque
 from typing import TYPE_CHECKING
@@ -46,10 +47,10 @@ class TierHealthTracker:
                     continue
                 key = f"{provider}/{tier.value}"
                 result[key] = {
-                    "count":      len(samples),
-                    "p50":        round(sorted(samples)[len(samples) // 2], 1),
-                    "p95":        round(sorted(samples)[int(len(samples) * 0.95)], 1),
-                    "degraded":   self.is_degraded(provider, tier),
+                    "count": len(samples),
+                    "p50": round(sorted(samples)[len(samples) // 2], 1),
+                    "p95": round(sorted(samples)[int(len(samples) * 0.95)], 1),
+                    "degraded": self.is_degraded(provider, tier),
                 }
         return result
 

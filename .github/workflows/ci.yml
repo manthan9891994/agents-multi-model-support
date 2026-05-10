@@ -19,7 +19,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ml,dev]"
+          pip install -e ".[ml,dev,google,anthropic,openai]"
           pip install ruff mypy
       - name: Ruff check
         run: ruff check classifier/ tests/
@@ -70,7 +70,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ml,dev]"
+          pip install -e ".[ml,dev,google,anthropic,openai]"
       - name: Run tests with coverage
         env:
           CLASSIFIER_TEST_MODE: "1"
@@ -97,7 +97,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ml,dev]"
+          pip install -e ".[ml,dev,google,anthropic,openai]"
           pip install nbmake jupyter
       - name: Run quickstart.ipynb
         env:

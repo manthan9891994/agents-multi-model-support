@@ -57,6 +57,7 @@ def _tier_order():
     """Always return the latest tier order (live reference, not snapshot)."""
     return _DYN_TIER_ORDER
 
+
 # Keep _TIER_ORDER as a module-level name for back-compat but route through helper.
 _TIER_ORDER = _DYN_TIER_ORDER
 
@@ -80,6 +81,7 @@ def _get_calibration() -> dict:
     if _calibration is None:
         try:
             from classifier.calibrate import load_calibration
+
             _calibration = load_calibration()
         except Exception:
             _calibration = {}
@@ -92,6 +94,7 @@ def _apply_calibration(layer: str, raw_conf: float) -> float:
         return raw_conf
     try:
         from classifier.calibrate import calibrated_confidence
+
         return calibrated_confidence(layer, raw_conf, cal)
     except Exception:
         return raw_conf
@@ -165,10 +168,11 @@ def classify_task(
     # Hook context: per-call user data passed to all hooks
     ctx: dict = dict(hook_context) if hook_context else {}
     ctx.setdefault("provider", provider)
-    ctx.setdefault("user_id",  user_id)
+    ctx.setdefault("user_id", user_id)
 
     # Pre-classify hooks — can modify or reject the task
     from classifier.hooks import hook_manager
+
     task = hook_manager.run_pre(task, ctx)
 
     # Custom classifier escape hatch — if the user provided one and it returns
@@ -191,8 +195,7 @@ def classify_task(
 
     if resolved_provider not in MODEL_REGISTRY:
         raise UnsupportedProviderError(
-            f"Provider '{resolved_provider}' is not supported. "
-            f"Choose from: {sorted(MODEL_REGISTRY)}"
+            f"Provider '{resolved_provider}' is not supported. Choose from: {sorted(MODEL_REGISTRY)}"
         )
 
     if not task or not task.strip():
@@ -253,6 +256,7 @@ def classify_task(
     if settings.semantic_cache_enabled:
         try:
             from classifier.infra.semantic_cache import semantic_cache
+
             sem_hit = semantic_cache.get(task)
             if sem_hit is not None:
                 return _stamp_cache_hit(sem_hit)
@@ -265,7 +269,14 @@ def classify_task(
     def _compute() -> ClassificationDecision:
         try:
             return _classify_inner(
-                task, resolved_provider, history, context_signals, max_tier, t0, user_id, ctx,
+                task,
+                resolved_provider,
+                history,
+                context_signals,
+                max_tier,
+                t0,
+                user_id,
+                ctx,
             )
         except Exception as exc:
             recovery = hook_manager.run_error(task, exc, ctx)
@@ -275,6 +286,7 @@ def classify_task(
 
     if feature_flags.single_flight_coalescing:
         from classifier.infra.coalescer import single_flight
+
         decision = single_flight.do(cache_key, _compute)
     else:
         decision = _compute()
@@ -307,6 +319,7 @@ def _stamp_cache_hit(original: ClassificationDecision) -> ClassificationDecision
     from dataclasses import replace
 
     from classifier.core.types import _new_decision_id
+
     return replace(
         original,
         decision_id=_new_decision_id(),
@@ -330,12 +343,30 @@ def _classify_inner(
 
     with _span("dmr.classify", **{"task.length": len(task), "provider": resolved_provider}) as _s:
         return _classify_inner_traced(
-            task, resolved_provider, history, context_signals, max_tier, t0, user_id, _s, _attr, ctx or {},
+            task,
+            resolved_provider,
+            history,
+            context_signals,
+            max_tier,
+            t0,
+            user_id,
+            _s,
+            _attr,
+            ctx or {},
         )
 
 
 def _classify_inner_traced(
-    task, resolved_provider, history, context_signals, max_tier, t0, user_id, _s, _attr, ctx,
+    task,
+    resolved_provider,
+    history,
+    context_signals,
+    max_tier,
+    t0,
+    user_id,
+    _s,
+    _attr,
+    ctx,
 ):
     from classifier.hooks import hook_manager
     from classifier.layers.plugin import run_layers_at as _run_plugins
@@ -370,6 +401,7 @@ def _classify_inner_traced(
     if not plugin_pre_used and settings.layer3_enabled and confidence < settings.layer2_confidence_threshold:
         try:
             from classifier.layers.layer3 import classify_layer3
+
             l3 = classify_layer3(task, history=history)
             if l3 is not None and l3[3] >= settings.layer3_confidence_threshold:
                 task_type, complexity, tier, confidence, reasoning = l3
@@ -383,13 +415,13 @@ def _classify_inner_traced(
 
     # ── Layer 2 (Item 10: check L2 budget before firing) ──────────────────────
     l2_result = None
-    l2_fired = (not plugin_pre_used) and settings.layer2_enabled and not cost_tracker.is_exhausted_for("layer2")
-    if l2_fired and (
-        confidence < settings.layer2_confidence_threshold
-        or settings.debug_ab_mode
-    ):
+    l2_fired = (
+        (not plugin_pre_used) and settings.layer2_enabled and not cost_tracker.is_exhausted_for("layer2")
+    )
+    if l2_fired and (confidence < settings.layer2_confidence_threshold or settings.debug_ab_mode):
         try:
             from classifier.layers.layer2 import classify_layer2
+
             l2 = classify_layer2(task, history=history)
             if l2 is not None:
                 l2_result = l2
@@ -439,7 +471,9 @@ def _classify_inner_traced(
             task_type.value if layer_used == "layer1" else "—",
             complexity.value if layer_used == "layer1" else "—",
             confidence if layer_used == "layer1" else 0,
-            l2_tt2.value, l2_cx2.value, l2_conf2,
+            l2_tt2.value,
+            l2_cx2.value,
+            l2_conf2,
         )
 
     # ── Item 3: Multimodal content inspection ─────────────────────────────────
@@ -468,6 +502,7 @@ def _classify_inner_traced(
     if feature_flags.health_tracker:
         try:
             from classifier.infra.health_tracker import health_tracker
+
             if health_tracker.is_degraded(resolved_provider, tier):
                 idx = _TIER_ORDER.index(tier)
                 if idx > 0:
@@ -485,6 +520,7 @@ def _classify_inner_traced(
     if feature_flags.per_user_personalization and user_id:
         try:
             from classifier.infra.personalization import get_user_bias
+
             bias = get_user_bias(user_id)
             idx = _TIER_ORDER.index(tier)
             if bias > 0.3 and idx < 2:
@@ -506,7 +542,9 @@ def _classify_inner_traced(
         policy = (ctx or {}).get("pii_policy") or {"min_tier": ModelTier.MEDIUM, "block": False}
         if policy.get("block"):
             raise ClassificationError(
-                "PII detected and pii_policy.block=True", layer="pii", task=task,
+                "PII detected and pii_policy.block=True",
+                layer="pii",
+                task=task,
                 suggestion="Disable pii_policy.block, scrub upstream, or use a different model.",
             )
         min_tier = policy.get("min_tier", ModelTier.MEDIUM)
@@ -531,15 +569,16 @@ def _classify_inner_traced(
     # tokens, escalate to a tier whose model has more headroom.
     from classifier.core.registry import capabilities_for as _caps
     from classifier.infra.tokenizers import count_tokens as _count_tokens
+
     candidate_model = MODEL_REGISTRY[resolved_provider][tier]
-    candidate_caps  = _caps(candidate_model)
+    candidate_caps = _caps(candidate_model)
     total_input_tokens = _count_tokens(task, model=candidate_model)
     if history:
         for h in history:
             total_input_tokens += _count_tokens(h, model=candidate_model)
     cw = candidate_caps.get("context_window")
-    if cw and total_input_tokens > cw * 0.9:   # 10% headroom for output
-        for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1:]:
+    if cw and total_input_tokens > cw * 0.9:  # 10% headroom for output
+        for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1 :]:
             higher_model = MODEL_REGISTRY[resolved_provider].get(higher)
             higher_cw = _caps(higher_model).get("context_window") if higher_model else None
             if higher_cw and total_input_tokens <= higher_cw * 0.9:
@@ -559,7 +598,7 @@ def _classify_inner_traced(
         candidate_model = MODEL_REGISTRY[resolved_provider][tier]
         c = _caps(candidate_model)
         if not all(c.get(flag, True) for flag in needed):
-            for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1:]:
+            for higher in _TIER_ORDER[_TIER_ORDER.index(tier) + 1 :]:
                 hm = MODEL_REGISTRY[resolved_provider].get(higher)
                 if hm and all(_caps(hm).get(flag, True) for flag in needed):
                     tier = higher
@@ -571,6 +610,7 @@ def _classify_inner_traced(
     if sla_ms and feature_flags.health_tracker:
         try:
             from classifier.infra.health_tracker import health_tracker
+
             # If the chosen model's recent p95 exceeds SLA, drop a tier
             _current_model = MODEL_REGISTRY[resolved_provider][tier]
             p95 = getattr(health_tracker, "get_p95", lambda *_: 0)(resolved_provider, tier)
@@ -614,8 +654,13 @@ def _classify_inner_traced(
 
     logger.info(
         "Classified | %s => %s [%s | %s | %s | %s | %.1fms%s%s]",
-        resolved_provider, model_name,
-        tier.value.upper(), task_type.value, complexity.value, layer_used, latency_ms,
+        resolved_provider,
+        model_name,
+        tier.value.upper(),
+        task_type.value,
+        complexity.value,
+        layer_used,
+        latency_ms,
         " | PII" if compliance_flag else "",
         " | DISAGREE" if disagreement else "",
     )
@@ -637,12 +682,14 @@ def _classify_inner_traced(
     if settings.semantic_cache_enabled:
         try:
             from classifier.infra.semantic_cache import semantic_cache
+
             semantic_cache.set(task, decision)
         except Exception:
             pass
 
     if settings.log_decisions:
         from classifier.infra.decision_logger import log_decision
+
         log_decision(task, decision, layer_used=layer_used, latency_ms=latency_ms)
 
     return decision
@@ -708,6 +755,7 @@ def route_model(
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
             import inspect
+
             sig = inspect.signature(fn)
             params = list(sig.parameters)
 
@@ -734,6 +782,7 @@ def route_model(
             return fn(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
@@ -747,19 +796,40 @@ __all__ = [
     "reset_last_decision",
     "MAX_TASK_CHARS",
     # Extensibility v2
-    "register_provider", "list_providers", "list_models", "capabilities_for",
-    "register_task_type", "register_complexity",
-    "set_tier_levels", "list_tier_levels",
-    "register_model_cost", "get_model_cost",
-    "set_embedding_model", "current_embedding_model",
-    "register_hook", "unregister_hook", "clear_hooks", "hook_manager",
-    "ABTest", "ShadowMode",
-    "OutcomeRecord", "log_outcome", "read_outcomes", "join_decisions_outcomes",
-    "prune_old_outcomes", "read_decisions",
-    "AutoLabeler", "Label", "LabelingFunction", "DEFAULT_LFS",
-    "register_layer", "unregister_layer", "list_layers",
+    "register_provider",
+    "list_providers",
+    "list_models",
+    "capabilities_for",
+    "register_task_type",
+    "register_complexity",
+    "set_tier_levels",
+    "list_tier_levels",
+    "register_model_cost",
+    "get_model_cost",
+    "set_embedding_model",
+    "current_embedding_model",
+    "register_hook",
+    "unregister_hook",
+    "clear_hooks",
+    "hook_manager",
+    "ABTest",
+    "ShadowMode",
+    "OutcomeRecord",
+    "log_outcome",
+    "read_outcomes",
+    "join_decisions_outcomes",
+    "prune_old_outcomes",
+    "read_decisions",
+    "AutoLabeler",
+    "Label",
+    "LabelingFunction",
+    "DEFAULT_LFS",
+    "register_layer",
+    "unregister_layer",
+    "list_layers",
     "register_l3_strategy",
-    "register_tokenizer", "count_tokens",
+    "register_tokenizer",
+    "count_tokens",
     # Free function (kept for backwards compat)
     "classify_task",
     # Types

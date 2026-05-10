@@ -6,13 +6,14 @@ then writes classifier/data/calibration.json.
 Usage:
     python -m classifier.calibrate
 """
+
 import json
 import math
 from collections import defaultdict
 from pathlib import Path
 
-_DECISIONS_FILE  = Path(__file__).parent.parent / "routing_decisions.jsonl"
-_REFERENCE_FILE  = Path(__file__).parent / "data" / "reference_tasks.jsonl"
+_DECISIONS_FILE = Path(__file__).parent.parent / "routing_decisions.jsonl"
+_REFERENCE_FILE = Path(__file__).parent / "data" / "reference_tasks.jsonl"
 _CALIBRATION_OUT = Path(__file__).parent / "data" / "calibration.json"
 
 
@@ -50,17 +51,14 @@ def run_calibration() -> dict:
     with open(_DECISIONS_FILE, encoding="utf-8") as f:
         for line in f:
             try:
-                rec   = json.loads(line)
-                key   = rec.get("task_preview", "")[:100]
+                rec = json.loads(line)
+                key = rec.get("task_preview", "")[:100]
                 if key not in ground_truth:
                     continue
                 exp_type, exp_cx = ground_truth[key]
-                layer   = rec.get("layer", "layer1")
-                conf    = float(rec.get("confidence", 0.5))
-                correct = int(
-                    rec.get("task_type") == exp_type
-                    and rec.get("complexity") == exp_cx
-                )
+                layer = rec.get("layer", "layer1")
+                conf = float(rec.get("confidence", 0.5))
+                correct = int(rec.get("task_type") == exp_type and rec.get("complexity") == exp_cx)
                 buckets[layer][_bucket(conf)][0] += correct
                 buckets[layer][_bucket(conf)][1] += 1
             except Exception:
@@ -97,7 +95,7 @@ def load_calibration() -> dict:
 
 def calibrated_confidence(layer: str, raw_conf: float, calibration: dict) -> float:
     """Map raw classifier confidence to calibrated value via bucket lookup."""
-    b   = _bucket(raw_conf)
+    b = _bucket(raw_conf)
     val = calibration.get(layer, {}).get(b)
     return float(val) if val is not None else raw_conf
 

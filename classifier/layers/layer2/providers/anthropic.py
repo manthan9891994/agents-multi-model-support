@@ -1,4 +1,5 @@
 """Anthropic Claude L2 caller — JSON mode via tool-use trick."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +11,7 @@ from classifier.infra.config import settings
 def call(task: str, history, model: str, schema):
     """Call Claude with a forced-tool to extract structured JSON output."""
     import anthropic
+
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     tool = {
         "name": "classify_task",

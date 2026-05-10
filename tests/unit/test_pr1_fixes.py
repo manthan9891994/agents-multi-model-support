@@ -1,4 +1,5 @@
 """Tests for the PR 1 follow-up fixes (issues #1–#13)."""
+
 import logging
 from unittest.mock import MagicMock
 
@@ -20,13 +21,15 @@ from classifier.core.types import (
 
 # ── #1 Cache-hit: fresh decision_id + `cached` flag ──────────────────────────
 
+
 def test_cache_hit_mints_fresh_decision_id(tmp_path):
     """Two classify() calls hitting the same cache entry must NOT share decision_id."""
     from classifier.infra.cache import cache as _cache
+
     _cache.clear()
     router = Router(layer2_enabled=False, layer3_enabled=False, cache_enabled=True)
     d1 = router.classify("a unique task xyz123 for cache test")
-    d2 = router.classify("a unique task xyz123 for cache test")   # cache hit
+    d2 = router.classify("a unique task xyz123 for cache test")  # cache hit
 
     assert d1.decision_id != d2.decision_id, "cache hit re-used decision_id; would corrupt joins"
     assert d2.cached is True
@@ -37,6 +40,7 @@ def test_cache_hit_mints_fresh_decision_id(tmp_path):
 def test_cache_hit_preserves_routing_decision():
     """The routed model should be identical even though the IDs differ."""
     from classifier.infra.cache import cache as _cache
+
     _cache.clear()
     router = Router(layer2_enabled=False, layer3_enabled=False, cache_enabled=True)
     d1 = router.classify("Cache routing equality task xyz")
@@ -47,18 +51,22 @@ def test_cache_hit_preserves_routing_decision():
 
 # ── #4 PII redaction in outcome log ──────────────────────────────────────────
 
+
 def test_outcome_pii_redacted_before_write(tmp_path, monkeypatch):
     from classifier.infra import outcome_logger as ol
+
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
     monkeypatch.setattr(ol, "_backend", None)
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
-    log_outcome(OutcomeRecord(
-        decision_id="pii-test",
-        success=False,
-        error_message="patient SSN 123-45-6789 leaked in stack trace",
-    ))
+    log_outcome(
+        OutcomeRecord(
+            decision_id="pii-test",
+            success=False,
+            error_message="patient SSN 123-45-6789 leaked in stack trace",
+        )
+    )
     rows = read_outcomes()
     assert len(rows) == 1
     msg = rows[0]["error_message"]
@@ -68,25 +76,31 @@ def test_outcome_pii_redacted_before_write(tmp_path, monkeypatch):
 
 def test_outcome_pii_redacted_email(tmp_path, monkeypatch):
     from classifier.infra import outcome_logger as ol
+
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
     monkeypatch.setattr(ol, "_backend", None)
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
-    log_outcome(OutcomeRecord(
-        decision_id="pii-email", success=True,
-        error_message="failed for user dr.house@hospital.example",
-    ))
+    log_outcome(
+        OutcomeRecord(
+            decision_id="pii-email",
+            success=True,
+            error_message="failed for user dr.house@hospital.example",
+        )
+    )
     rows = read_outcomes()
     assert "dr.house@hospital.example" not in rows[0]["error_message"]
 
 
 # ── #5 Retention: prune_old_outcomes ─────────────────────────────────────────
 
+
 def test_prune_old_outcomes(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     from classifier.infra import outcome_logger as ol
+
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
     monkeypatch.setattr(ol, "_backend", None)
@@ -108,9 +122,11 @@ def test_prune_old_outcomes(tmp_path, monkeypatch):
 
 # ── #6 read_outcomes consults backend.read() if present ─────────────────────
 
+
 def test_read_outcomes_uses_backend(monkeypatch):
     """When backend implements `.read()`, read_outcomes() consults it first."""
     from classifier.infra import outcome_logger as ol
+
     captured_args: dict = {}
 
     def fake_read(*, since, until, decision_ids):
@@ -129,6 +145,7 @@ def test_read_outcomes_uses_backend(monkeypatch):
 def test_read_outcomes_falls_back_when_backend_lacks_read(tmp_path, monkeypatch):
     """Backend without `read` falls through to local JSONL."""
     from classifier.infra import outcome_logger as ol
+
     monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
     monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
@@ -144,8 +161,10 @@ def test_read_outcomes_falls_back_when_backend_lacks_read(tmp_path, monkeypatch)
 
 # ── #7 Async LangChain instrumentation ──────────────────────────────────────
 
+
 def test_dynamic_chat_model_has_async_methods():
     from classifier.integrations.langchain import DynamicChatModel
+
     llm = DynamicChatModel(provider="google", report_outcomes=False)
     assert hasattr(llm, "ainvoke")
     assert hasattr(llm, "astream")
@@ -157,21 +176,25 @@ def test_dynamic_chat_model_ainvoke_reports():
     import asyncio
     import sys
     import types
+
     sys.modules.setdefault("langchain_google_genai", types.ModuleType("langchain_google_genai"))
     fake_llm = MagicMock()
 
     async def _ainvoke(input, **kwargs):
         return MagicMock(usage_metadata={"input_tokens": 11, "output_tokens": 22})
+
     fake_llm.ainvoke = _ainvoke
     sys.modules["langchain_google_genai"].ChatGoogleGenerativeAI = MagicMock(return_value=fake_llm)
 
     from classifier.integrations.langchain import DynamicChatModel
+
     llm = DynamicChatModel(provider="google", report_outcomes=False)
     result = asyncio.run(llm.ainvoke("hello async"))
     assert result is not None
 
 
 # ── #8 tokens_estimated flag ─────────────────────────────────────────────────
+
 
 def test_outcome_record_tokens_estimated_default_false():
     rec = OutcomeRecord(decision_id="x", tokens_in=10, tokens_out=20)
@@ -185,26 +208,35 @@ def test_outcome_record_tokens_estimated_can_be_true():
 
 # ── #13 from_dict warns on missing decision_id ──────────────────────────────
 
+
 def test_from_dict_warns_on_missing_decision_id(caplog):
     data = {
-        "model_name": "x", "tier": "low",
-        "task_type": "conversation", "complexity": "simple",
-        "reasoning": "t", "confidence": 0.9, "provider": "google",
+        "model_name": "x",
+        "tier": "low",
+        "task_type": "conversation",
+        "complexity": "simple",
+        "reasoning": "t",
+        "confidence": 0.9,
+        "provider": "google",
         # NOTE: decision_id intentionally missing
     }
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="classifier.core.types"):
         d = ClassificationDecision.from_dict(data)
     assert any("missing decision_id" in r.message for r in caplog.records)
-    assert d.decision_id   # fresh one was minted
+    assert d.decision_id  # fresh one was minted
 
 
 def test_from_dict_no_warning_when_decision_id_present(caplog):
     data = {
         "decision_id": "abc123",
-        "model_name": "x", "tier": "low",
-        "task_type": "conversation", "complexity": "simple",
-        "reasoning": "t", "confidence": 0.9, "provider": "google",
+        "model_name": "x",
+        "tier": "low",
+        "task_type": "conversation",
+        "complexity": "simple",
+        "reasoning": "t",
+        "confidence": 0.9,
+        "provider": "google",
     }
     caplog.clear()
     with caplog.at_level(logging.WARNING, logger="classifier.core.types"):
@@ -215,9 +247,11 @@ def test_from_dict_no_warning_when_decision_id_present(caplog):
 
 # ── #2 ADK pending-decisions LRU ────────────────────────────────────────────
 
+
 def test_adk_pending_decisions_bounded():
     """Unmatched decisions don't grow unbounded."""
     from classifier.integrations import adk
+
     adk._pending_decisions.clear()
 
     # Force-fill past the cap
@@ -229,6 +263,7 @@ def test_adk_pending_decisions_bounded():
 
 def test_adk_pending_uses_invocation_id_when_available():
     from classifier.integrations import adk
+
     adk._pending_decisions.clear()
     ctx = MagicMock(state={}, invocation_id="stable-123")
     adk._store_pending(ctx, {"decision_id": "d1", "model": "m", "task": "t", "t0": 0})
@@ -240,6 +275,7 @@ def test_adk_pending_uses_invocation_id_when_available():
 def test_adk_pending_pops_via_state_key_after_id_recycle():
     """If id(ctx) recycles, the state-key fallback still finds the decision."""
     from classifier.integrations import adk
+
     adk._pending_decisions.clear()
 
     ctx = MagicMock(state={}, invocation_id=None)
@@ -251,4 +287,4 @@ def test_adk_pending_pops_via_state_key_after_id_recycle():
     found = adk._pop_pending(ctx2)
     assert found is not None
     assert found["decision_id"] == "d1"
-    _ = state_key   # silence unused
+    _ = state_key  # silence unused

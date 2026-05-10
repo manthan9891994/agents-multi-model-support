@@ -25,8 +25,8 @@ _WEIGHTS: dict[str, float] = {"primary": 3.0, "secondary": 1.0, "escalator": 2.0
 _CODE_SNIPPET_RE = re.compile(
     r"(^(def |class |import |from |function |const |let |var |public |private |#include)"
     r"|[\{\}];\s*$"
-    r"|```[\w]*\n)"
-    , re.MULTILINE,
+    r"|```[\w]*\n)",
+    re.MULTILINE,
 )
 
 
@@ -79,12 +79,10 @@ def _detect_task_type(lower: str) -> tuple[TaskType, float, bool]:
 
     positives = sorted(
         [(t, s) for t, s in scores.items() if s > 0],
-        key=lambda x: x[1], reverse=True,
+        key=lambda x: x[1],
+        reverse=True,
     )
-    is_ambiguous = (
-        len(positives) >= 2
-        and positives[1][1] / positives[0][1] >= 0.80
-    )
+    is_ambiguous = len(positives) >= 2 and positives[1][1] / positives[0][1] >= 0.80
 
     if is_ambiguous and feature_flags.multi_task_detection:
         best = _pick_higher_tier_type(positives)
@@ -99,7 +97,7 @@ def _detect_task_type(lower: str) -> tuple[TaskType, float, bool]:
 
 def _detect_complexity(lower: str, tokens: int) -> TaskComplexity:
     is_format_only = feature_flags.format_request_deescalation and any(fr in lower for fr in _FORMAT_REQUESTS)
-    has_algorithm  = feature_flags.algorithm_detection and any(alg in lower for alg in _ALGORITHM_NAMES)
+    has_algorithm = feature_flags.algorithm_detection and any(alg in lower for alg in _ALGORITHM_NAMES)
 
     instruction = _extract_instruction(lower)
     instruction_tokens = len(instruction.split()) * 4 // 3
@@ -142,6 +140,7 @@ def _detect_complexity(lower: str, tokens: int) -> TaskComplexity:
 
     if feature_flags.question_type_override:
         from .helpers import _WHAT_IS_RE, _YES_NO_RE
+
         stripped = lower.strip()
         if _WHAT_IS_RE.match(stripped):
             if complexity in (TaskComplexity.STANDARD, TaskComplexity.COMPLEX, TaskComplexity.RESEARCH):

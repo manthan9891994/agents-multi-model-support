@@ -1,4 +1,5 @@
 """LRU classification cache — avoids re-classifying identical or near-identical tasks."""
+
 import hashlib
 import logging
 import threading
@@ -13,14 +14,14 @@ logger = logging.getLogger(__name__)
 class ClassificationCache:
     def __init__(self, max_size: int = 10_000, ttl_seconds: int = 3600, backend=None):
         self._cache: OrderedDict[str, tuple[ClassificationDecision, float]] = OrderedDict()
-        self._max_size  = max_size
-        self._ttl       = ttl_seconds
-        self._lock      = threading.Lock()
-        self._hits      = 0
-        self._misses    = 0
+        self._max_size = max_size
+        self._ttl = ttl_seconds
+        self._lock = threading.Lock()
+        self._hits = 0
+        self._misses = 0
         # Pluggable backend (e.g. RedisCacheBackend). When set, the in-process
         # OrderedDict is bypassed.
-        self._backend   = backend
+        self._backend = backend
 
     def set_backend(self, backend) -> None:
         """Swap the underlying cache backend. None = use in-process OrderedDict."""
@@ -86,9 +87,9 @@ class ClassificationCache:
     @property
     def stats(self) -> dict:
         return {
-            "size":     self.size,
-            "hits":     self._hits,
-            "misses":   self._misses,
+            "size": self.size,
+            "hits": self._hits,
+            "misses": self._misses,
             "hit_rate": round(self.hit_rate, 3),
         }
 

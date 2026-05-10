@@ -11,6 +11,7 @@ Three strategies, each shippable independently:
 Selection is controlled by `settings.layer3_strategy`. All strategies share
 the same return signature `(TaskType, TaskComplexity, ModelTier, float, str) | None`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -53,9 +54,11 @@ def list_strategies() -> list[str]:
 def _builtin(name: str) -> Callable | None:
     if name == "zeroshot":
         from .zeroshot import classify_layer3_zeroshot
+
         return classify_layer3_zeroshot
     if name == "head":
         from .embed_classifier import classify_layer3_head
+
         return classify_layer3_head
     return None
 

@@ -14,6 +14,7 @@ Example:
     decision = router.classify("Implement binary search")
     print(decision.tier, decision.model_name)
 """
+
 from __future__ import annotations
 
 import threading
@@ -69,13 +70,13 @@ class Router:
         cache_enabled: bool | None = None,
         # ── Extensibility hooks (v2) ──────────────────────────────────────────
         layer2_provider: str | None = None,
-        layer2_model:    str | None = None,
+        layer2_model: str | None = None,
         layer3_embedding_model: str | None = None,
-        model_costs:     dict | None = None,
+        model_costs: dict | None = None,
         custom_classifier: Any | None = None,
-        pre_classify_hooks:  list[Any] | None = None,
+        pre_classify_hooks: list[Any] | None = None,
         post_classify_hooks: list[Any] | None = None,
-        on_error_hooks:      list[Any] | None = None,
+        on_error_hooks: list[Any] | None = None,
         pii_policy: dict | None = None,
         l2_retry_policy: dict | None = None,
         l2_circuit_breaker: dict | None = None,
@@ -87,39 +88,39 @@ class Router:
         decision_logger: Any | None = None,
         layer2_prompt_template: str | None = None,
         registry: Any | None = None,
-        outcome_logger: Any | None = None,    # pluggable outcome backend (Kafka / S3 / Redis / …)
+        outcome_logger: Any | None = None,  # pluggable outcome backend (Kafka / S3 / Redis / …)
     ):
-        self.providers           = providers or []
+        self.providers = providers or []
         self.extra_keyword_packs = extra_keyword_packs or []
-        self.extra_pii_patterns  = extra_pii_patterns or []
-        self.tier_matrix         = tier_matrix or {}
-        self.model_registry      = model_registry or {}
-        self.layer1_enabled       = layer1_enabled
-        self.layer2_enabled       = layer2_enabled
-        self.layer3_enabled       = layer3_enabled
+        self.extra_pii_patterns = extra_pii_patterns or []
+        self.tier_matrix = tier_matrix or {}
+        self.model_registry = model_registry or {}
+        self.layer1_enabled = layer1_enabled
+        self.layer2_enabled = layer2_enabled
+        self.layer3_enabled = layer3_enabled
         self.escalation_threshold = escalation_threshold
-        self.layer3_threshold     = layer3_threshold
-        self.budget_usd          = budget_usd
-        self.cache_enabled       = cache_enabled
+        self.layer3_threshold = layer3_threshold
+        self.budget_usd = budget_usd
+        self.cache_enabled = cache_enabled
 
         # Extensibility v2
         self.layer2_provider = layer2_provider
-        self.layer2_model    = layer2_model
+        self.layer2_model = layer2_model
         self.layer3_embedding_model = layer3_embedding_model
-        self.model_costs     = model_costs or {}
-        self.custom_classifier   = custom_classifier
-        self.pre_classify_hooks  = pre_classify_hooks  or []
+        self.model_costs = model_costs or {}
+        self.custom_classifier = custom_classifier
+        self.pre_classify_hooks = pre_classify_hooks or []
         self.post_classify_hooks = post_classify_hooks or []
-        self.on_error_hooks      = on_error_hooks      or []
-        self.pii_policy          = pii_policy
-        self.l2_retry_policy     = l2_retry_policy
-        self.l2_circuit_breaker  = l2_circuit_breaker
-        self.l1_weights          = l1_weights
-        self.tokenizer           = tokenizer
-        self.latency_budget_ms   = latency_budget_ms
-        self.residency           = residency
-        self.cache_backend       = cache_backend
-        self.decision_logger     = decision_logger
+        self.on_error_hooks = on_error_hooks or []
+        self.pii_policy = pii_policy
+        self.l2_retry_policy = l2_retry_policy
+        self.l2_circuit_breaker = l2_circuit_breaker
+        self.l1_weights = l1_weights
+        self.tokenizer = tokenizer
+        self.latency_budget_ms = latency_budget_ms
+        self.residency = residency
+        self.cache_backend = cache_backend
+        self.decision_logger = decision_logger
         self.layer2_prompt_template = layer2_prompt_template
         self.registry = registry
         self.outcome_logger = outcome_logger
@@ -127,16 +128,19 @@ class Router:
         # Apply registry override (path / URL / dict) at construction
         if self.registry is not None:
             from classifier.core.registry_loader import load_registry
+
             load_registry(self.registry)
 
         # Wire outcome logger backend (process-wide setting)
         if self.outcome_logger is not None:
             from classifier.infra import outcome_logger as _ol
+
             _ol._backend = self.outcome_logger
 
         # Apply extensibility settings at construction
         if self.model_costs:
             from classifier.infra.cost_tracker import register_model_cost
+
             for model_name, rates in self.model_costs.items():
                 register_model_cost(
                     model_name,
@@ -145,6 +149,7 @@ class Router:
                 )
         if self.layer3_embedding_model:
             from classifier.ml.embeddings import set_embedding_model
+
             set_embedding_model(self.layer3_embedding_model)
 
         # Inject extras at construction. Both registries dedupe by identity/name,
@@ -154,9 +159,11 @@ class Router:
         # `Router.from_preset()` if you want isolation per use case.
         if self.extra_keyword_packs:
             from classifier.layers.layer1.keyword_pack import register_extra_packs
+
             register_extra_packs(self.extra_keyword_packs)
         if self.extra_pii_patterns:
             from classifier.infra import pii_scrubber
+
             pii_scrubber.register_extra_patterns(self.extra_pii_patterns)
 
     # ── Primary API ──────────────────────────────────────────────────────────
@@ -186,8 +193,11 @@ class Router:
         if tenant_config:
             tenant_router = self.with_overrides(**tenant_config)
             return tenant_router.classify(
-                task, history=history, context_signals=context_signals,
-                provider=provider, hook_context=hook_context,
+                task,
+                history=history,
+                context_signals=context_signals,
+                provider=provider,
+                hook_context=hook_context,
             )
 
         resolved = provider or (self.providers[0] if self.providers else None)
@@ -218,8 +228,10 @@ class Router:
                     for fallback in self.providers[1:]:
                         try:
                             return classify_task(
-                                task, provider=fallback,
-                                history=history, context_signals=context_signals,
+                                task,
+                                provider=fallback,
+                                history=history,
+                                context_signals=context_signals,
                                 hook_context=merged_ctx,
                                 custom_classifier=self.custom_classifier,
                             )
@@ -231,6 +243,7 @@ class Router:
     def _apply_hooks(self):
         """Register Router-scoped hooks and unregister on exit."""
         from classifier.hooks import hook_manager
+
         registered: list[tuple[str, Any]] = []
         try:
             for fn in self.pre_classify_hooks:
@@ -258,7 +271,7 @@ class Router:
         cost_usd: float | None = None,
         user_retried: bool = False,
         user_escalated_model: str | None = None,
-        user_feedback: str | None = None,   # "up" | "down" | None
+        user_feedback: str | None = None,  # "up" | "down" | None
         edit_distance: int | None = None,
         error_message: str | None = None,
     ) -> None:
@@ -285,19 +298,22 @@ class Router:
             )
         """
         from classifier.infra.outcome_logger import OutcomeRecord, log_outcome
-        log_outcome(OutcomeRecord(
-            decision_id          = decision_id,
-            tokens_in            = int(tokens_in),
-            tokens_out           = int(tokens_out),
-            wall_ms              = float(wall_ms),
-            success              = bool(success),
-            cost_usd             = cost_usd,
-            user_retried         = bool(user_retried),
-            user_escalated_model = user_escalated_model,
-            user_feedback        = user_feedback,
-            edit_distance        = edit_distance,
-            error_message        = error_message,
-        ))
+
+        log_outcome(
+            OutcomeRecord(
+                decision_id=decision_id,
+                tokens_in=int(tokens_in),
+                tokens_out=int(tokens_out),
+                wall_ms=float(wall_ms),
+                success=bool(success),
+                cost_usd=cost_usd,
+                user_retried=bool(user_retried),
+                user_escalated_model=user_escalated_model,
+                user_feedback=user_feedback,
+                edit_distance=edit_distance,
+                error_message=error_message,
+            )
+        )
 
     async def aclassify(
         self,
@@ -315,11 +331,11 @@ class Router:
             decision = await router.aclassify("Summarise this contract")
         """
         import asyncio
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
-            lambda: self.classify(task, history=history,
-                                  context_signals=context_signals, provider=provider),
+            lambda: self.classify(task, history=history, context_signals=context_signals, provider=provider),
         )
 
     async def aclassify_batch(
@@ -331,6 +347,7 @@ class Router:
     ) -> list[ClassificationDecision]:
         """Async batch classify. Runs up to `concurrency` classifications in parallel."""
         import asyncio
+
         sem = asyncio.Semaphore(concurrency)
 
         async def _one(t: str):
@@ -369,18 +386,19 @@ class Router:
         input_tokens = count_tokens(task, model=model)
 
         rates = get_model_cost(model)
-        est_usd = (input_tokens / 1_000_000) * rates["input"] + \
-                  (estimated_output_tokens / 1_000_000) * rates["output"]
+        est_usd = (input_tokens / 1_000_000) * rates["input"] + (estimated_output_tokens / 1_000_000) * rates[
+            "output"
+        ]
 
         return {
-            "tier":               decision.tier.value,
-            "model":              model,
-            "provider":           decision.provider,
-            "layer_used":         decision.layer_used,
-            "input_tokens":       input_tokens,
-            "output_tokens":      estimated_output_tokens,
-            "est_usd_per_call":   round(est_usd, 8),
-            "input_rate_per_1m":  rates["input"],
+            "tier": decision.tier.value,
+            "model": model,
+            "provider": decision.provider,
+            "layer_used": decision.layer_used,
+            "input_tokens": input_tokens,
+            "output_tokens": estimated_output_tokens,
+            "est_usd_per_call": round(est_usd, 8),
+            "input_rate_per_1m": rates["input"],
             "output_rate_per_1m": rates["output"],
         }
 
@@ -402,6 +420,7 @@ class Router:
             Metadata dict (training accuracy, threshold sweep, etc.).
         """
         from classifier.ml.train import train_from_data
+
         return train_from_data(
             data_path=Path(data),
             output_path=Path(output_path) if output_path else None,
@@ -448,35 +467,35 @@ class Router:
     def to_dict(self) -> dict:
         """Serialise constructor args back to a dict (for merge/with_overrides)."""
         return {
-            "providers":           list(self.providers),
+            "providers": list(self.providers),
             "extra_keyword_packs": list(self.extra_keyword_packs),
-            "extra_pii_patterns":  list(self.extra_pii_patterns),
-            "tier_matrix":         dict(self.tier_matrix),
-            "model_registry":      dict(self.model_registry),
-            "layer1_enabled":      self.layer1_enabled,
-            "layer2_enabled":      self.layer2_enabled,
-            "layer3_enabled":      self.layer3_enabled,
+            "extra_pii_patterns": list(self.extra_pii_patterns),
+            "tier_matrix": dict(self.tier_matrix),
+            "model_registry": dict(self.model_registry),
+            "layer1_enabled": self.layer1_enabled,
+            "layer2_enabled": self.layer2_enabled,
+            "layer3_enabled": self.layer3_enabled,
             "escalation_threshold": self.escalation_threshold,
-            "layer3_threshold":    self.layer3_threshold,
-            "budget_usd":          self.budget_usd,
-            "cache_enabled":       self.cache_enabled,
-            "layer2_provider":     self.layer2_provider,
-            "layer2_model":        self.layer2_model,
+            "layer3_threshold": self.layer3_threshold,
+            "budget_usd": self.budget_usd,
+            "cache_enabled": self.cache_enabled,
+            "layer2_provider": self.layer2_provider,
+            "layer2_model": self.layer2_model,
             "layer3_embedding_model": self.layer3_embedding_model,
-            "model_costs":         dict(self.model_costs),
-            "custom_classifier":   self.custom_classifier,
-            "pre_classify_hooks":  list(self.pre_classify_hooks),
+            "model_costs": dict(self.model_costs),
+            "custom_classifier": self.custom_classifier,
+            "pre_classify_hooks": list(self.pre_classify_hooks),
             "post_classify_hooks": list(self.post_classify_hooks),
-            "on_error_hooks":      list(self.on_error_hooks),
-            "pii_policy":          self.pii_policy,
-            "l2_retry_policy":     self.l2_retry_policy,
-            "l2_circuit_breaker":  self.l2_circuit_breaker,
-            "l1_weights":          self.l1_weights,
-            "tokenizer":           self.tokenizer,
-            "latency_budget_ms":   self.latency_budget_ms,
-            "residency":           self.residency,
-            "cache_backend":       self.cache_backend,
-            "decision_logger":     self.decision_logger,
+            "on_error_hooks": list(self.on_error_hooks),
+            "pii_policy": self.pii_policy,
+            "l2_retry_policy": self.l2_retry_policy,
+            "l2_circuit_breaker": self.l2_circuit_breaker,
+            "l1_weights": self.l1_weights,
+            "tokenizer": self.tokenizer,
+            "latency_budget_ms": self.latency_budget_ms,
+            "residency": self.residency,
+            "cache_backend": self.cache_backend,
+            "decision_logger": self.decision_logger,
             "layer2_prompt_template": self.layer2_prompt_template,
         }
 
@@ -490,6 +509,7 @@ class Router:
             return Router(**router_kwargs)
         """
         from classifier.core.registry_loader import load_registry
+
         load_registry(source)
         return cls(**router_kwargs)
 
@@ -497,20 +517,29 @@ class Router:
     def load_registry(source: str | Path | dict) -> dict:
         """Load (and merge) a model registry into the runtime tables."""
         from classifier.core.registry_loader import load_registry
+
         return load_registry(source)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> Router:
         """Construct a Router from a YAML config file."""
         import yaml
+
         cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
 
         # Translate dotted YAML keys → kwargs
         kwargs: dict[str, Any] = {}
         for key in (
-            "providers", "layer1_enabled", "layer2_enabled", "layer3_enabled",
-            "layer1_threshold", "layer3_threshold", "budget_usd", "cache_enabled",
-            "tier_matrix", "model_registry",
+            "providers",
+            "layer1_enabled",
+            "layer2_enabled",
+            "layer3_enabled",
+            "layer1_threshold",
+            "layer3_threshold",
+            "budget_usd",
+            "cache_enabled",
+            "tier_matrix",
+            "model_registry",
         ):
             if key in cfg:
                 kwargs[key] = cfg[key]
@@ -519,6 +548,7 @@ class Router:
         if "keyword_packs" in cfg:
             from classifier.core.types import TaskType
             from classifier.layers.layer1.keyword_pack import KeywordPack
+
             packs = []
             for pack_def in cfg["keyword_packs"]:
                 builder = KeywordPack.builder(pack_def.get("name", "custom"))
@@ -533,6 +563,7 @@ class Router:
     def from_preset(cls, name: str) -> Router:
         """Construct a Router from a built-in domain preset."""
         from classifier.presets import load_preset
+
         cfg = load_preset(name)
         return cls(**cfg)
 
@@ -588,18 +619,21 @@ class Router:
                 # Cache backend
                 if self.cache_backend is not None:
                     from classifier.infra.cache import cache as _cache
+
                     saved["cache_backend"] = _cache._backend
                     _cache.set_backend(self.cache_backend)
 
                 # Decision logger backend
                 if self.decision_logger is not None:
                     from classifier.infra import decision_logger as _dl_mod
+
                     saved["decision_logger"] = getattr(_dl_mod, "_backend", None)
                     _dl_mod._backend = self.decision_logger
 
                 # L1 weights
                 if self.l1_weights is not None:
                     from classifier.layers.layer1 import scoring as _scoring
+
                     if hasattr(_scoring, "_WEIGHTS"):
                         saved["l1_weights"] = dict(_scoring._WEIGHTS)
                         _scoring._WEIGHTS.update(self.l1_weights)
@@ -607,6 +641,7 @@ class Router:
                 # L2 prompt template
                 if self.layer2_prompt_template is not None:
                     from classifier.layers.layer2 import prompt as _prompt
+
                     if hasattr(_prompt, "_PROMPT"):
                         saved["l2_prompt"] = _prompt._PROMPT
                         _prompt._PROMPT = self.layer2_prompt_template
@@ -614,19 +649,26 @@ class Router:
                 # L2 retry policy
                 if self.l2_retry_policy is not None:
                     from classifier.layers.layer2 import api as l2api
+
                     saved["retry_policy"] = dict(l2api._retry_policy)
-                    l2api.configure_retry_policy(**{
-                        k: v for k, v in self.l2_retry_policy.items()
-                        if k in ("max_attempts", "initial_delay", "backoff")
-                    })
+                    l2api.configure_retry_policy(
+                        **{
+                            k: v
+                            for k, v in self.l2_retry_policy.items()
+                            if k in ("max_attempts", "initial_delay", "backoff")
+                        }
+                    )
 
                 # L2 circuit breaker policy
                 if self.l2_circuit_breaker is not None:
                     from classifier.layers.layer2 import api as l2api
+
                     saved["cb_threshold"] = l2api._circuit_breaker.failure_threshold
-                    saved["cb_cooldown"]  = l2api._circuit_breaker.cooldown_secs
-                    l2api._circuit_breaker.failure_threshold = self.l2_circuit_breaker.get("failure_threshold", 5)
-                    l2api._circuit_breaker.cooldown_secs     = self.l2_circuit_breaker.get("cooldown_secs", 60.0)
+                    saved["cb_cooldown"] = l2api._circuit_breaker.cooldown_secs
+                    l2api._circuit_breaker.failure_threshold = self.l2_circuit_breaker.get(
+                        "failure_threshold", 5
+                    )
+                    l2api._circuit_breaker.cooldown_secs = self.l2_circuit_breaker.get("cooldown_secs", 60.0)
 
                 # Budget
                 if self.budget_usd is not None:
@@ -640,9 +682,7 @@ class Router:
 
                 # Model registry override
                 if self.model_registry:
-                    saved["model_registry"] = {
-                        k: dict(v) for k, v in registry.MODEL_REGISTRY.items()
-                    }
+                    saved["model_registry"] = {k: dict(v) for k, v in registry.MODEL_REGISTRY.items()}
                     for prov, tier_map in self.model_registry.items():
                         registry.MODEL_REGISTRY.setdefault(prov, {}).update(tier_map)
 
@@ -670,23 +710,29 @@ class Router:
                     settings.layer2_model = saved["l2_model"]
                 if "cb_threshold" in saved:
                     from classifier.layers.layer2 import api as l2api
+
                     l2api._circuit_breaker.failure_threshold = saved["cb_threshold"]
-                    l2api._circuit_breaker.cooldown_secs     = saved["cb_cooldown"]
+                    l2api._circuit_breaker.cooldown_secs = saved["cb_cooldown"]
                 if "retry_policy" in saved:
                     from classifier.layers.layer2 import api as l2api
+
                     l2api._retry_policy.update(saved["retry_policy"])
                 if "cache_backend" in saved:
                     from classifier.infra.cache import cache as _cache
+
                     _cache.set_backend(saved["cache_backend"])
                 if "decision_logger" in saved:
                     from classifier.infra import decision_logger as _dl_mod
+
                     _dl_mod._backend = saved["decision_logger"]
                 if "l1_weights" in saved:
                     from classifier.layers.layer1 import scoring as _scoring
+
                     _scoring._WEIGHTS.clear()
                     _scoring._WEIGHTS.update(saved["l1_weights"])
                 if "l2_prompt" in saved:
                     from classifier.layers.layer2 import prompt as _prompt
+
                     _prompt._PROMPT = saved["l2_prompt"]
                 if "tier_matrix" in saved:
                     registry.TIER_MATRIX.clear()

@@ -21,6 +21,7 @@ Usage:
 CLI:
     dmr relabel --since 30d --min-confidence 0.7 --out labeled.jsonl
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ── Label record ─────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Label:
     """Partial label emitted by one labeling function.
@@ -41,10 +43,11 @@ class Label:
     the dimension it has signal for. `confidence` is the LF's self-rated
     certainty in [0, 1] — used for weighted majority aggregation.
     """
-    task_type:  str | None = None
+
+    task_type: str | None = None
     complexity: str | None = None
     confidence: float = 0.0
-    reason:     str = ""
+    reason: str = ""
 
 
 LabelingFunction = Callable[[dict, dict], Label | None]
@@ -52,22 +55,26 @@ LabelingFunction = Callable[[dict, dict], Label | None]
 
 # ── 8 built-in labeling functions ────────────────────────────────────────────
 
+
 def lf_short_short(decision: dict, outcome: dict) -> Label | None:
     """Short prompt + short answer + cheap model accepted → simple/conversation."""
-    task_len   = decision.get("task_length", 0) or len(decision.get("task_preview", ""))
+    task_len = decision.get("task_length", 0) or len(decision.get("task_preview", ""))
     tokens_out = outcome.get("tokens_out", 0)
     user_retried = outcome.get("user_retried", False)
     if task_len < 60 and tokens_out and tokens_out < 30 and not user_retried:
-        return Label(complexity="simple", confidence=0.85,
-                     reason="short prompt+short answer, no retry")
+        return Label(complexity="simple", confidence=0.85, reason="short prompt+short answer, no retry")
     return None
 
 
 def lf_user_escalated(decision: dict, outcome: dict) -> Label | None:
     """User manually chose a bigger model → original was underspec'd → reasoning/complex."""
     if outcome.get("user_escalated_model"):
-        return Label(task_type="reasoning", complexity="complex", confidence=0.95,
-                     reason="user escalated to bigger model")
+        return Label(
+            task_type="reasoning",
+            complexity="complex",
+            confidence=0.95,
+            reason="user escalated to bigger model",
+        )
     return None
 
 
@@ -75,28 +82,33 @@ def lf_high_output_ratio(decision: dict, outcome: dict) -> Label | None:
     """tokens_out / tokens_in > 5 → generative task → doc_creation/standard."""
     if outcome.get("tokens_estimated", False):
         return None  # don't trust heuristic counts
-    tin  = outcome.get("tokens_in",  0) or 0
+    tin = outcome.get("tokens_in", 0) or 0
     tout = outcome.get("tokens_out", 0) or 0
     if tin >= 10 and tout / max(tin, 1) > 5:
         # Sustained generation → likely doc_creation or code_creation
-        return Label(task_type="doc_creation", complexity="standard", confidence=0.7,
-                     reason=f"output/input ratio {tout/tin:.1f}")
+        return Label(
+            task_type="doc_creation",
+            complexity="standard",
+            confidence=0.7,
+            reason=f"output/input ratio {tout / tin:.1f}",
+        )
     return None
 
 
 def lf_thumbs_down(decision: dict, outcome: dict) -> Label | None:
     """User downvoted → tier was too low → bump complexity."""
     if outcome.get("user_feedback") == "down":
-        return Label(complexity="complex", confidence=0.8,
-                     reason="user thumbs-down → bump complexity")
+        return Label(complexity="complex", confidence=0.8, reason="user thumbs-down → bump complexity")
     return None
 
 
 def lf_thumbs_up_trust_layer1(decision: dict, outcome: dict) -> Label | None:
     """User thumbs-up + L1 was confident → trust L1's labels."""
-    if (outcome.get("user_feedback") == "up"
+    if (
+        outcome.get("user_feedback") == "up"
         and decision.get("layer") == "layer1"
-        and decision.get("confidence", 0) > 0.85):
+        and decision.get("confidence", 0) > 0.85
+    ):
         return Label(
             task_type=decision.get("task_type"),
             complexity=decision.get("complexity"),
@@ -111,17 +123,18 @@ def lf_latency_breach(decision: dict, outcome: dict) -> Label | None:
     tier = (decision.get("tier") or "").lower()
     wall = outcome.get("wall_ms", 0) or 0
     if tier == "low" and wall > 5000:
-        return Label(complexity="standard", confidence=0.65,
-                     reason=f"low tier took {wall:.0f}ms")
+        return Label(complexity="standard", confidence=0.65, reason=f"low tier took {wall:.0f}ms")
     return None
 
 
 def lf_code_keywords_strong(decision: dict, outcome: dict) -> Label | None:
     """L1 already labeled it code with high confidence + no retry → trust."""
-    if (decision.get("task_type") == "code_creation"
+    if (
+        decision.get("task_type") == "code_creation"
         and decision.get("confidence", 0) > 0.85
         and not outcome.get("user_retried", False)
-        and outcome.get("success", True)):
+        and outcome.get("success", True)
+    ):
         return Label(
             task_type="code_creation",
             complexity=decision.get("complexity"),
@@ -137,11 +150,13 @@ def lf_l2_ground_truth(decision: dict, outcome: dict) -> Label | None:
     L2 is the LLM-classifier path; when it ran without retries/escalation,
     its labels are the strongest signal we have for that row.
     """
-    if (decision.get("layer") == "layer2"
+    if (
+        decision.get("layer") == "layer2"
         and decision.get("confidence", 0) > 0.7
         and outcome.get("success", True)
         and not outcome.get("user_retried", False)
-        and not outcome.get("user_escalated_model")):
+        and not outcome.get("user_escalated_model")
+    ):
         return Label(
             task_type=decision.get("task_type"),
             complexity=decision.get("complexity"),
@@ -165,6 +180,7 @@ DEFAULT_LFS: list[LabelingFunction] = [
 
 # ── Aggregator ───────────────────────────────────────────────────────────────
 
+
 class AutoLabeler:
     """Apply LFs to (decision, outcome) pairs and aggregate via weighted vote.
 
@@ -180,16 +196,16 @@ class AutoLabeler:
         self,
         lfs: list[LabelingFunction] | None = None,
         *,
-        min_confidence:    float = 0.7,
-        skip_cached:       bool  = True,
-        skip_exploration:  bool  = True,
-        require_success:   bool  = True,
+        min_confidence: float = 0.7,
+        skip_cached: bool = True,
+        skip_exploration: bool = True,
+        require_success: bool = True,
     ) -> None:
         self.lfs = list(lfs if lfs is not None else DEFAULT_LFS)
-        self.min_confidence    = float(min_confidence)
-        self.skip_cached       = skip_cached
-        self.skip_exploration  = skip_exploration
-        self.require_success   = require_success
+        self.min_confidence = float(min_confidence)
+        self.skip_cached = skip_cached
+        self.skip_exploration = skip_exploration
+        self.require_success = require_success
 
         self._stats: dict[str, int] = defaultdict(int)
 
@@ -224,10 +240,10 @@ class AutoLabeler:
     def run(
         self,
         *,
-        since: str | None    = None,
-        until: str | None    = None,
+        since: str | None = None,
+        until: str | None = None,
         decisions: list[dict] | None = None,
-        outcomes:  list[dict] | None = None,
+        outcomes: list[dict] | None = None,
     ) -> list[dict]:
         """Read logs (or use supplied lists), join, label.
 
@@ -245,11 +261,11 @@ class AutoLabeler:
         if decisions is None:
             decisions = read_decisions(since=since, until=until)
         if outcomes is None:
-            outcomes  = read_outcomes(since=since, until=until)
+            outcomes = read_outcomes(since=since, until=until)
 
         self._stats.clear()
         self._stats["decisions_read"] = len(decisions)
-        self._stats["outcomes_read"]  = len(outcomes)
+        self._stats["outcomes_read"] = len(outcomes)
 
         joined = join_decisions_outcomes(decisions, outcomes)
         self._stats["joined"] = len(joined)
@@ -278,13 +294,15 @@ class AutoLabeler:
                 self._stats["skipped_empty_preview"] += 1
                 continue
 
-            out.append({
-                "task":               task_text,
-                "task_type":          label["task_type"],
-                "complexity":         label["complexity"],
-                "_label_confidence":  label["confidence"],
-                "_decision_id":       d.get("decision_id", ""),
-            })
+            out.append(
+                {
+                    "task": task_text,
+                    "task_type": label["task_type"],
+                    "complexity": label["complexity"],
+                    "_label_confidence": label["confidence"],
+                    "_decision_id": d.get("decision_id", ""),
+                }
+            )
 
         return out
 
@@ -308,7 +326,7 @@ class AutoLabeler:
 
         for v in votes:
             if v.task_type:
-                tt_scores[v.task_type]  += v.confidence
+                tt_scores[v.task_type] += v.confidence
             if v.complexity:
                 cx_scores[v.complexity] += v.confidence
 
@@ -329,7 +347,7 @@ class AutoLabeler:
             return None
 
         return {
-            "task_type":  top_tt,
+            "task_type": top_tt,
             "complexity": top_cx,
             "confidence": round(agg_conf, 3),
         }

@@ -1,4 +1,5 @@
 """Integration tests for classifier.classify_task() — tests full Layer 1 pipeline."""
+
 import pytest
 
 from classifier import classify_task
@@ -6,6 +7,7 @@ from classifier.core.exceptions import ClassificationError, UnsupportedProviderE
 from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 # ── Tier routing ───────────────────────────────────────────────────────────────
+
 
 def test_simple_doc_routes_to_low():
     d = classify_task("Write a README for this project")
@@ -44,6 +46,7 @@ def test_research_routes_to_high():
 
 # ── Provider model names ───────────────────────────────────────────────────────
 
+
 def test_google_model_name():
     d = classify_task("Write a README", provider="google")
     assert "gemini" in d.model_name
@@ -64,6 +67,7 @@ def test_anthropic_model_name():
 
 # ── Error handling ─────────────────────────────────────────────────────────────
 
+
 def test_empty_task_raises():
     with pytest.raises(ClassificationError):
         classify_task("")
@@ -81,6 +85,7 @@ def test_invalid_provider_raises():
 
 # ── Decision fields ────────────────────────────────────────────────────────────
 
+
 def test_decision_has_all_fields():
     d = classify_task("Write a README")
     assert d.model_name
@@ -97,6 +102,7 @@ def test_decision_has_all_fields():
 
 
 # ── Phase 3: PII compliance flag (Item 1) ─────────────────────────────────────
+
 
 def test_pii_task_sets_compliance_flag():
     d = classify_task("Patient John Doe DOB 1947-03-12 MRN: 48210 reports chest pain")
@@ -116,6 +122,7 @@ def test_clean_task_has_no_compliance_flag():
 
 # ── Phase 3: Trivial input (Item 18) ─────────────────────────────────────────
 
+
 def test_trivial_input_routes_to_conversation():
     d = classify_task("k")
     assert d.task_type == TaskType.CONVERSATION
@@ -123,6 +130,7 @@ def test_trivial_input_routes_to_conversation():
 
 
 # ── Phase 3: task_stable debounce param (Item 20) ────────────────────────────
+
 
 def test_task_stable_false_returns_last_known():
     # First call establishes a known decision
@@ -135,8 +143,10 @@ def test_task_stable_false_returns_last_known():
 
 # ── Phase 3: Context signals (Items 3, 4) ────────────────────────────────────
 
+
 def test_multimodal_content_forces_multimodal_type():
     from classifier.core.types import ContextSignals
+
     ctx = ContextSignals(has_multimodal=True, call_number=1)
     d = classify_task("What does this look like?", context_signals=ctx)
     assert d.task_type == TaskType.MULTIMODAL
@@ -144,9 +154,10 @@ def test_multimodal_content_forces_multimodal_type():
 
 def test_tool_aware_routing_bumps_tier():
     from classifier.core.types import ContextSignals
+
     # Start with a low-tier task; 5 tools should bump tier
     ctx = ContextSignals(available_tools=5, call_number=1)
-    d_with_tools    = classify_task("Get me the weather", context_signals=ctx)
+    d_with_tools = classify_task("Get me the weather", context_signals=ctx)
     d_without_tools = classify_task("Get me the weather")
     # With tools, tier should be >= without-tools tier
     tier_order = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]

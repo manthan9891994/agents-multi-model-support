@@ -14,6 +14,7 @@ Example:
 
     router = Router(extra_keyword_packs=[pack])
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -29,10 +30,11 @@ class KeywordPack:
 
     Use `KeywordPack.builder(name)` to construct one.
     """
+
     name: str
-    task_keywords: dict        = field(default_factory=dict)  # {TaskType: {"primary": [kw, ...]}}
-    escalators:    dict        = field(default_factory=dict)  # {keyword: weight}
-    domain_min_tier: dict      = field(default_factory=dict)  # {keyword: ModelTier}
+    task_keywords: dict = field(default_factory=dict)  # {TaskType: {"primary": [kw, ...]}}
+    escalators: dict = field(default_factory=dict)  # {keyword: weight}
+    domain_min_tier: dict = field(default_factory=dict)  # {keyword: ModelTier}
 
     @staticmethod
     def builder(name: str) -> _KeywordPackBuilder:
@@ -43,7 +45,7 @@ class _KeywordPackBuilder:
     def __init__(self, name: str):
         self._name = name
         self._task_keywords: dict = {}
-        self._escalators: dict    = {}
+        self._escalators: dict = {}
         self._domain_min_tier: dict = {}
 
     def add(self, task_type: TaskType, keywords: list[str], group: str = "primary") -> _KeywordPackBuilder:
@@ -93,7 +95,7 @@ def register_extra_packs(packs: list[KeywordPack]) -> None:
 
     for pack in packs:
         if any(p.name == pack.name for p in _registered_packs):
-            continue   # already registered
+            continue  # already registered
 
         for tt, groups in pack.task_keywords.items():
             slot = _TASK_KEYWORDS.setdefault(tt, {})

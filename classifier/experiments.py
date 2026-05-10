@@ -29,6 +29,7 @@ flipping the switch.
     )
     decision = sm.classify("Summarise this")    # always returns primary's decision
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -77,11 +78,11 @@ class ABTest:
     ) -> None:
         if not 0.0 <= split <= 1.0:
             raise ValueError(f"split must be in [0, 1], got {split}")
-        self.control     = control
-        self.treatment   = treatment
-        self.split       = split
-        self.sticky_key  = sticky_key
-        self.on_assign   = on_assign
+        self.control = control
+        self.treatment = treatment
+        self.split = split
+        self.sticky_key = sticky_key
+        self.on_assign = on_assign
 
     def assign(self, ctx: dict) -> str:
         if self.sticky_key:
@@ -128,9 +129,9 @@ class ShadowMode:
         on_match: Callable[[str, Any, Any], None] | None = None,
         timeout_secs: float = 2.0,
     ) -> None:
-        self.primary  = primary
-        self.shadow   = shadow
-        self.on_diff  = on_diff
+        self.primary = primary
+        self.shadow = shadow
+        self.on_diff = on_diff
         self.on_match = on_match
         self._timeout = timeout_secs
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="dmr-shadow")
@@ -145,18 +146,12 @@ class ShadowMode:
     def _is_match(self, a, b) -> bool:
         if a is None or b is None:
             return False
-        return (
-            a.tier      == b.tier
-            and a.task_type  == b.task_type
-            and a.complexity == b.complexity
-        )
+        return a.tier == b.tier and a.task_type == b.task_type and a.complexity == b.complexity
 
     def classify(self, task: str, ctx: dict | None = None, **kwargs) -> ClassificationDecision:
         ctx = ctx or {}
         # Fire shadow in parallel
-        shadow_future = self._executor.submit(
-            lambda: self.shadow.classify(task, hook_context=ctx, **kwargs)
-        )
+        shadow_future = self._executor.submit(lambda: self.shadow.classify(task, hook_context=ctx, **kwargs))
         primary_decision = self.primary.classify(task, hook_context=ctx, **kwargs)
 
         # Try to compare without blocking the response significantly

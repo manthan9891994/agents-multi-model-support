@@ -1,4 +1,5 @@
 """Concurrency stress test — verify Router is thread-safe under load."""
+
 import concurrent.futures
 import threading
 

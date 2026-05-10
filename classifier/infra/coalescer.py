@@ -1,5 +1,6 @@
 """Single-flight request coalescer — prevents cache stampede when many concurrent
 requests miss the cache for the same task simultaneously."""
+
 import threading
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -12,7 +13,7 @@ class SingleFlight:
 
     def __init__(self):
         self._inflight: dict[str, threading.Event] = {}
-        self._results:  dict[str, Any] = {}
+        self._results: dict[str, Any] = {}
         self._lock = threading.Lock()
 
     def do(self, key: str, fn: Callable[[], T]) -> T:

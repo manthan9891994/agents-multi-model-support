@@ -16,6 +16,7 @@ Usage from host application:
 
     # All router.classify() calls now emit traces.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -24,6 +25,7 @@ from typing import Any
 
 try:
     from opentelemetry import trace as _otel_trace
+
     _OTEL_AVAILABLE = True
     _tracer = _otel_trace.get_tracer("dynamic-model-router", "0.1.0")
 except ImportError:

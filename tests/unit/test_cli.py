@@ -1,4 +1,5 @@
 """Smoke tests for the dmr CLI."""
+
 import json
 import subprocess
 import sys
@@ -27,8 +28,7 @@ def test_classify_subcommand(capsys):
 
 
 def test_classify_with_preset(capsys):
-    rc = main(["classify", "Patient MRN: 12345678 has elevated AST",
-               "--preset", "healthcare"])
+    rc = main(["classify", "Patient MRN: 12345678 has elevated AST", "--preset", "healthcare"])
     assert rc == 0
     body = json.loads(capsys.readouterr().out)
     assert body["compliance_flag"] is True

@@ -6,6 +6,7 @@ This is a starter kit. To make it production-grade, add:
   - Privilege markers as PII patterns
   - Training data from past matters
 """
+
 from __future__ import annotations
 
 import re
@@ -15,18 +16,43 @@ from classifier.layers.layer1.keyword_pack import KeywordPack
 
 _LEGAL_PACK = (
     KeywordPack.builder("legal")
-    .add(TaskType.REASONING, [
-        "precedent", "argue", "interpret statute", "burden of proof",
-        "standing", "jurisdiction", "doctrine",
-    ])
-    .add(TaskType.DOC_CREATION, [
-        "clause", "indemnification", "non-compete", "termination",
-        "warranty", "covenant", "memorandum", "brief", "motion",
-        "deposition", "affidavit",
-    ])
-    .add(TaskType.ANALYZING, [
-        "case citation", "discovery", "review documents", "redline",
-    ])
+    .add(
+        TaskType.REASONING,
+        [
+            "precedent",
+            "argue",
+            "interpret statute",
+            "burden of proof",
+            "standing",
+            "jurisdiction",
+            "doctrine",
+        ],
+    )
+    .add(
+        TaskType.DOC_CREATION,
+        [
+            "clause",
+            "indemnification",
+            "non-compete",
+            "termination",
+            "warranty",
+            "covenant",
+            "memorandum",
+            "brief",
+            "motion",
+            "deposition",
+            "affidavit",
+        ],
+    )
+    .add(
+        TaskType.ANALYZING,
+        [
+            "case citation",
+            "discovery",
+            "review documents",
+            "redline",
+        ],
+    )
     .escalator("constitutional", weight=2)
     .escalator("multi-jurisdictional", weight=2)
     .min_tier("privileged", ModelTier.MEDIUM)
@@ -46,5 +72,5 @@ def config() -> dict:
     """Return Router kwargs for the legal domain."""
     return {
         "extra_keyword_packs": [_LEGAL_PACK],
-        "extra_pii_patterns":  _LEGAL_PII,
+        "extra_pii_patterns": _LEGAL_PII,
     }

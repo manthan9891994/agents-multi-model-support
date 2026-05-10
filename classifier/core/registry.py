@@ -2,64 +2,56 @@ from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
 TIER_MATRIX = {
     # ── Reasoning ─────────────────────────────────────────────────────────────
-    (TaskType.REASONING,     TaskComplexity.SIMPLE):   ModelTier.MEDIUM,
-    (TaskType.REASONING,     TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.REASONING,     TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.REASONING,     TaskComplexity.RESEARCH): ModelTier.HIGH,
-
+    (TaskType.REASONING, TaskComplexity.SIMPLE): ModelTier.MEDIUM,
+    (TaskType.REASONING, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.REASONING, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.REASONING, TaskComplexity.RESEARCH): ModelTier.HIGH,
     # ── Thinking / design ─────────────────────────────────────────────────────
-    (TaskType.THINKING,      TaskComplexity.SIMPLE):   ModelTier.MEDIUM,
-    (TaskType.THINKING,      TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.THINKING,      TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.THINKING,      TaskComplexity.RESEARCH): ModelTier.HIGH,
-
+    (TaskType.THINKING, TaskComplexity.SIMPLE): ModelTier.MEDIUM,
+    (TaskType.THINKING, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.THINKING, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.THINKING, TaskComplexity.RESEARCH): ModelTier.HIGH,
     # ── Data analysis ─────────────────────────────────────────────────────────
-    (TaskType.ANALYZING,     TaskComplexity.SIMPLE):   ModelTier.LOW,
-    (TaskType.ANALYZING,     TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.ANALYZING,     TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.ANALYZING,     TaskComplexity.RESEARCH): ModelTier.HIGH,
-
+    (TaskType.ANALYZING, TaskComplexity.SIMPLE): ModelTier.LOW,
+    (TaskType.ANALYZING, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.ANALYZING, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.ANALYZING, TaskComplexity.RESEARCH): ModelTier.HIGH,
     # ── Code creation / debugging ─────────────────────────────────────────────
-    (TaskType.CODE_CREATION, TaskComplexity.SIMPLE):   ModelTier.LOW,
+    (TaskType.CODE_CREATION, TaskComplexity.SIMPLE): ModelTier.LOW,
     (TaskType.CODE_CREATION, TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.CODE_CREATION, TaskComplexity.COMPLEX):  ModelTier.HIGH,
+    (TaskType.CODE_CREATION, TaskComplexity.COMPLEX): ModelTier.HIGH,
     (TaskType.CODE_CREATION, TaskComplexity.RESEARCH): ModelTier.HIGH,
-
     # ── Documentation / writing ───────────────────────────────────────────────
-    (TaskType.DOC_CREATION,  TaskComplexity.SIMPLE):   ModelTier.LOW,
-    (TaskType.DOC_CREATION,  TaskComplexity.STANDARD): ModelTier.LOW,
-    (TaskType.DOC_CREATION,  TaskComplexity.COMPLEX):  ModelTier.MEDIUM,
-    (TaskType.DOC_CREATION,  TaskComplexity.RESEARCH): ModelTier.MEDIUM,
-
+    (TaskType.DOC_CREATION, TaskComplexity.SIMPLE): ModelTier.LOW,
+    (TaskType.DOC_CREATION, TaskComplexity.STANDARD): ModelTier.LOW,
+    (TaskType.DOC_CREATION, TaskComplexity.COMPLEX): ModelTier.MEDIUM,
+    (TaskType.DOC_CREATION, TaskComplexity.RESEARCH): ModelTier.MEDIUM,
     # ── Translation ───────────────────────────────────────────────────────────
-    (TaskType.TRANSLATION,   TaskComplexity.SIMPLE):   ModelTier.LOW,
-    (TaskType.TRANSLATION,   TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.TRANSLATION,   TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.TRANSLATION,   TaskComplexity.RESEARCH): ModelTier.HIGH,
-
+    (TaskType.TRANSLATION, TaskComplexity.SIMPLE): ModelTier.LOW,
+    (TaskType.TRANSLATION, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.TRANSLATION, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.TRANSLATION, TaskComplexity.RESEARCH): ModelTier.HIGH,
     # ── Math / computation ────────────────────────────────────────────────────
-    (TaskType.MATH,          TaskComplexity.SIMPLE):   ModelTier.LOW,
-    (TaskType.MATH,          TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.MATH,          TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.MATH,          TaskComplexity.RESEARCH): ModelTier.HIGH,
-
+    (TaskType.MATH, TaskComplexity.SIMPLE): ModelTier.LOW,
+    (TaskType.MATH, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.MATH, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.MATH, TaskComplexity.RESEARCH): ModelTier.HIGH,
     # ── Casual conversation ───────────────────────────────────────────────────
-    (TaskType.CONVERSATION,  TaskComplexity.SIMPLE):   ModelTier.LOW,
-    (TaskType.CONVERSATION,  TaskComplexity.STANDARD): ModelTier.LOW,
-    (TaskType.CONVERSATION,  TaskComplexity.COMPLEX):  ModelTier.LOW,
-    (TaskType.CONVERSATION,  TaskComplexity.RESEARCH): ModelTier.LOW,
-
+    (TaskType.CONVERSATION, TaskComplexity.SIMPLE): ModelTier.LOW,
+    (TaskType.CONVERSATION, TaskComplexity.STANDARD): ModelTier.LOW,
+    (TaskType.CONVERSATION, TaskComplexity.COMPLEX): ModelTier.LOW,
+    (TaskType.CONVERSATION, TaskComplexity.RESEARCH): ModelTier.LOW,
     # ── Multimodal (image/audio/vision) ──────────────────────────────────────
-    (TaskType.MULTIMODAL,    TaskComplexity.SIMPLE):   ModelTier.MEDIUM,
-    (TaskType.MULTIMODAL,    TaskComplexity.STANDARD): ModelTier.MEDIUM,
-    (TaskType.MULTIMODAL,    TaskComplexity.COMPLEX):  ModelTier.HIGH,
-    (TaskType.MULTIMODAL,    TaskComplexity.RESEARCH): ModelTier.HIGH,
+    (TaskType.MULTIMODAL, TaskComplexity.SIMPLE): ModelTier.MEDIUM,
+    (TaskType.MULTIMODAL, TaskComplexity.STANDARD): ModelTier.MEDIUM,
+    (TaskType.MULTIMODAL, TaskComplexity.COMPLEX): ModelTier.HIGH,
+    (TaskType.MULTIMODAL, TaskComplexity.RESEARCH): ModelTier.HIGH,
 }
 
 # Runtime tables — populated from YAML at import time.
 # The package ships zero hardcoded model names or pricing. See registry_loader.py.
-MODEL_REGISTRY:     dict[str, dict[ModelTier, str]] = {}
-MODEL_CAPABILITIES: dict[str, dict]                 = {}
+MODEL_REGISTRY: dict[str, dict[ModelTier, str]] = {}
+MODEL_CAPABILITIES: dict[str, dict] = {}
 
 
 def register_provider(

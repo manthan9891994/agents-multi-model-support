@@ -3,6 +3,7 @@
 Lazy-loaded singleton. First call takes ~5–10s (model download on first run).
 Subsequent calls return the cached SentenceTransformer instance.
 """
+
 from __future__ import annotations
 
 import logging
@@ -59,6 +60,7 @@ def get_encoder():
             return None
         try:
             from sentence_transformers import SentenceTransformer
+
             _model = SentenceTransformer(_MODEL_NAME)
             logger.info("ml.embeddings: loaded %s", _MODEL_NAME)
             return _model

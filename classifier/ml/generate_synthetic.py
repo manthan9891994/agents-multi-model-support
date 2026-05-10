@@ -15,6 +15,7 @@ with depth (so domain-heavy production traffic isn't a distribution shift).
 
 Cost: ~$0.05 for 1,800 examples using gemini-2.5-flash-lite.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -58,9 +59,9 @@ Constraints:
 - Return ONLY a JSON array of strings, no commentary"""
 
 _COMPLEXITY_HINTS = {
-    TaskComplexity.SIMPLE:   "5–20 words, single-clause request",
+    TaskComplexity.SIMPLE: "5–20 words, single-clause request",
     TaskComplexity.STANDARD: "20–50 words, structured but not deep",
-    TaskComplexity.COMPLEX:  "40–100 words, multi-part requirements",
+    TaskComplexity.COMPLEX: "40–100 words, multi-part requirements",
     TaskComplexity.RESEARCH: "80–200 words, expert-level depth or multi-stage planning",
 }
 
@@ -85,17 +86,25 @@ def _build_prompt(tt: TaskType, cx: TaskComplexity, count: int, domain: str | No
     hint = _COMPLEXITY_HINTS[cx]
     if domain and domain in _DOMAIN_VOCAB:
         return _DOMAIN_PROMPT.format(
-            count=count, tt=tt.value, cx=cx.value,
-            complexity_hint=hint, domain=domain, vocab=_DOMAIN_VOCAB[domain],
+            count=count,
+            tt=tt.value,
+            cx=cx.value,
+            complexity_hint=hint,
+            domain=domain,
+            vocab=_DOMAIN_VOCAB[domain],
         )
     return _GENERIC_PROMPT.format(
-        count=count, tt=tt.value, cx=cx.value, complexity_hint=hint,
+        count=count,
+        tt=tt.value,
+        cx=cx.value,
+        complexity_hint=hint,
     )
 
 
 def _call_gemini(prompt: str, model: str) -> list[str]:
     """One Gemini call → list of task strings. Returns [] on any failure."""
     from google import genai
+
     client = genai.Client(api_key=settings.google_api_key)
     cfg = genai.types.GenerateContentConfig(
         temperature=0.95,
@@ -115,13 +124,17 @@ def _call_gemini(prompt: str, model: str) -> list[str]:
 
 
 def generate_slot(
-    tt: TaskType, cx: TaskComplexity, count: int, domain: str | None, model: str,
+    tt: TaskType,
+    cx: TaskComplexity,
+    count: int,
+    domain: str | None,
+    model: str,
 ) -> list[dict]:
     """Generate examples for a single (task_type, complexity) slot."""
     if (tt, cx) in _SKIP_SLOTS:
         return []
     generic_count = int(count * 0.6)
-    domain_count  = count - generic_count if domain else 0
+    domain_count = count - generic_count if domain else 0
     if not domain:
         generic_count = count
 
@@ -142,9 +155,11 @@ def main() -> None:
         logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
     parser = argparse.ArgumentParser(description="Generate synthetic L3 training data")
     parser.add_argument("--per-slot", type=int, default=30, help="examples per (type, complexity) slot")
-    parser.add_argument("--domain", type=str, default="", help="optional domain flavoring (healthcare/fintech/legal)")
-    parser.add_argument("--model",  type=str, default="gemini-2.5-flash-lite")
-    parser.add_argument("--out",    type=str, default=str(_OUT_FILE))
+    parser.add_argument(
+        "--domain", type=str, default="", help="optional domain flavoring (healthcare/fintech/legal)"
+    )
+    parser.add_argument("--model", type=str, default="gemini-2.5-flash-lite")
+    parser.add_argument("--out", type=str, default=str(_OUT_FILE))
     args = parser.parse_args()
 
     domain = args.domain.strip().lower() or None

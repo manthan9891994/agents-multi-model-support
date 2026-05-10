@@ -1,4 +1,5 @@
 """Unit tests for the AutoLabeler — labeling functions, aggregation, end-to-end."""
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -20,18 +21,18 @@ from classifier.ml.auto_labeler import (
 
 def _decision(**overrides):
     base = {
-        "decision_id":   "d1",
-        "task_preview":  "default task preview",
-        "task_length":   20,
-        "layer":         "layer1",
-        "tier":          "low",
-        "task_type":     "conversation",
-        "complexity":    "simple",
-        "confidence":    0.85,
-        "model":         "gemini-2.5-flash",
-        "provider":      "google",
-        "cached":        False,
-        "exploration":   False,
+        "decision_id": "d1",
+        "task_preview": "default task preview",
+        "task_length": 20,
+        "layer": "layer1",
+        "tier": "low",
+        "task_type": "conversation",
+        "complexity": "simple",
+        "confidence": 0.85,
+        "model": "gemini-2.5-flash",
+        "provider": "google",
+        "cached": False,
+        "exploration": False,
     }
     base.update(overrides)
     return base
@@ -39,24 +40,25 @@ def _decision(**overrides):
 
 def _outcome(**overrides):
     base = {
-        "decision_id":          "d1",
-        "tokens_in":            10,
-        "tokens_out":           20,
-        "tokens_estimated":     False,
-        "wall_ms":              100.0,
-        "success":              True,
-        "user_retried":         False,
+        "decision_id": "d1",
+        "tokens_in": 10,
+        "tokens_out": 20,
+        "tokens_estimated": False,
+        "wall_ms": 100.0,
+        "success": True,
+        "user_retried": False,
         "user_escalated_model": None,
-        "user_feedback":        None,
-        "edit_distance":        None,
-        "error_message":        None,
-        "timestamp":            datetime.now(timezone.utc).isoformat(),
+        "user_feedback": None,
+        "edit_distance": None,
+        "error_message": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     base.update(overrides)
     return base
 
 
 # ── Per-LF tests ────────────────────────────────────────────────────────────
+
 
 def test_lf_short_short_fires_for_simple():
     lab = lf_short_short(_decision(task_length=20), _outcome(tokens_out=15, user_retried=False))
@@ -195,26 +197,27 @@ def test_lf_l2_ground_truth_skips_when_user_escalated():
 
 # ── Aggregation tests ──────────────────────────────────────────────────────
 
+
 def test_aggregator_majority_vote_picks_highest_score():
-    al = AutoLabeler(min_confidence=0.0)   # don't filter for this test
+    al = AutoLabeler(min_confidence=0.0)  # don't filter for this test
     votes = [
         Label(task_type="reasoning", complexity="complex", confidence=0.9),
         Label(task_type="reasoning", complexity="standard", confidence=0.6),
         Label(task_type="doc_creation", complexity="complex", confidence=0.4),
     ]
     out = al._aggregate(votes)
-    assert out["task_type"] == "reasoning"      # 0.9 + 0.6 = 1.5 vs 0.4
-    assert out["complexity"] == "complex"        # 0.9 + 0.4 = 1.3 vs 0.6
+    assert out["task_type"] == "reasoning"  # 0.9 + 0.6 = 1.5 vs 0.4
+    assert out["complexity"] == "complex"  # 0.9 + 0.4 = 1.3 vs 0.6
 
 
 def test_aggregator_drops_below_min_confidence():
     al = AutoLabeler(min_confidence=0.95)
     votes = [
-        Label(task_type="reasoning",    complexity="standard", confidence=0.6),
-        Label(task_type="doc_creation", complexity="complex",  confidence=0.5),
+        Label(task_type="reasoning", complexity="standard", confidence=0.6),
+        Label(task_type="doc_creation", complexity="complex", confidence=0.5),
     ]
     out = al._aggregate(votes)
-    assert out is None   # close split → low share → below 0.95
+    assert out is None  # close split → low share → below 0.95
 
 
 def test_aggregator_returns_none_when_no_dimension_voted():
@@ -233,7 +236,7 @@ def test_label_one_below_confidence_returns_none():
     al = AutoLabeler(min_confidence=0.99)
     # Conflicting weak votes → shares ~0.5 → below 0.99
     al.lfs = [
-        lambda d, o: Label(task_type="reasoning",    complexity="simple",   confidence=0.5),
+        lambda d, o: Label(task_type="reasoning", complexity="simple", confidence=0.5),
         lambda d, o: Label(task_type="doc_creation", complexity="standard", confidence=0.5),
     ]
     assert al.label_one(_decision(), _outcome()) is None
@@ -241,6 +244,7 @@ def test_label_one_below_confidence_returns_none():
 
 
 # ── End-to-end run() tests ─────────────────────────────────────────────────
+
 
 def test_run_with_supplied_lists():
     """End-to-end with hand-built decision + outcome lists (no log files).
@@ -253,11 +257,17 @@ def test_run_with_supplied_lists():
         # esc-1: lf_user_escalated → both dims voted (reasoning, complex)
         _decision(decision_id="esc-1", layer="layer1"),
         # code-1: lf_code_keywords_strong → both dims voted (code_creation, standard)
-        _decision(decision_id="code-1", task_type="code_creation",
-                  complexity="standard", confidence=0.9, layer="layer1"),
+        _decision(
+            decision_id="code-1",
+            task_type="code_creation",
+            complexity="standard",
+            confidence=0.9,
+            layer="layer1",
+        ),
         # l2-1: lf_l2_ground_truth → both dims voted
-        _decision(decision_id="l2-1", layer="layer2", task_type="reasoning",
-                  complexity="complex", confidence=0.8),
+        _decision(
+            decision_id="l2-1", layer="layer2", task_type="reasoning", complexity="complex", confidence=0.8
+        ),
     ]
     outcomes = [
         _outcome(decision_id="esc-1", user_escalated_model="gpt-4-turbo"),
@@ -268,15 +278,15 @@ def test_run_with_supplied_lists():
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 3
     by_id = {r["_decision_id"]: r for r in rows}
-    assert by_id["esc-1"]["task_type"]   == "reasoning"
-    assert by_id["esc-1"]["complexity"]  == "complex"
-    assert by_id["code-1"]["task_type"]  == "code_creation"
-    assert by_id["l2-1"]["task_type"]    == "reasoning"
+    assert by_id["esc-1"]["task_type"] == "reasoning"
+    assert by_id["esc-1"]["complexity"] == "complex"
+    assert by_id["code-1"]["task_type"] == "code_creation"
+    assert by_id["l2-1"]["task_type"] == "reasoning"
 
 
 def test_run_skips_cache_hits_by_default():
     decisions = [_decision(decision_id="d-cache", cached=True)]
-    outcomes  = [_outcome(decision_id="d-cache", user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d-cache", user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 0
@@ -285,7 +295,7 @@ def test_run_skips_cache_hits_by_default():
 
 def test_run_includes_cache_hits_when_opted_in():
     decisions = [_decision(decision_id="d-cache", cached=True)]
-    outcomes  = [_outcome(decision_id="d-cache", user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d-cache", user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler(skip_cached=False)
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 1
@@ -293,7 +303,7 @@ def test_run_includes_cache_hits_when_opted_in():
 
 def test_run_skips_exploration_by_default():
     decisions = [_decision(decision_id="d-explore", exploration=True)]
-    outcomes  = [_outcome(decision_id="d-explore", user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d-explore", user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 0
@@ -302,7 +312,7 @@ def test_run_skips_exploration_by_default():
 
 def test_run_skips_failed_outcomes_by_default():
     decisions = [_decision(decision_id="d-fail")]
-    outcomes  = [_outcome(decision_id="d-fail", success=False, user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d-fail", success=False, user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 0
@@ -311,7 +321,7 @@ def test_run_skips_failed_outcomes_by_default():
 
 def test_run_drops_orphaned_decisions():
     decisions = [_decision(decision_id="d-orphan")]
-    outcomes  = []   # no outcome reported
+    outcomes = []  # no outcome reported
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 0
@@ -321,7 +331,7 @@ def test_run_drops_orphaned_decisions():
 def test_run_output_schema_matches_train_head():
     """Output must include task / task_type / complexity for train_head consumption."""
     decisions = [_decision(decision_id="d1", task_preview="What is the capital of France?")]
-    outcomes  = [_outcome(decision_id="d1", user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d1", user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 1
@@ -336,7 +346,7 @@ def test_run_output_schema_matches_train_head():
 
 def test_run_skips_rows_with_empty_task_preview():
     decisions = [_decision(decision_id="d1", task_preview="")]
-    outcomes  = [_outcome(decision_id="d1", user_escalated_model="gpt-4-turbo")]
+    outcomes = [_outcome(decision_id="d1", user_escalated_model="gpt-4-turbo")]
     labeler = AutoLabeler()
     rows = labeler.run(decisions=decisions, outcomes=outcomes)
     assert len(rows) == 0
@@ -353,13 +363,13 @@ def test_run_stats_reports_full_funnel():
         _decision(decision_id="d1"),
         _decision(decision_id="d2", cached=True),
         _decision(decision_id="d3", exploration=True),
-        _decision(decision_id="d-orphan"),   # no outcome
+        _decision(decision_id="d-orphan"),  # no outcome
     ]
     outcomes = [
         _outcome(decision_id="d1", user_escalated_model="gpt-4-turbo"),
         _outcome(decision_id="d2", user_escalated_model="gpt-4-turbo"),
         _outcome(decision_id="d3", user_escalated_model="gpt-4-turbo"),
-        _outcome(decision_id="d-extra"),     # no decision
+        _outcome(decision_id="d-extra"),  # no decision
     ]
     labeler = AutoLabeler()
     labeler.run(decisions=decisions, outcomes=outcomes)
@@ -373,6 +383,7 @@ def test_run_stats_reports_full_funnel():
 
 
 # ── CLI smoke test ─────────────────────────────────────────────────────────
+
 
 def test_cli_relabel_smoke(tmp_path, monkeypatch):
     """`dmr relabel` end-to-end with synthetic logs."""
@@ -390,13 +401,11 @@ def test_cli_relabel_smoke(tmp_path, monkeypatch):
 
     # Seed one decision + one outcome that the user_escalated LF will pick up
     (tmp_path / "dec.test.jsonl").write_text(
-        json.dumps(_decision(decision_id="cli-1",
-                             task_preview="What is the capital of France?")) + "\n",
+        json.dumps(_decision(decision_id="cli-1", task_preview="What is the capital of France?")) + "\n",
         encoding="utf-8",
     )
     (tmp_path / "out.test.jsonl").write_text(
-        json.dumps(_outcome(decision_id="cli-1",
-                            user_escalated_model="gpt-4-turbo")) + "\n",
+        json.dumps(_outcome(decision_id="cli-1", user_escalated_model="gpt-4-turbo")) + "\n",
         encoding="utf-8",
     )
 

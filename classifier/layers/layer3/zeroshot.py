@@ -7,6 +7,7 @@ confidence falls below threshold → cascade falls through to Layer 2.
 Latency:  ~80ms per call (CPU)        Model size: ~400MB
 Accuracy: ~80% on confident decisions  Training data: zero
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,22 +22,22 @@ logger = logging.getLogger(__name__)
 # Hypothesis templates — descriptive strings give the NLI model better signal
 # than bare category names. Map each hypothesis back to its enum value.
 _TASK_TYPE_HYPOTHESES: dict[str, TaskType] = {
-    "this is a casual conversation, greeting, or small talk":           TaskType.CONVERSATION,
-    "this is a request to write code, implement, or fix a function":    TaskType.CODE_CREATION,
-    "this is a request to write documentation, summary, or report":     TaskType.DOC_CREATION,
+    "this is a casual conversation, greeting, or small talk": TaskType.CONVERSATION,
+    "this is a request to write code, implement, or fix a function": TaskType.CODE_CREATION,
+    "this is a request to write documentation, summary, or report": TaskType.DOC_CREATION,
     "this is a reasoning task comparing options or analyzing trade-offs": TaskType.REASONING,
     "this is a planning task designing a system, architecture, or strategy": TaskType.THINKING,
-    "this is a data analysis task finding patterns, trends, or insights":   TaskType.ANALYZING,
-    "this is a translation between human languages":                    TaskType.TRANSLATION,
-    "this is a math, calculation, or numerical problem":                TaskType.MATH,
-    "this is a multimodal task involving images, audio, or video":      TaskType.MULTIMODAL,
+    "this is a data analysis task finding patterns, trends, or insights": TaskType.ANALYZING,
+    "this is a translation between human languages": TaskType.TRANSLATION,
+    "this is a math, calculation, or numerical problem": TaskType.MATH,
+    "this is a multimodal task involving images, audio, or video": TaskType.MULTIMODAL,
 }
 
 _COMPLEXITY_HYPOTHESES: dict[str, TaskComplexity] = {
-    "this task is trivial requiring a one or two sentence answer":      TaskComplexity.SIMPLE,
+    "this task is trivial requiring a one or two sentence answer": TaskComplexity.SIMPLE,
     "this task is standard requiring a structured multi-paragraph response": TaskComplexity.STANDARD,
-    "this task is complex requiring a multi-part deeply reasoned response":  TaskComplexity.COMPLEX,
-    "this task is research-level requiring extensive expert reasoning":  TaskComplexity.RESEARCH,
+    "this task is complex requiring a multi-part deeply reasoned response": TaskComplexity.COMPLEX,
+    "this task is research-level requiring extensive expert reasoning": TaskComplexity.RESEARCH,
 }
 
 # Module-level singletons — pipeline takes 5–10s to load (~400MB model)
@@ -59,6 +60,7 @@ def _load_pipeline():
             return None
         try:
             from transformers import pipeline
+
             _pipeline = pipeline(
                 "zero-shot-classification",
                 model="facebook/bart-large-mnli",
@@ -101,11 +103,11 @@ def classify_layer3_zeroshot(
         cx_result = pipe(truncated, candidate_labels=cx_labels, multi_label=False)
 
         top_tt_label = tt_result["labels"][0]
-        top_tt_prob  = float(tt_result["scores"][0])
+        top_tt_prob = float(tt_result["scores"][0])
         top_cx_label = cx_result["labels"][0]
-        top_cx_prob  = float(cx_result["scores"][0])
+        top_cx_prob = float(cx_result["scores"][0])
 
-        task_type  = _TASK_TYPE_HYPOTHESES[top_tt_label]
+        task_type = _TASK_TYPE_HYPOTHESES[top_tt_label]
         complexity = _COMPLEXITY_HYPOTHESES[top_cx_label]
 
         # Geometric mean — penalises asymmetric confidence (one head sure, other guessing)
@@ -115,7 +117,10 @@ def classify_layer3_zeroshot(
         if confidence < threshold:
             logger.debug(
                 "layer3.zeroshot: abstaining — conf=%.2f < %.2f (tt=%.2f cx=%.2f)",
-                confidence, threshold, top_tt_prob, top_cx_prob,
+                confidence,
+                threshold,
+                top_tt_prob,
+                top_cx_prob,
             )
             return None
 

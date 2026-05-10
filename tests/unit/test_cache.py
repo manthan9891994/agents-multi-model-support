@@ -1,4 +1,5 @@
 """Unit tests for classifier/infra/cache.py."""
+
 import time
 
 from classifier.core.types import ClassificationDecision, ModelTier, TaskComplexity, TaskType
@@ -73,6 +74,6 @@ def test_clear_resets_stats():
 def test_hit_rate_calculation():
     c = ClassificationCache()
     c.set("hello", "google", _decision())
-    c.get("hello", "google")   # hit
-    c.get("missing", "google") # miss
+    c.get("hello", "google")  # hit
+    c.get("missing", "google")  # miss
     assert c.hit_rate == 0.5

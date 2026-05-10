@@ -1,4 +1,5 @@
 """Unit tests for classifier/layers/layer1.py — no external calls."""
+
 import pytest
 
 from classifier.core.exceptions import ClassificationError
@@ -6,6 +7,7 @@ from classifier.core.types import ModelTier, TaskComplexity, TaskType
 from classifier.layers.layer1 import classify_layer1
 
 # ── Error handling ─────────────────────────────────────────────────────────────
+
 
 def test_empty_task_raises():
     with pytest.raises(ClassificationError):
@@ -18,6 +20,7 @@ def test_whitespace_task_raises():
 
 
 # ── Task-type routing ──────────────────────────────────────────────────────────
+
 
 def test_readme_is_doc_creation():
     tt, _, _, _, _ = classify_layer1("Write a README for this project")
@@ -58,6 +61,7 @@ def test_image_is_multimodal():
 
 # ── Complexity & tier routing ──────────────────────────────────────────────────
 
+
 def test_simple_doc_routes_low():
     _, cx, tier, _, _ = classify_layer1("Write a README for this project")
     assert cx == TaskComplexity.SIMPLE
@@ -65,9 +69,7 @@ def test_simple_doc_routes_low():
 
 
 def test_distributed_cache_routes_high():
-    _, _, tier, _, _ = classify_layer1(
-        "Design a distributed cache with LRU eviction and thread safety"
-    )
+    _, _, tier, _, _ = classify_layer1("Design a distributed cache with LRU eviction and thread safety")
     assert tier == ModelTier.HIGH
 
 
@@ -90,15 +92,15 @@ def test_simple_keyword_de_escalates():
 
 # ── Negation awareness ─────────────────────────────────────────────────────────
 
+
 def test_negation_suppresses_code():
-    tt, _, _, conf, _ = classify_layer1(
-        "Don't write code, just explain how a binary search works"
-    )
+    tt, _, _, conf, _ = classify_layer1("Don't write code, just explain how a binary search works")
     # Should NOT be CODE_CREATION — negation suppresses it
     assert tt != TaskType.CODE_CREATION or conf < 0.6
 
 
 # ── Algorithm names → COMPLEX minimum ─────────────────────────────────────────
+
 
 def test_raft_forces_complex():
     _, cx, _, _, _ = classify_layer1("Implement the Raft consensus algorithm")
@@ -112,17 +114,14 @@ def test_bloom_filter_forces_complex():
 
 # ── Domain escalation ──────────────────────────────────────────────────────────
 
+
 def test_hipaa_forces_high():
-    _, _, tier, _, _ = classify_layer1(
-        "Write a function to process patient data under HIPAA compliance"
-    )
+    _, _, tier, _, _ = classify_layer1("Write a function to process patient data under HIPAA compliance")
     assert tier == ModelTier.HIGH
 
 
 def test_gdpr_forces_high():
-    _, _, tier, _, _ = classify_layer1(
-        "Design a data deletion flow for GDPR right-to-erasure compliance"
-    )
+    _, _, tier, _, _ = classify_layer1("Design a data deletion flow for GDPR right-to-erasure compliance")
     assert tier == ModelTier.HIGH
 
 
@@ -133,6 +132,7 @@ def test_clinical_forces_medium_minimum():
 
 # ── Format requests — suppress escalation ─────────────────────────────────────
 
+
 def test_format_request_does_not_escalate():
     # "as json" should not escalate complexity beyond what content warrants
     _, cx, _, _, _ = classify_layer1("List the top 5 cities, return json")
@@ -140,6 +140,7 @@ def test_format_request_does_not_escalate():
 
 
 # ── Question type → SIMPLE ─────────────────────────────────────────────────────
+
 
 def test_yes_no_question_is_simple():
     _, cx, _, _, _ = classify_layer1("Can you explain what a REST API is?")
@@ -153,6 +154,7 @@ def test_what_is_question_is_simple():
 
 # ── Ambiguity detection ────────────────────────────────────────────────────────
 
+
 def test_ambiguous_task_has_low_confidence():
     # "compare" hits REASONING and "implement" hits CODE_CREATION equally (3pts each)
     _, _, _, conf, _ = classify_layer1("Compare approaches and implement the best solution")
@@ -160,6 +162,7 @@ def test_ambiguous_task_has_low_confidence():
 
 
 # ── Conversation history bias ──────────────────────────────────────────────────
+
 
 def test_history_biases_code_creation():
     history = [
@@ -173,6 +176,7 @@ def test_history_biases_code_creation():
 
 # ── Return type contract ───────────────────────────────────────────────────────
 
+
 def test_return_types_are_correct():
     tt, cx, tier, conf, reason = classify_layer1("Write a README")
     assert isinstance(tt, TaskType)
@@ -184,6 +188,7 @@ def test_return_types_are_correct():
 
 def test_latency_is_fast():
     import time
+
     t0 = time.perf_counter()
     classify_layer1("Write a function to sort a list")
     elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -191,6 +196,7 @@ def test_latency_is_fast():
 
 
 # ── Phase 3: Trivial-input guard (Item 18) ────────────────────────────────────
+
 
 def test_trivial_single_char_is_conversation():
     tt, cx, tier, conf, _ = classify_layer1("k")
@@ -219,32 +225,39 @@ def test_non_trivial_short_task_classified_normally():
 
 # ── Phase 3: PII detection (Item 1) ───────────────────────────────────────────
 
+
 def test_detect_pii_email():
     from classifier.layers.layer1 import detect_pii
+
     assert detect_pii("Send results to john.doe@example.com") is True
 
 
 def test_detect_pii_ssn():
     from classifier.layers.layer1 import detect_pii
+
     assert detect_pii("Patient SSN is 123-45-6789") is True
 
 
 def test_detect_pii_api_key():
     from classifier.layers.layer1 import detect_pii
+
     assert detect_pii("My key: sk-abcdefghijklmnopqrstuvwx") is True
 
 
 def test_detect_pii_mrn():
     from classifier.layers.layer1 import detect_pii
+
     assert detect_pii("Patient MRN: 48210 reports chest pain") is True
 
 
 def test_no_pii_in_clean_task():
     from classifier.layers.layer1 import detect_pii
+
     assert detect_pii("Write a function to sort a list") is False
 
 
 # ── Phase 3: Continuation detection (Item 13) ─────────────────────────────────
+
 
 def test_continuation_inherits_history_type():
     history = ["implement a REST API endpoint", "add authentication to it"]
@@ -261,6 +274,7 @@ def test_non_continuation_classified_normally():
 
 
 # ── Phase 3: Provider tokenizer (Item 14) ─────────────────────────────────────
+
 
 def test_provider_param_accepted():
     for provider in ("google", "anthropic", "openai"):

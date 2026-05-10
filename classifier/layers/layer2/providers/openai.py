@@ -1,4 +1,5 @@
 """OpenAI L2 caller — uses JSON mode."""
+
 from __future__ import annotations
 
 import json
@@ -9,6 +10,7 @@ from classifier.infra.config import settings
 
 def call(task: str, history, model: str, schema):
     import openai
+
     client = openai.OpenAI(api_key=settings.openai_api_key)
     sys_prompt = (
         "You classify user tasks into structured fields. "

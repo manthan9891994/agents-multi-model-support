@@ -19,6 +19,7 @@ Two patterns:
     agent = get_agent("Summarise this contract", system_prompt="...")
     result = agent.run_sync("Summarise...")
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,19 +29,19 @@ logger = logging.getLogger(__name__)
 
 # DMR provider name -> Pydantic AI provider prefix
 _PROVIDER_PREFIX = {
-    "google":    "google-gla",
+    "google": "google-gla",
     "anthropic": "anthropic",
-    "openai":    "openai",
-    "groq":      "groq",
-    "mistral":   "mistral",
-    "cohere":    "cohere",
+    "openai": "openai",
+    "groq": "groq",
+    "mistral": "mistral",
+    "cohere": "cohere",
 }
 
 
 def _qualify(model_name: str, provider: str) -> str:
     """Return Pydantic-AI-shaped 'provider:model' string."""
     prefix = _PROVIDER_PREFIX.get(provider, provider)
-    if ":" in model_name:   # already qualified
+    if ":" in model_name:  # already qualified
         return model_name
     return f"{prefix}:{model_name}"
 
@@ -63,7 +64,9 @@ def get_model_string(
         logger.info(
             "PydanticAI: routed [%s | %s/%s] -> %s",
             decision.tier.value.upper(),
-            decision.task_type.value, decision.complexity.value, model_name,
+            decision.task_type.value,
+            decision.complexity.value,
+            model_name,
         )
     except ClassificationError:
         if not fallback_model:
@@ -84,9 +87,7 @@ def get_agent(
     try:
         from pydantic_ai import Agent
     except ImportError as exc:
-        raise ImportError(
-            "pydantic-ai is not installed. Install: pip install pydantic-ai"
-        ) from exc
+        raise ImportError("pydantic-ai is not installed. Install: pip install pydantic-ai") from exc
 
     model_string = get_model_string(task, provider=provider, fallback_model=fallback_model)
     return Agent(model_string, **agent_kwargs)

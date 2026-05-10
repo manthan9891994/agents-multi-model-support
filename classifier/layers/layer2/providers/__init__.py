@@ -7,6 +7,7 @@ where Response has `.text` (the JSON string) and `.usage_metadata` (optional).
 Providers are looked up by name from a registry. Custom providers can be
 registered via `register_l2_provider(name, fn)`.
 """
+
 from __future__ import annotations
 
 import importlib

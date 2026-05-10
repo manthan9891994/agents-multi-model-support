@@ -1,4 +1,5 @@
 """Healthcare preset — HIPAA-style PII patterns + clinical vocabulary."""
+
 from __future__ import annotations
 
 import re
@@ -8,24 +9,63 @@ from classifier.layers.layer1.keyword_pack import KeywordPack
 
 _HEALTHCARE_PACK = (
     KeywordPack.builder("healthcare")
-    .add(TaskType.REASONING, [
-        "differential", "diagnosis", "etiology", "pathophysiology",
-        "contraindication", "drug interaction", "side effect",
-        "prognosis", "comorbidity", "clinical decision",
-    ])
-    .add(TaskType.ANALYZING, [
-        "lab result", "trend", "panel", "interpret", "abnormal",
-        "elevated", "decreased", "reference range",
-    ])
-    .add(TaskType.DOC_CREATION, [
-        "soap note", "discharge summary", "progress note", "admission note",
-        "icd-10", "cpt", "encounter note", "h&p", "consult note",
-        "prior authorization", "medical necessity",
-    ])
-    .add(TaskType.MATH, [
-        "egfr", "bmi", "meld", "child-pugh", "homa-ir", "creatinine clearance",
-        "cha2ds2-vasc", "curb-65",
-    ])
+    .add(
+        TaskType.REASONING,
+        [
+            "differential",
+            "diagnosis",
+            "etiology",
+            "pathophysiology",
+            "contraindication",
+            "drug interaction",
+            "side effect",
+            "prognosis",
+            "comorbidity",
+            "clinical decision",
+        ],
+    )
+    .add(
+        TaskType.ANALYZING,
+        [
+            "lab result",
+            "trend",
+            "panel",
+            "interpret",
+            "abnormal",
+            "elevated",
+            "decreased",
+            "reference range",
+        ],
+    )
+    .add(
+        TaskType.DOC_CREATION,
+        [
+            "soap note",
+            "discharge summary",
+            "progress note",
+            "admission note",
+            "icd-10",
+            "cpt",
+            "encounter note",
+            "h&p",
+            "consult note",
+            "prior authorization",
+            "medical necessity",
+        ],
+    )
+    .add(
+        TaskType.MATH,
+        [
+            "egfr",
+            "bmi",
+            "meld",
+            "child-pugh",
+            "homa-ir",
+            "creatinine clearance",
+            "cha2ds2-vasc",
+            "curb-65",
+        ],
+    )
     .escalator("multi-system", weight=2)
     .escalator("acute on chronic", weight=2)
     .escalator("polypharmacy", weight=1)
@@ -50,5 +90,5 @@ def config() -> dict:
     """Return Router kwargs for the healthcare domain."""
     return {
         "extra_keyword_packs": [_HEALTHCARE_PACK],
-        "extra_pii_patterns":  _HEALTHCARE_PII,
+        "extra_pii_patterns": _HEALTHCARE_PII,
     }

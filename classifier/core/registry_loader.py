@@ -31,6 +31,7 @@ Schema (see classifier/data/registry/default.yaml for full example):
           supports_json_mode: bool
           region: str | null
 """
+
 from __future__ import annotations
 
 import logging
@@ -41,17 +42,19 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _BUNDLED_DEFAULT = Path(__file__).parent.parent / "data" / "registry" / "default.yaml"
-_BUNDLED_EMPTY   = Path(__file__).parent.parent / "data" / "registry" / "empty.yaml"
+_BUNDLED_EMPTY = Path(__file__).parent.parent / "data" / "registry" / "empty.yaml"
 
 
 def _load_yaml(source: str | Path) -> dict:
     """Load YAML from a path, URL, or string. Returns the parsed dict."""
     import yaml
+
     text: str
     src = str(source)
 
     if src.startswith(("http://", "https://")):
         import urllib.request
+
         with urllib.request.urlopen(src, timeout=10) as r:
             text = r.read().decode("utf-8")
     else:
@@ -81,7 +84,7 @@ def apply_registry(data: dict) -> dict:
     from classifier.infra.cost_tracker import register_model_cost
 
     providers = data.get("providers") or {}
-    models    = data.get("models")    or {}
+    models = data.get("models") or {}
 
     # Apply providers
     for prov_name, prov_data in providers.items():
@@ -104,9 +107,9 @@ def apply_registry(data: dict) -> dict:
             MODEL_CAPABILITIES.setdefault(model_name, {}).update(caps)
 
     return {
-        "version":   data.get("version", "unknown"),
+        "version": data.get("version", "unknown"),
         "providers": len(providers),
-        "models":    len(models),
+        "models": len(models),
     }
 
 
@@ -114,6 +117,7 @@ def clear_registry() -> None:
     """Wipe all registered providers, models, costs, and capabilities."""
     from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
     from classifier.infra.cost_tracker import COST_TABLE
+
     MODEL_REGISTRY.clear()
     MODEL_CAPABILITIES.clear()
     COST_TABLE.clear()
@@ -146,8 +150,13 @@ def load_registry(source: str | Path = "default") -> dict:
 
     data = _load_yaml(path)
     meta = apply_registry(data)
-    logger.info("registry: loaded %s — %d providers, %d models, version=%s",
-                path, meta["providers"], meta["models"], meta["version"])
+    logger.info(
+        "registry: loaded %s — %d providers, %d models, version=%s",
+        path,
+        meta["providers"],
+        meta["models"],
+        meta["version"],
+    )
     return meta
 
 
@@ -159,10 +168,7 @@ def export_registry() -> dict:
     providers_out: dict[str, Any] = {}
     for prov_name, tier_map in MODEL_REGISTRY.items():
         providers_out[prov_name] = {
-            "tiers": {
-                (k.value if hasattr(k, "value") else str(k)): v
-                for k, v in tier_map.items()
-            },
+            "tiers": {(k.value if hasattr(k, "value") else str(k)): v for k, v in tier_map.items()},
         }
 
     models_out: dict[str, Any] = {}
@@ -173,7 +179,7 @@ def export_registry() -> dict:
             c = COST_TABLE[m]
             # Re-emit in registry-YAML schema (input_per_1m / output_per_1m)
             entry["cost"] = {
-                "input_per_1m":  c.get("input", 0.0),
+                "input_per_1m": c.get("input", 0.0),
                 "output_per_1m": c.get("output", 0.0),
             }
         if m in MODEL_CAPABILITIES:
@@ -181,15 +187,16 @@ def export_registry() -> dict:
         models_out[m] = entry
 
     return {
-        "version":   "exported",
+        "version": "exported",
         "providers": providers_out,
-        "models":    models_out,
+        "models": models_out,
     }
 
 
 def export_to_yaml(path: str | Path) -> None:
     """Save the current runtime registry as YAML."""
     import yaml
+
     data = export_registry()
     Path(path).write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
@@ -206,8 +213,9 @@ def _auto_load_at_import() -> None:
             load_registry(custom)
             return
         except Exception as exc:
-            logger.warning("registry: DMR_REGISTRY=%r failed (%s) — falling back to bundled default",
-                           custom, exc)
+            logger.warning(
+                "registry: DMR_REGISTRY=%r failed (%s) — falling back to bundled default", custom, exc
+            )
 
     # Fall back to the bundled default
     try:

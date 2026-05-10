@@ -1,4 +1,5 @@
 """Tests for the async Router API (aclassify + aclassify_batch)."""
+
 import asyncio
 
 import pytest
@@ -32,6 +33,7 @@ def test_aclassify_batch_runs_concurrent():
 
 def test_aclassify_does_not_block_event_loop():
     """Event loop should not block while classify runs in the threadpool."""
+
     async def _run():
         router = Router(layer2_enabled=False, layer3_enabled=False)
         flag = []
@@ -48,4 +50,4 @@ def test_aclassify_does_not_block_event_loop():
 
     decision, flag = asyncio.run(_run())
     assert decision is not None
-    assert len(flag) == 5   # event loop kept ticking during classify
+    assert len(flag) == 5  # event loop kept ticking during classify

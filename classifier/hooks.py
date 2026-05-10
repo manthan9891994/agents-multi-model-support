@@ -20,6 +20,7 @@ Example:
     router = Router(post_classify_hooks=[audit_hook])
     decision = router.classify(task, hook_context={"tenant_id": "acme"})
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,12 +43,12 @@ class HookManager:
     """Process-wide hook registry. Per-Router hooks are merged on each classify."""
 
     def __init__(self) -> None:
-        self.pre_classify:  list[Callable] = []
-        self.post_layer1:   list[Callable] = []
-        self.post_layer3:   list[Callable] = []
-        self.post_layer2:   list[Callable] = []
+        self.pre_classify: list[Callable] = []
+        self.post_layer1: list[Callable] = []
+        self.post_layer3: list[Callable] = []
+        self.post_layer2: list[Callable] = []
         self.post_classify: list[Callable] = []
-        self.on_error:      list[Callable] = []
+        self.on_error: list[Callable] = []
         self._lock = threading.RLock()
 
     def register(self, kind: str, fn: Callable) -> None:
@@ -79,11 +80,15 @@ class HookManager:
             try:
                 task = fn(task, ctx)
             except Exception:
-                raise   # blocking exceptions intentionally propagate
+                raise  # blocking exceptions intentionally propagate
         return task
 
     def run_post(
-        self, kind: str, task: str, decision: ClassificationDecision, ctx: dict[str, Any],
+        self,
+        kind: str,
+        task: str,
+        decision: ClassificationDecision,
+        ctx: dict[str, Any],
     ) -> ClassificationDecision:
         for fn in list(getattr(self, kind)):
             try:
@@ -91,8 +96,12 @@ class HookManager:
                 if result is not None:
                     decision = result
             except Exception as exc:
-                logger.warning("hook %s.%s raised: %s — keeping previous decision",
-                               kind, getattr(fn, "__name__", "?"), exc)
+                logger.warning(
+                    "hook %s.%s raised: %s — keeping previous decision",
+                    kind,
+                    getattr(fn, "__name__", "?"),
+                    exc,
+                )
         return decision
 
     def run_error(self, task: str, exc: BaseException, ctx: dict[str, Any]):

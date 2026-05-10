@@ -13,6 +13,7 @@ Usage:
 
 Trains in <60s on CPU for ≤5,000 examples.
 """
+
 from __future__ import annotations
 
 import json
@@ -36,13 +37,16 @@ logger.addHandler(logging.NullHandler())
 
 _MODELS_DIR = Path(__file__).parent / "models"
 _MODEL_PATH = _MODELS_DIR / "head_v1.joblib"
-_META_PATH  = _MODELS_DIR / "head_v1.metadata.json"
+_META_PATH = _MODELS_DIR / "head_v1.metadata.json"
 
 
 def _train_calibrated_mlp(
-    X_tr: np.ndarray, y_tr: list[str],
-    X_cal: np.ndarray, y_cal: list[str],
-    X_te: np.ndarray, y_te: list[str],
+    X_tr: np.ndarray,
+    y_tr: list[str],
+    X_cal: np.ndarray,
+    y_cal: list[str],
+    X_te: np.ndarray,
+    y_te: list[str],
     name: str,
 ) -> tuple[CalibratedClassifierCV, float]:
     """Train MLP on train set, calibrate on cal set, evaluate on test set."""
@@ -67,15 +71,18 @@ def _train_calibrated_mlp(
 
 
 def _threshold_sweep(
-    tt_clf, cx_clf,
-    X_te: np.ndarray, y_tt: list[str], y_cx: list[str],
+    tt_clf,
+    cx_clf,
+    X_te: np.ndarray,
+    y_tt: list[str],
+    y_cx: list[str],
     thresholds: list[float],
 ) -> dict:
     """For each threshold, compute (intercept_rate, precision_on_intercepted)."""
     tt_probs = tt_clf.predict_proba(X_te)
     cx_probs = cx_clf.predict_proba(X_te)
-    tt_pred  = tt_clf.classes_[np.argmax(tt_probs, axis=1)]
-    cx_pred  = cx_clf.classes_[np.argmax(cx_probs, axis=1)]
+    tt_pred = tt_clf.classes_[np.argmax(tt_probs, axis=1)]
+    cx_pred = cx_clf.classes_[np.argmax(cx_probs, axis=1)]
     confidence = (np.max(tt_probs, axis=1) * np.max(cx_probs, axis=1)) ** 0.5
 
     correct = (np.array(y_tt) == tt_pred) & (np.array(y_cx) == cx_pred)
@@ -89,8 +96,8 @@ def _threshold_sweep(
         precision = correct[intercepted].mean()
         results[t] = {
             "intercept_rate": float(intercepted.mean()),
-            "precision":      float(precision),
-            "n":              int(intercepted.sum()),
+            "precision": float(precision),
+            "n": int(intercepted.sum()),
         }
     return results
 
@@ -120,10 +127,20 @@ def main() -> None:
 
     # 3. Three-way split: train / calibration / test (70/15/15)
     X_train, X_temp, tt_train, tt_temp, cx_train, cx_temp = train_test_split(
-        X, task_types, complexities, test_size=0.30, random_state=42, stratify=task_types,
+        X,
+        task_types,
+        complexities,
+        test_size=0.30,
+        random_state=42,
+        stratify=task_types,
     )
     X_cal, X_te, tt_cal, tt_te, cx_cal, cx_te = train_test_split(
-        X_temp, tt_temp, cx_temp, test_size=0.50, random_state=42, stratify=tt_temp,
+        X_temp,
+        tt_temp,
+        cx_temp,
+        test_size=0.50,
+        random_state=42,
+        stratify=tt_temp,
     )
     logger.info("Split sizes — train=%d cal=%d test=%d", len(X_train), len(X_cal), len(X_te))
 
@@ -133,7 +150,11 @@ def main() -> None:
 
     # 5. Threshold sweep on test set — find best precision/intercept tradeoff
     sweep = _threshold_sweep(
-        tt_clf, cx_clf, X_te, tt_te, cx_te,
+        tt_clf,
+        cx_clf,
+        X_te,
+        tt_te,
+        cx_te,
         thresholds=[0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95],
     )
     logger.info("─" * 60)
@@ -142,26 +163,26 @@ def main() -> None:
     logger.info("─" * 60)
     for t, m in sweep.items():
         prec = f"{m['precision']:.3f}" if m["precision"] is not None else "—"
-        ir = f"{m['intercept_rate']*100:.1f}%"
+        ir = f"{m['intercept_rate'] * 100:.1f}%"
         logger.info("%-10.2f %-15s %-12s %d", t, ir, prec, m["n"])
     logger.info("─" * 60)
 
     # 6. Bundle and save
     bundle = {
-        "task_type_clf":  tt_clf,
+        "task_type_clf": tt_clf,
         "complexity_clf": cx_clf,
-        "task_type_classes":  list(tt_clf.classes_),
+        "task_type_classes": list(tt_clf.classes_),
         "complexity_classes": list(cx_clf.classes_),
     }
     joblib.dump(bundle, _MODEL_PATH)
     metadata = {
-        "trained_at":              datetime.now(timezone.utc).isoformat(),
-        "n_examples":              len(texts),
-        "task_type_test_accuracy":  tt_acc,
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "n_examples": len(texts),
+        "task_type_test_accuracy": tt_acc,
         "complexity_test_accuracy": cx_acc,
-        "encoder":                 "all-MiniLM-L6-v2",
-        "architecture":            "MLPClassifier(256,) per head + isotonic calibration",
-        "threshold_sweep":         {str(k): v for k, v in sweep.items()},
+        "encoder": "all-MiniLM-L6-v2",
+        "architecture": "MLPClassifier(256,) per head + isotonic calibration",
+        "threshold_sweep": {str(k): v for k, v in sweep.items()},
     }
     _META_PATH.write_text(json.dumps(metadata, indent=2))
 
