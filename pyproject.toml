@@ -118,6 +118,35 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning",
 ]
 
+[tool.coverage.run]
+source = ["classifier"]
+omit = [
+    # CLI / dashboard scripts — exercised manually, not unit-tested
+    "classifier/calibrate.py",
+    "classifier/stats.py",
+    # Optional pluggable backends — require Redis/Kafka/S3/webhook to test
+    "classifier/cache_backends.py",
+    "classifier/logger_backends.py",
+    "classifier/infra/semantic_cache.py",
+    "classifier/infra/personalization.py",
+    # ML training pipeline — requires real data + GPU/long compute
+    "classifier/ml/data_loader.py",
+    "classifier/ml/generate_synthetic.py",
+    "classifier/ml/train.py",
+    "classifier/ml/train_head.py",
+    # Optional L2 provider modules — google is the default, others are lazy
+    "classifier/layers/layer2/providers/anthropic.py",
+    "classifier/layers/layer2/providers/openai.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
 [tool.ruff]
 line-length = 110
 target-version = "py310"

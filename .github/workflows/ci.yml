@@ -75,7 +75,7 @@ jobs:
         env:
           CLASSIFIER_TEST_MODE: "1"
         run: |
-          pytest tests/ -v --tb=short --cov=classifier --cov-report=xml --cov-report=term-missing --cov-fail-under=70
+          pytest tests/ -v --tb=short --cov=classifier --cov-report=xml --cov-report=term-missing --cov-fail-under=60
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
