@@ -29,13 +29,13 @@ jobs:
       - name: Verify tag matches package version
         id: version
         run: |
-          PKG_VERSION=$(python -c "import classifier; print(classifier.__version__)")
+          PKG_VERSION=$(python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(d['project']['version'])")
           TAG=${GITHUB_REF#refs/tags/}
           TAG_VERSION=${TAG#v}
           echo "Package version: $PKG_VERSION"
           echo "Tag version: $TAG_VERSION"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::Tag $TAG_VERSION does not match classifier.__version__=$PKG_VERSION"
+            echo "::error::Tag $TAG_VERSION does not match pyproject.toml version=$PKG_VERSION"
             exit 1
           fi
           echo "value=$PKG_VERSION" >> "$GITHUB_OUTPUT"
