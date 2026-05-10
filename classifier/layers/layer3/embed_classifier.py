@@ -83,7 +83,12 @@ def classify_layer3_head(
         vec = encode_one(text)
         if vec is None:
             return None
-        vec = np.asarray(vec).reshape(1, -1)
+        # encode_one returns a 1-D ndarray; sklearn predict_proba wants 2-D.
+        # Use np.newaxis to add a leading axis without copying data.
+        if not isinstance(vec, np.ndarray):
+            vec = np.asarray(vec)
+        if vec.ndim == 1:
+            vec = vec[np.newaxis, :]
 
         tt_clf = bundle["task_type_clf"]
         cx_clf = bundle["complexity_clf"]

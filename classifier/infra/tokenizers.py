@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # Custom tokenizer registry: {model_or_provider: callable(text) -> int}
 _CUSTOM_TOKENIZERS: dict[str, Callable[[str], int]] = {}
 
+# Cached tiktoken encoders keyed by model name. None means "no encoder for this model".
+_TIKTOKEN_CACHE: dict[str, Callable[[str], int] | None] = {}
+
 
 def register_tokenizer(name: str, fn: Callable[[str], int]) -> None:
     """Register a tokenizer for a model or model-prefix.
@@ -37,6 +40,8 @@ def _wordcount(text: str) -> int:
 
 
 def _tiktoken(model: str) -> Callable[[str], int] | None:
+    if model in _TIKTOKEN_CACHE:
+        return _TIKTOKEN_CACHE[model]
     try:
         import tiktoken
 
@@ -44,9 +49,11 @@ def _tiktoken(model: str) -> Callable[[str], int] | None:
             enc = tiktoken.encoding_for_model(model)
         except KeyError:
             enc = tiktoken.get_encoding("cl100k_base")
-        return lambda text: len(enc.encode(text))
+        fn = lambda text: len(enc.encode(text))  # noqa: E731
     except ImportError:
-        return None
+        fn = None
+    _TIKTOKEN_CACHE[model] = fn
+    return fn
 
 
 def _anthropic_tokenizer() -> Callable[[str], int] | None:

@@ -166,6 +166,31 @@ class Router:
 
             pii_scrubber.register_extra_patterns(self.extra_pii_patterns)
 
+        # Compute once: does this Router actually mutate any global state on
+        # classify? When False, `_apply_overrides()` short-circuits the lock +
+        # save/restore dance, eliminating contention for default zero-config
+        # routers (the common case for `classify(task)`).
+        self._has_overrides = any(
+            v is not None
+            for v in (
+                self.layer1_enabled,
+                self.layer2_enabled,
+                self.layer3_enabled,
+                self.escalation_threshold,
+                self.layer3_threshold,
+                self.cache_enabled,
+                self.layer2_provider,
+                self.layer2_model,
+                self.cache_backend,
+                self.decision_logger,
+                self.layer2_prompt_template,
+                self.l2_retry_policy,
+                self.l2_circuit_breaker,
+                self.budget_usd,
+                self.l1_weights,
+            )
+        ) or bool(self.tier_matrix or self.model_registry)
+
     # ── Primary API ──────────────────────────────────────────────────────────
 
     def classify(
@@ -576,7 +601,14 @@ class Router:
         Mutates settings, feature_flags, TIER_MATRIX, MODEL_REGISTRY under a lock
         and restores on exit. Per-instance keyword_packs and pii_patterns are
         merged at construction (they're additive, not replacement).
+
+        Fast-path: when self._has_overrides is False, skips the lock and the
+        entire save/restore cycle — eliminating contention for default Routers.
         """
+        if not self._has_overrides:
+            yield
+            return
+
         from classifier.core import registry
         from classifier.infra.config import settings
 

@@ -29,6 +29,26 @@ _CODE_SNIPPET_RE = re.compile(
     re.MULTILINE,
 )
 
+# Pre-compiled \bword\b patterns for every keyword we ever scan. Building once
+# beats Python's internal regex LRU cache (which can evict under heavy load) and
+# saves the re.escape + re.compile cycle on every classify call.
+_KW_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _kw_pattern(kw: str) -> re.Pattern:
+    pat = _KW_RE_CACHE.get(kw)
+    if pat is None:
+        pat = re.compile(r"\b" + re.escape(kw) + r"\b")
+        _KW_RE_CACHE[kw] = pat
+    return pat
+
+
+def _invalidate_kw_cache() -> None:
+    """Called when a custom KeywordPack is registered so new words land in the cache."""
+    # Nothing to invalidate proactively — _kw_pattern lazily fills missing entries.
+    # Kept as a hook for future explicit invalidation needs.
+    return
+
 
 def _pick_higher_tier_type(positives: list[tuple[TaskType, float]]) -> TaskType:
     top_score = positives[0][1]
@@ -47,7 +67,7 @@ def _score_task_type(lower: str) -> dict[TaskType, float]:
             sorted_kws = sorted(groups.get(group_key, []), key=len, reverse=True)
             consumed: set[int] = set()
             for kw in sorted_kws:
-                for m in re.finditer(r"\b" + re.escape(kw) + r"\b", lower):
+                for m in _kw_pattern(kw).finditer(lower):
                     s, e = m.start(), m.end()
                     region = set(range(s, e))
                     if region & consumed:
@@ -61,7 +81,7 @@ def _score_task_type(lower: str) -> dict[TaskType, float]:
 
     for task_type, neg_kws in _NEGATIVE_KEYWORDS.items():
         for kw in sorted(neg_kws, key=len, reverse=True):
-            if re.search(r"\b" + re.escape(kw) + r"\b", lower):
+            if _kw_pattern(kw).search(lower):
                 scores[task_type] -= 2.0
 
     if feature_flags.code_snippet_detection and _CODE_SNIPPET_RE.search(lower):

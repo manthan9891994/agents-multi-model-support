@@ -76,6 +76,8 @@ class HookManager:
                 getattr(self, kind).clear()
 
     def run_pre(self, task: str, ctx: dict[str, Any]) -> str:
+        if not self.pre_classify:  # fast-path: no hooks registered
+            return task
         for fn in list(self.pre_classify):
             try:
                 task = fn(task, ctx)
@@ -90,7 +92,10 @@ class HookManager:
         decision: ClassificationDecision,
         ctx: dict[str, Any],
     ) -> ClassificationDecision:
-        for fn in list(getattr(self, kind)):
+        hooks = getattr(self, kind)
+        if not hooks:  # fast-path: no hooks registered
+            return decision
+        for fn in list(hooks):
             try:
                 result = fn(task, decision, ctx)
                 if result is not None:
@@ -106,6 +111,8 @@ class HookManager:
 
     def run_error(self, task: str, exc: BaseException, ctx: dict[str, Any]):
         """Returns a recovery decision if any handler returns one; else None."""
+        if not self.on_error:  # fast-path: no error hooks registered
+            return None
         for fn in list(self.on_error):
             try:
                 result = fn(task, exc, ctx)
