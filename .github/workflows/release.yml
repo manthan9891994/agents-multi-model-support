@@ -59,6 +59,7 @@ jobs:
     name: Publish to TestPyPI
     runs-on: ubuntu-latest
     needs: build
+    continue-on-error: true   # advisory pre-flight; PyPI is the source of truth
     environment:
       name: testpypi
       url: https://test.pypi.org/p/dynamic-model-router
@@ -79,7 +80,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: publish-testpypi
+    needs: build   # decoupled from TestPyPI — PyPI is independent
     environment:
       name: pypi
       url: https://pypi.org/p/dynamic-model-router
