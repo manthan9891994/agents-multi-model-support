@@ -1,6 +1,7 @@
 """Tests for MultiLoggerBackend fan-out."""
-import time
+
 import threading
+import time
 
 import pytest
 

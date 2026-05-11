@@ -85,6 +85,10 @@ from classifier.infra.outcome_logger import (
     read_outcomes,
 )
 from classifier.infra.tokenizers import count_tokens, register_tokenizer
+from classifier.layers.layer1 import classify_layer1, detect_pii  # re-exported (test fixtures)
+from classifier.layers.layer1.keyword_pack import KeywordPack
+from classifier.layers.layer3 import register_strategy as register_l3_strategy
+from classifier.layers.plugin import list_layers, register_layer, unregister_layer
 from classifier.logger_backends import (
     JSONLLoggerBackend,
     KafkaLoggerBackend,
@@ -94,10 +98,6 @@ from classifier.logger_backends import (
     StdoutLoggerBackend,
     WebhookLoggerBackend,
 )
-from classifier.layers.layer1 import classify_layer1, detect_pii  # re-exported (test fixtures)
-from classifier.layers.layer1.keyword_pack import KeywordPack
-from classifier.layers.layer3 import register_strategy as register_l3_strategy
-from classifier.layers.plugin import list_layers, register_layer, unregister_layer
 from classifier.ml.auto_labeler import (
     DEFAULT_LFS,
     AutoLabeler,

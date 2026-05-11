@@ -1,4 +1,5 @@
 """Tests for DMR_TELEMETRY env-var gating in decision_logger and outcome_logger."""
+
 import json
 import logging
 
@@ -38,7 +39,8 @@ class _MockBackend:
 
 def _make_decision():
     from unittest.mock import MagicMock
-    from classifier.core.types import ModelTier, TaskType, TaskComplexity
+
+    from classifier.core.types import ModelTier, TaskComplexity, TaskType
 
     d = MagicMock()
     d.decision_id = "test001"
@@ -57,6 +59,7 @@ def _make_decision():
 
 
 # ── decision_logger tests ────────────────────────────────────────────────────
+
 
 def test_default_mode_emits_info_not_debug(monkeypatch):
     """No DMR_TELEMETRY → INFO line, no backend called."""
@@ -138,8 +141,8 @@ def test_telemetry_with_backend_calls_backend(monkeypatch, tmp_path):
 
 
 def test_router_version_present_in_entry(monkeypatch, tmp_path):
-    import classifier.infra.decision_logger as dl
     import classifier
+    import classifier.infra.decision_logger as dl
 
     monkeypatch.setattr(dl, "_TELEMETRY_ENABLED", True)
     backend = _MockBackend()
@@ -150,6 +153,7 @@ def test_router_version_present_in_entry(monkeypatch, tmp_path):
 
 
 # ── outcome_logger tests ─────────────────────────────────────────────────────
+
 
 def test_outcome_default_emits_info(monkeypatch):
     import classifier.infra.outcome_logger as ol
@@ -163,7 +167,9 @@ def test_outcome_default_emits_info(monkeypatch):
     ol._dmr_logger.addHandler(cap)
     ol._dmr_logger.setLevel(logging.DEBUG)
 
-    ol.log_outcome(OutcomeRecord(decision_id="out001", tokens_in=10, tokens_out=20, wall_ms=400, success=True))
+    ol.log_outcome(
+        OutcomeRecord(decision_id="out001", tokens_in=10, tokens_out=20, wall_ms=400, success=True)
+    )
 
     info_recs = [r for r in cap.records if r.levelno == logging.INFO]
     debug_recs = [r for r in cap.records if r.levelno == logging.DEBUG]

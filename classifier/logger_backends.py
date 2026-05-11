@@ -178,9 +178,7 @@ class MultiLoggerBackend:
                     if result is not None:
                         return list(result)
                 except Exception as exc:
-                    logger.warning(
-                        "MultiLoggerBackend: %s.read() failed: %s", type(b).__name__, exc
-                    )
+                    logger.warning("MultiLoggerBackend: %s.read() failed: %s", type(b).__name__, exc)
         return []
 
 
