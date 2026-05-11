@@ -20,12 +20,18 @@ from classifier.core.types import ClassificationDecision, ModelTier, TaskComplex
 
 @pytest.fixture
 def isolated_log(tmp_path, monkeypatch):
-    """Redirect outcome log to a per-test file and clear backend."""
-    from classifier.infra import outcome_logger as ol
+    """Wire a JSONLLoggerBackend pointing at a per-test file.
 
-    monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "outcomes.jsonl")
-    monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "outcomes.test.jsonl")
-    monkeypatch.setattr(ol, "_backend", None)
+    The package itself never writes files automatically — file persistence
+    is opt-in via an explicit backend (this is exactly what users would do).
+    """
+    from classifier.infra import outcome_logger as ol
+    from classifier.logger_backends import JSONLLoggerBackend
+
+    log_path = tmp_path / "outcomes.jsonl"
+    monkeypatch.setattr(ol, "_LOG_FILE", log_path)
+    monkeypatch.setattr(ol, "_TEST_LOG", log_path)
+    monkeypatch.setattr(ol, "_backend", JSONLLoggerBackend(str(log_path)))
     yield tmp_path
 
 
@@ -206,10 +212,12 @@ def test_join_handles_empty_inputs():
 def test_decision_logger_writes_decision_id(tmp_path, monkeypatch):
     """The decision log entry must include decision_id so we can later join."""
     from classifier.infra import decision_logger as dl
+    from classifier.logger_backends import JSONLLoggerBackend
 
-    monkeypatch.setattr(dl, "_LOG_FILE", tmp_path / "dec.jsonl")
-    monkeypatch.setattr(dl, "_TEST_LOG", tmp_path / "dec.test.jsonl")
-    monkeypatch.setattr(dl, "_backend", None)
+    log_path = tmp_path / "dec.jsonl"
+    monkeypatch.setattr(dl, "_LOG_FILE", log_path)
+    monkeypatch.setattr(dl, "_TEST_LOG", log_path)
+    monkeypatch.setattr(dl, "_backend", JSONLLoggerBackend(str(log_path)))
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
     d = ClassificationDecision(

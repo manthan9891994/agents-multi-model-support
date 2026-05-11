@@ -8,6 +8,9 @@
 # Auto-generated runtime telemetry (decisions + outcomes, prod + test)
 routing_decisions*.jsonl
 routing_outcomes*.jsonl
+# SQLite telemetry stores from example/demo scripts
+_*.db
+dmr_telemetry*.db
 __pycache__/
 *.py[cod]
 *$py.class

@@ -1,4 +1,24 @@
-"""Logs every classification decision as a JSONL entry for analysis and retraining."""
+"""Logs every classification decision.
+
+ONE emission path: Python logging. That's it. No files are ever written
+automatically — file persistence is opt-in via a backend.
+
+    Default (no DMR_TELEMETRY):
+        One INFO line: "DMR decision: tier=low model=... conf=0.91 lat=2ms"
+
+    DMR_TELEMETRY=1:
+        Full structured JSON as a DEBUG line.
+
+    User wants persistence (any format):
+        Wire a backend explicitly. The package emits, you decide where it lands.
+            from classifier import Router, JSONLLoggerBackend
+            router = Router(decision_logger=JSONLLoggerBackend("decisions.jsonl"))
+
+        Or any of: SQLiteBackend, PostgresBackend, BigQueryBackend, KafkaLoggerBackend,
+        S3LoggerBackend, WebhookLoggerBackend, MultiLoggerBackend, etc.
+
+No magic file creation. No disk I/O on every call unless YOU asked for it.
+"""
 
 import json
 import logging
@@ -13,10 +33,14 @@ if TYPE_CHECKING:
     from classifier.core.types import ClassificationDecision
 
 logger = logging.getLogger(__name__)
+_dmr_logger = logging.getLogger("dmr.decisions")
 
 _lock = threading.Lock()
 _LOG_FILE = Path(__file__).parent.parent.parent / "routing_decisions.jsonl"
 _TEST_LOG = Path(__file__).parent.parent.parent / "routing_decisions.test.jsonl"
+
+# Read once at import time — set DMR_TELEMETRY=1 in .env or environment to opt in
+_TELEMETRY_ENABLED: bool = os.getenv("DMR_TELEMETRY", "").strip().lower() in ("1", "true", "yes")
 
 # PII patterns — spans matched here are replaced with [REDACTED] before logging
 _REDACT_PATTERNS = [
@@ -99,10 +123,13 @@ def log_decision(
     layer_used: str,
     latency_ms: float,
 ) -> None:
+    from classifier import __version__
+
     safe_preview = _redact_pii(task[:200])
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "decision_id": getattr(decision, "decision_id", ""),  # join key for outcome log
+        "decision_id": getattr(decision, "decision_id", ""),
+        "router_version": __version__,
         "task_preview": safe_preview,
         "task_length": len(task or ""),
         "layer": layer_used,
@@ -120,19 +147,22 @@ def log_decision(
         "cached_from": getattr(decision, "cached_from", ""),
     }
 
-    # Pluggable backend takes precedence
+    # ── Single emission path: Python logging ─────────────────────────────────
+    if _TELEMETRY_ENABLED:
+        _dmr_logger.debug("DMR telemetry: %s", json.dumps(entry))
+    else:
+        _dmr_logger.info(
+            "DMR decision: tier=%s model=%s layer=%s conf=%.2f lat=%.0fms",
+            entry["tier"],
+            entry["model"],
+            layer_used,
+            entry["confidence"],
+            latency_ms,
+        )
+
+    # ── User-configured backend (optional, opt-in only) ──────────────────────
     if _backend is not None:
         try:
             _backend.log(entry)
-            return
         except Exception as exc:
-            logger.warning("decision_logger backend failed, falling back to file: %s", exc)
-
-    # Default: append-only JSONL file
-    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
-    try:
-        with _lock:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
-    except OSError as exc:
-        logger.warning("Failed to write decision log: %s", exc)
+            logger.warning("decision_logger backend failed: %s", exc)

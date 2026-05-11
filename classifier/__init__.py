@@ -17,7 +17,7 @@ logic lives in named submodules so the cascade is easy to navigate:
 
 from __future__ import annotations
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 import logging as _logging
 
@@ -85,6 +85,15 @@ from classifier.infra.outcome_logger import (
     read_outcomes,
 )
 from classifier.infra.tokenizers import count_tokens, register_tokenizer
+from classifier.logger_backends import (
+    JSONLLoggerBackend,
+    KafkaLoggerBackend,
+    MultiLoggerBackend,
+    NullLoggerBackend,
+    S3LoggerBackend,
+    StdoutLoggerBackend,
+    WebhookLoggerBackend,
+)
 from classifier.layers.layer1 import classify_layer1, detect_pii  # re-exported (test fixtures)
 from classifier.layers.layer1.keyword_pack import KeywordPack
 from classifier.layers.layer3 import register_strategy as register_l3_strategy
@@ -232,6 +241,14 @@ __all__ = [
     # Tokenizer
     "register_tokenizer",
     "count_tokens",
+    # Logger backends (pluggable telemetry sinks)
+    "JSONLLoggerBackend",
+    "StdoutLoggerBackend",
+    "WebhookLoggerBackend",
+    "KafkaLoggerBackend",
+    "S3LoggerBackend",
+    "MultiLoggerBackend",
+    "NullLoggerBackend",
     # Free function (kept for back-compat)
     "classify_task",
     # Misc

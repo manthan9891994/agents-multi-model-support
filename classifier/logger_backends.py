@@ -1,15 +1,22 @@
 """Pluggable decision logger backends.
 
 Default writes JSONL to a local file. For production, swap in:
-    - StdoutLoggerBackend  (write JSON lines to stdout — for K8s collectors)
-    - WebhookLoggerBackend (POST each decision to an HTTP endpoint)
-    - KafkaLoggerBackend   (publish to a Kafka topic)
-    - S3LoggerBackend      (batched writes to S3)
-    - NullLoggerBackend    (no-op for tests)
+    - StdoutLoggerBackend   (write JSON lines to stdout — for K8s collectors)
+    - WebhookLoggerBackend  (POST each decision to an HTTP endpoint)
+    - KafkaLoggerBackend    (publish to a Kafka topic)
+    - S3LoggerBackend       (batched writes to S3)
+    - MultiLoggerBackend    (fan-out to N backends simultaneously)
+    - NullLoggerBackend     (no-op for tests)
 
 Wire to a Router:
-    from classifier.logger_backends import KafkaLoggerBackend
-    router = Router(decision_logger=KafkaLoggerBackend(brokers=["k1:9092"], topic="dmr-decisions"))
+    from classifier.logger_backends import KafkaLoggerBackend, MultiLoggerBackend
+    backend = MultiLoggerBackend([
+        KafkaLoggerBackend(brokers=["k1:9092"], topic="dmr-decisions"),
+        StdoutLoggerBackend(),
+    ])
+    router = Router(decision_logger=backend, outcome_logger=backend)
+
+See examples/custom_backends/ for BigQuery, DynamoDB, PostgreSQL, GCS examples.
 """
 
 from __future__ import annotations
@@ -115,6 +122,66 @@ class KafkaLoggerBackend:
             self._producer.poll(0)
         except Exception as exc:
             logger.warning("KafkaLoggerBackend: produce failed: %s", exc)
+
+
+class MultiLoggerBackend:
+    """Fan-out to N backends simultaneously.
+
+    Individual backend failures are caught and logged at WARNING — they never
+    block other backends or propagate to the caller.
+
+    Usage:
+        from classifier.logger_backends import MultiLoggerBackend, StdoutLoggerBackend, S3LoggerBackend
+        backend = MultiLoggerBackend([
+            StdoutLoggerBackend(),
+            S3LoggerBackend(bucket="my-dmr-logs"),
+        ])
+        router = Router(decision_logger=backend, outcome_logger=backend)
+
+    async_write=True: spawns a daemon thread per backend per call (fire-and-forget).
+    Not durable on abrupt process exit — use sync mode (default) for write guarantees.
+    """
+
+    def __init__(self, backends: list, *, async_write: bool = False):
+        self._backends = list(backends)
+        self._async = async_write
+
+    def log(self, entry: dict) -> None:
+        if self._async:
+            import threading
+
+            for b in self._backends:
+                threading.Thread(target=self._safe_log, args=(b, entry), daemon=True).start()
+        else:
+            for b in self._backends:
+                self._safe_log(b, entry)
+
+    def _safe_log(self, backend, entry: dict) -> None:
+        try:
+            backend.log(entry)
+        except Exception as exc:
+            logger.warning("MultiLoggerBackend: %s.log() failed: %s", type(backend).__name__, exc)
+
+    def read(
+        self,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+        decision_ids: set | None = None,
+    ) -> list[dict]:
+        """Delegate read to the first backend that implements it."""
+        for b in self._backends:
+            read_fn = getattr(b, "read", None)
+            if callable(read_fn):
+                try:
+                    result = read_fn(since=since, until=until, decision_ids=decision_ids)
+                    if result is not None:
+                        return list(result)
+                except Exception as exc:
+                    logger.warning(
+                        "MultiLoggerBackend: %s.read() failed: %s", type(b).__name__, exc
+                    )
+        return []
 
 
 class S3LoggerBackend:

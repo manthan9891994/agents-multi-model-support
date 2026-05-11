@@ -31,6 +31,7 @@ That's the whole pitch. Cost goes down 60–80% on real workloads with no qualit
 - [Layer 1 — Add your own keywords](#layer-1--add-your-own-keywords-no-code-needed)
 - [Layer 3 — Train on your data](#layer-3--train-on-your-data-one-command)
 - [Track & inspect what's happening](#track--inspect-whats-happening)
+- [Decision log — three modes](#decision-log--three-modes)
 - [Layer 2 — LLM fallback (advanced)](#layer-2--llm-fallback-advanced)
 - [Model registry](#model-registry)
 - [Integrations](#integrations)
@@ -332,17 +333,124 @@ Routing summary — last 24 hours
 dmr config validate
 ```
 
-### Decision log — the raw data
+### Decision log — three modes
 
-`routing_decisions.jsonl` is a JSONL file in your working directory. Every line is one decision:
+The router emits two streams: **decisions** (what was routed where) and **outcomes** (what happened — tokens, cost, success). How they're delivered depends on what you turn on.
 
-```json
-{"timestamp": "2026-05-09T14:23:11Z", "decision_id": "abc...", "task_preview": "Implement…",
- "tier": "low", "model": "gemini-2.5-flash", "task_type": "code_creation",
- "complexity": "standard", "confidence": 0.91, "layer": "layer1", "latency_ms": 0.4}
+#### Mode 1 — Default (no setup)
+
+One quiet `INFO` line per event via standard Python logging. No files. No DB. Just like any well-behaved library:
+
+```
+INFO dmr.decisions: DMR decision: tier=low  model=gemini-2.5-flash layer=layer1 conf=0.91 lat=2ms
+INFO dmr.outcomes:  DMR outcome:  tokens=42/180 wall=412ms success=True cost=$0.000023
 ```
 
-Pipe it into your favorite tool — DuckDB, Pandas, jq, Splunk, Datadog, anywhere.
+Silence it: `logging.getLogger("dmr").setLevel(logging.WARNING)`.
+
+#### Mode 2 — Full structured telemetry
+
+Set `DMR_TELEMETRY=1`. Same logger, richer payload — now every event is a full JSON event at `logging.DEBUG`. **Still no files written.** If you want persistence, see Mode 3.
+
+```bash
+DMR_TELEMETRY=1 python app.py
+```
+
+```json
+{"timestamp": "2026-05-09T14:23:11Z", "decision_id": "abc123...", "router_version": "0.4.0",
+ "task_preview": "Implement…", "tier": "low", "model": "gemini-2.5-flash", "task_type": "code_creation",
+ "complexity": "standard", "confidence": 0.91, "layer": "layer1", "latency_ms": 0.4,
+ "provider": "google", "compliance_flag": false, "cached": false}
+```
+
+PII (SSNs, emails, API keys, JWTs, phone numbers, etc.) is auto-redacted from `task_preview` and `error_message`. Route the `dmr.decisions` and `dmr.outcomes` Python loggers wherever you want — file handler, syslog, OTLP, Datadog, etc.
+
+#### Mode 3 — Pluggable backend (you own the storage)
+
+**The package never writes files automatically.** If you want persistence, wire a backend — that's the *only* way data lands anywhere outside Python logging.
+
+Any object with a `log(entry: dict)` method works:
+
+```python
+from classifier import Router
+from examples.custom_backends.sqlite_backend import SQLiteBackend
+
+backend = SQLiteBackend("my_telemetry.db")
+router = Router(decision_logger=backend, outcome_logger=backend)
+```
+
+Ready-made backends in [`examples/custom_backends/`](examples/custom_backends/):
+
+| Storage | File | Extra deps |
+|---------|------|------------|
+| **SQLite** (local, zero-dep) | [sqlite_backend.py](examples/custom_backends/sqlite_backend.py) | none |
+| **PostgreSQL** | [postgres_backend.py](examples/custom_backends/postgres_backend.py) | `psycopg2-binary` |
+| **Google BigQuery** | [bigquery_backend.py](examples/custom_backends/bigquery_backend.py) | `google-cloud-bigquery` |
+| **AWS DynamoDB** | [dynamodb_backend.py](examples/custom_backends/dynamodb_backend.py) | `boto3` |
+| **Google Cloud Storage** | [gcs_backend.py](examples/custom_backends/gcs_backend.py) | `google-cloud-storage` |
+
+Built-in (no extra files needed): `JSONLLoggerBackend`, `StdoutLoggerBackend`, `WebhookLoggerBackend`, `KafkaLoggerBackend`, `S3LoggerBackend`.
+
+**Fan out to multiple sinks** with `MultiLoggerBackend`:
+
+```python
+from classifier import Router, MultiLoggerBackend, StdoutLoggerBackend
+from examples.custom_backends.sqlite_backend import SQLiteBackend
+
+backend = MultiLoggerBackend([
+    SQLiteBackend("local.db"),     # local queryable copy
+    StdoutLoggerBackend(),         # also stream to stdout for log collectors
+])
+router = Router(decision_logger=backend, outcome_logger=backend)
+```
+
+A broken backend never blocks the others — failures are caught and logged at `WARNING`.
+
+#### What's in each event
+
+**Decision event** (one per `router.classify()`):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `decision_id` | str | 16-char hex — join key to outcomes |
+| `timestamp` | ISO 8601 | UTC |
+| `router_version` | str | package `__version__` |
+| `task_preview` | str | first 200 chars, PII-redacted |
+| `task_length` | int | full task length |
+| `tier` | str | `low`/`medium`/`high` |
+| `model`, `provider` | str | the routed model |
+| `task_type`, `complexity` | str | classifier output |
+| `confidence` | float | 0–1 |
+| `layer` | str | which layer decided: `layer1`/`layer2`/`layer3` |
+| `latency_ms` | float | classification time |
+| `compliance_flag` | bool | PII/PHI detected in task |
+| `disagreement` | bool | L1 vs L3 disagree |
+| `exploration` | bool | random sample for drift detection |
+| `cached`, `cached_from` | bool, str | cache-hit metadata |
+
+**Outcome event** (call `router.report_outcome(...)` after your LLM call returns):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `decision_id` | str | join key |
+| `tokens_in`, `tokens_out` | int | usage |
+| `tokens_estimated` | bool | True if heuristic (vs provider-reported) |
+| `wall_ms` | float | full LLM call time |
+| `success` | bool | call completed |
+| `cost_usd` | float | computed from model rates |
+| `user_feedback` | str | `up`/`down`/None |
+| `user_retried`, `user_escalated_model`, `edit_distance` | mixed | optional signals |
+| `error_message` | str | PII-redacted |
+
+Join decisions to outcomes via `decision_id` for cost-per-tier / accuracy / cache-hit-rate dashboards.
+
+#### Try it in 30 seconds
+
+```bash
+python examples/test_telemetry.py              # Mode 1 — quiet
+DMR_TELEMETRY=1 python examples/test_telemetry.py   # Mode 2 — full JSON
+python examples/test_telemetry.py --db         # Mode 3 — SQLite backend + analytics
+```
 
 ---
 
@@ -489,11 +597,13 @@ Before going live with serious traffic:
 
 ---
 
-## Telemetry — none
+## We don't phone home
 
-> **`dynamic-model-router` does not collect any telemetry.** No usage data, model names, error reports — nothing leaves your machine.
+> **`dynamic-model-router` collects zero telemetry on its own.** No usage data, model names, error reports — nothing about your usage ever leaves your machine to us or anyone else.
 
-The only network calls happen when **you** ask for them: Layer 2 → your provider, `Router(registry="https://...")` → that URL, or your configured logger backend forwarding decisions you opted into.
+The only network calls happen when **you** ask for them: Layer 2 → your LLM provider, `Router(registry="https://...")` → that URL, or your configured logger backend forwarding decisions to *your* DB.
+
+(Not to be confused with `DMR_TELEMETRY=1` — that's a flag *you* set to get richer logs about *your own* routing. The data stays in your environment.)
 
 ---
 

@@ -1,27 +1,9 @@
-"""Outcome logger — append-only log of LLM-call outcomes joined by `decision_id`.
+"""Outcome logger — records what happened after each routing decision.
 
-The decision log (`decision_logger.py`) records *what we picked*. This module
-records *what happened*: tokens, wall time, success, user feedback, retries,
-escalations.
+ONE emission path: Python logging. No files are written automatically.
+File / DB persistence is opt-in via Router(outcome_logger=<backend>).
 
-Outcomes feed the auto-labeler (`ml/auto_labeler.py`) and drift detector
-(`infra/drift_detector.py`). The two streams join on `decision_id`.
-
-Public API:
-
-    from classifier.infra.outcome_logger import log_outcome, OutcomeRecord
-
-    log_outcome(OutcomeRecord(
-        decision_id="...",
-        tokens_in=142, tokens_out=38,
-        wall_ms=412.3,
-        success=True,
-    ))
-
-Or use the `Router.report_outcome(...)` shortcut that wraps this.
-
-Pluggable backend: identical mechanism to `decision_logger._backend` —
-set with `Router(outcome_logger=KafkaLoggerBackend(...))`.
+See decision_logger.py module docstring for the full design rationale.
 """
 
 from __future__ import annotations
@@ -35,14 +17,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+_dmr_logger = logging.getLogger("dmr.outcomes")
 
 _lock = threading.Lock()
 _LOG_FILE = Path(__file__).parent.parent.parent / "routing_outcomes.jsonl"
 _TEST_LOG = Path(__file__).parent.parent.parent / "routing_outcomes.test.jsonl"
 
-# Pluggable backend (e.g. KafkaLoggerBackend). Set by Router(outcome_logger=...).
-# When non-None, outcomes go through it instead of the local JSONL fallback.
 _backend = None
+_TELEMETRY_ENABLED: bool = os.getenv("DMR_TELEMETRY", "").strip().lower() in ("1", "true", "yes")
 
 
 def _is_test_mode() -> bool:
@@ -96,26 +78,36 @@ def _redact_outcome(entry: dict) -> dict:
 
 
 def log_outcome(rec: OutcomeRecord) -> None:
-    """Append an outcome to the configured backend (or the JSONL fallback).
+    """Log an outcome to the configured backend.
 
-    String fields are PII-redacted via `_redact_outcome` before writing.
+    String fields are PII-redacted before writing. Behavior is controlled by
+    DMR_TELEMETRY env var — see module docstring for details.
     """
-    entry = _redact_outcome(asdict(rec))
+    from classifier import __version__
 
+    entry = _redact_outcome(asdict(rec))
+    entry["router_version"] = __version__
+
+    # ── Single emission path: Python logging ─────────────────────────────────
+    if _TELEMETRY_ENABLED:
+        _dmr_logger.debug("DMR telemetry outcome: %s", json.dumps(entry))
+    else:
+        cost_str = f" cost=${entry['cost_usd']:.6f}" if entry.get("cost_usd") else ""
+        _dmr_logger.info(
+            "DMR outcome: tokens=%d/%d wall=%.0fms success=%s%s",
+            entry.get("tokens_in", 0),
+            entry.get("tokens_out", 0),
+            entry.get("wall_ms", 0),
+            entry.get("success", True),
+            cost_str,
+        )
+
+    # ── User-configured backend (optional, opt-in only) ──────────────────────
     if _backend is not None:
         try:
             _backend.log(entry)
-            return
         except Exception as exc:
-            logger.warning("outcome_logger backend failed, falling back to file: %s", exc)
-
-    log_file = _TEST_LOG if _is_test_mode() else _LOG_FILE
-    try:
-        with _lock:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
-    except OSError as exc:
-        logger.warning("Failed to write outcome log: %s", exc)
+            logger.warning("outcome_logger backend failed: %s", exc)
 
 
 def read_outcomes(

@@ -54,10 +54,12 @@ def test_cache_hit_preserves_routing_decision():
 
 def test_outcome_pii_redacted_before_write(tmp_path, monkeypatch):
     from classifier.infra import outcome_logger as ol
+    from classifier.logger_backends import JSONLLoggerBackend
 
-    monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
-    monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
-    monkeypatch.setattr(ol, "_backend", None)
+    log_path = tmp_path / "out.jsonl"
+    monkeypatch.setattr(ol, "_LOG_FILE", log_path)
+    monkeypatch.setattr(ol, "_TEST_LOG", log_path)
+    monkeypatch.setattr(ol, "_backend", JSONLLoggerBackend(str(log_path)))
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
     log_outcome(
@@ -76,10 +78,12 @@ def test_outcome_pii_redacted_before_write(tmp_path, monkeypatch):
 
 def test_outcome_pii_redacted_email(tmp_path, monkeypatch):
     from classifier.infra import outcome_logger as ol
+    from classifier.logger_backends import JSONLLoggerBackend
 
-    monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
-    monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
-    monkeypatch.setattr(ol, "_backend", None)
+    log_path = tmp_path / "out.jsonl"
+    monkeypatch.setattr(ol, "_LOG_FILE", log_path)
+    monkeypatch.setattr(ol, "_TEST_LOG", log_path)
+    monkeypatch.setattr(ol, "_backend", JSONLLoggerBackend(str(log_path)))
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
     log_outcome(
@@ -100,10 +104,12 @@ def test_prune_old_outcomes(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     from classifier.infra import outcome_logger as ol
+    from classifier.logger_backends import JSONLLoggerBackend
 
-    monkeypatch.setattr(ol, "_LOG_FILE", tmp_path / "out.jsonl")
-    monkeypatch.setattr(ol, "_TEST_LOG", tmp_path / "out.test.jsonl")
-    monkeypatch.setattr(ol, "_backend", None)
+    log_path = tmp_path / "out.jsonl"
+    monkeypatch.setattr(ol, "_LOG_FILE", log_path)
+    monkeypatch.setattr(ol, "_TEST_LOG", log_path)
+    monkeypatch.setattr(ol, "_backend", JSONLLoggerBackend(str(log_path)))
     monkeypatch.delenv("CLASSIFIER_TEST_MODE", raising=False)
 
     # Recent
