@@ -23,8 +23,34 @@ That's the whole pitch. Cost goes down 60–80% on real workloads with no qualit
 
 ---
 
+## Why not just use LiteLLM / RouteLLM / Portkey?
+
+Short answer: **we decide *which* model to call** — those tools manage *how* to call a model you've already chosen. They're complementary, not competitive. Use this router to pick the tier, then use LiteLLM (or your provider SDK) to actually make the call.
+
+| | **dynamic-model-router** | LiteLLM | RouteLLM (lmsys) | Portkey | OpenRouter |
+|---|---|---|---|---|---|
+| **Category** | Pre-call routing classifier | Unified SDK + proxy | LLM-to-LLM routing | AI gateway (commercial) | Hosted routing API (paid) |
+| Decides model **before** any API call | ✅ | ❌ (you specify) | ✅ | ❌ | ✅ |
+| Sub-1ms keyword tier | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Local ML classifier (frozen-encoder, no API) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Three independent decision layers | ✅ | n/a | ❌ (single MLP) | n/a | ❌ |
+| Train on your own logs (zero data → SMEs → auto) | ✅ | n/a | partial | ❌ | ❌ |
+| Framework adapters bundled | **11** | 4 | 1 | 6 | n/a (provider API) |
+| PII auto-redaction in decision logs | ✅ | ❌ | ❌ | partial | ❌ |
+| Healthcare/HIPAA keyword pack out of the box | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Self-hosted, no data leaves your infra | ✅ | ✅ | ✅ | partial | ❌ (SaaS) |
+| Open source, MIT | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Free | ✅ | ✅ | ✅ | freemium | pay-per-token |
+
+If you want to **call a specific model reliably**, use LiteLLM.
+If you want to **pick the right model first**, use this router.
+If you want **both**, stack them — `router.classify(task)` → pick tier → hand the model name to LiteLLM.
+
+---
+
 ## 📚 Table of contents
 
+- [Why not LiteLLM / RouteLLM / Portkey?](#why-not-just-use-litellm--routellm--portkey)
 - [Install](#install)
 - [The 3 layers — in plain English](#the-3-layers--in-plain-english)
 - [60-second quickstart](#60-second-quickstart)
@@ -37,6 +63,7 @@ That's the whole pitch. Cost goes down 60–80% on real workloads with no qualit
 - [Integrations](#integrations)
 - [CLI reference](#cli-reference)
 - [Production checklist](#production-checklist)
+- [FAQ](#faq)
 
 ---
 
@@ -594,6 +621,34 @@ Before going live with serious traffic:
 - [ ] **Run `dmr doctor` in CI.** Fail the build on any `[x]`.
 - [ ] **Use `ShadowMode`** when changing routing config — runs old and new in parallel, logs diffs without affecting users.
 - [ ] **Pin the package version** in your lock file. Semver — minor bumps may include behavior changes for unset config defaults.
+
+---
+
+## FAQ
+
+### 1. Why not just use LiteLLM?
+LiteLLM is a unified SDK — you specify which model to call and it handles the API call to that provider. We do the step *before*: deciding *which* model is the right one in the first place. They stack perfectly: `decision = router.classify(task)` → pass `decision.model_name` to LiteLLM. We are not a proxy or an SDK.
+
+### 2. How does Layer 3 (the ML classifier) actually work?
+A frozen `sentence-transformers/all-MiniLM-L6-v2` encoder produces a 384-dim embedding of the task. A small calibrated MLP head (~150 KB on disk) maps that embedding to `(task_type, complexity, confidence)`. Inference is ~15 ms on CPU, no API calls. You can train it three ways:
+- **zero-shot** (default, no data needed) — uses bundled reference examples
+- **labeled data** you provide via `dmr train --data your.jsonl`
+- **auto-labels** mined from your production logs via `dmr train --auto` (uses 8 Snorkel-style weak labeling functions)
+
+### 3. Is this safe for healthcare / HIPAA?
+The package itself is built with PHI exposure in mind:
+- PII spans (SSN, MRN, DOB, email, phone, JWT, API keys) are **auto-redacted** from `task_preview` and `error_message` before any logging
+- Healthcare keyword pack (`HIPAA`, `clinical`, `prior_auth`, `lab analysis`) bundled out of the box
+- All telemetry is **opt-in** — nothing leaves your machine unless you wire a backend
+- Self-hosted — no SaaS dependency
+
+That said: **using this package does not, by itself, make your application HIPAA-compliant.** You still need a BAA with your LLM provider, encrypted storage for any logs you keep, and the usual access controls. The router reduces the attack surface but doesn't replace your compliance work.
+
+### 4. What does Layer 2 (the LLM fallback) cost?
+Layer 2 only fires when both Layer 1 and Layer 3 are uncertain — typically **~10% of traffic** in production. Default L2 model is `gemini-2.5-flash-lite` at ~$0.000075 per 1k input tokens. A classification call uses ~100 tokens of context → **~$0.0000075 per L2 call**. Routing 1 million tasks costs roughly $7.50 in L2 fees, worst case. The savings on the 1 million downstream LLM calls dwarf this by ~1000×.
+
+### 5. Can I run fully offline (no LLM API at all)?
+Yes. Set `layer2_enabled=False` in your `.env` or pass it to `Router(layer2_enabled=False)`. The router now uses only Layer 1 (keyword heuristics, fully deterministic) and Layer 3 (local `sentence-transformers` inference, no API). Tasks never leave your machine. Useful for air-gapped environments, regulated workloads, or running the router on a private model gateway.
 
 ---
 
