@@ -9,6 +9,8 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/tests-397%20passing-brightgreen.svg)](#)
 
+![demo: cascade router cuts agent LLM costs 94% on real traffic](docs/demo.gif)
+
 > A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — **before** the agent makes an API call.
 
 ```python
