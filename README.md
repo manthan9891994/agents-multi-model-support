@@ -9,7 +9,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/tests-397%20passing-brightgreen.svg)](#)
 
-![demo: cascade router cuts agent LLM costs 94% on real traffic](docs/demo.gif)
+![demo: 51-query support-app benchmark showing cascade router cost breakdown](docs/demo.gif)
 
 > A 3-layer cascade classifier that routes each task to the cheapest model that can handle it well — **before** the agent makes an API call.
 
@@ -670,12 +670,12 @@ MIT — see [LICENSE](LICENSE).
 
 ## Security
 
-Found a vulnerability? See [SECURITY.md](SECURITY.md). **Do not** open a public issue.
+Found a vulnerability? Report it privately via [GitHub Security Advisories](https://github.com/manthan9891994/agents-multi-model-support/security/advisories/new). **Do not** open a public issue.
 
 ## Contributing
 
 PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). All contributors agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Changelog & roadmap
+## Changelog
 
-[CHANGELOG.md](CHANGELOG.md) · [ROADMAP.md](ROADMAP.md)
+[CHANGELOG.md](CHANGELOG.md)
