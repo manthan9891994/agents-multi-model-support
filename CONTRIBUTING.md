@@ -68,7 +68,7 @@ Use the bug report template. Always include:
 
 ## Reporting security issues
 
-**Do not open a public issue.** See [SECURITY.md](SECURITY.md).
+**Do not open a public issue.** Report it privately via [GitHub Security Advisories](https://github.com/manthan9891994/agents-multi-model-support/security/advisories/new).
 
 ## License
 
