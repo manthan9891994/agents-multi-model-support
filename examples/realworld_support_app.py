@@ -3,7 +3,8 @@
 Scenario: You're building a support bot. Users send a mix of questions —
 some trivial ("what time do you open?"), some complex ("explain why my
 invoice doesn't match the contract terms for clause 7.2"). Sending every
-query to GPT-4 / Claude Opus costs $$ and adds latency.
+query to a frontier reasoning model (GPT-5, Claude Opus 4.x) costs $$
+and adds latency.
 
 This script simulates 50 real queries, routes each one through the cascade,
 fake-calls the chosen LLM, reports outcomes, then runs SQL analytics over

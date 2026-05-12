@@ -43,7 +43,7 @@ api/cli
 
 ## Why this exists
 
-Most agent frameworks pin one model per agent. That's wasteful — a "Hello, how are you?" task gets the same `gpt-4` as "Design a distributed consensus algorithm." This package classifies each task in `<15ms` and picks the right tier.
+Most agent frameworks pin one model per agent. That's wasteful — a "Hello, how are you?" task gets routed to the same frontier reasoning model (GPT-5, Claude Opus 4.x) as "Design a distributed consensus algorithm." This package classifies each task in `<15ms` and picks the right tier.
 
 ## Install
 
