@@ -84,7 +84,19 @@ def _cmd_train_auto(args) -> int:
     from datetime import datetime, timedelta, timezone
 
     from classifier.ml.auto_labeler import AutoLabeler
+    from classifier.ml.embeddings import ensure_encoder_available
     from classifier.ml.train import train_from_data
+
+    # Resolve the encoder up front. With the bundled default this returns
+    # instantly; only a custom DMR_EMBEDDING_MODEL would trigger a download.
+    print("[0/3] Resolving encoder (bundled by default — no network needed)...")
+    if ensure_encoder_available() is None:
+        print(
+            "  Encoder unavailable — install ML extras with "
+            "`pip install dynamic-model-router[ml]` and retry.",
+            file=sys.stderr,
+        )
+        return 2
 
     # Resolve --since to ISO if it's a relative window (default: last 90 days)
     since = (args.since or "90d").strip().lower()

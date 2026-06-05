@@ -77,3 +77,7 @@ secrets.json
 
 # Node
 node_modules/
+
+_external_prs/
+
+blog_drafts/

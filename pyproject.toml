@@ -37,7 +37,7 @@ anthropic = ["anthropic>=0.39.0"]
 openai = ["openai>=1.50.0"]
 ml = [
     "scikit-learn>=1.3.0",
-    "sentence-transformers>=2.2.0",
+    "sentence-transformers>=5.5.0",
     "joblib>=1.3.0",
     "numpy>=1.24.0",
 ]
@@ -109,6 +109,9 @@ classifier = [
     "config/*.yaml",
     "ml/models/*.joblib",
     "ml/models/*.json",
+    # Bundled MiniLM encoder — shipped so Layer 3 runs fully offline (no download).
+    "ml/models/all-MiniLM-L6-v2/*",
+    "ml/models/all-MiniLM-L6-v2/*/*",
 ]
 
 [tool.pytest.ini_options]

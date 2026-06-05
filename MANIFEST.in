@@ -2,6 +2,7 @@ include README.md
 include LICENSE
 include pyproject.toml
 recursive-include classifier *.yaml *.jsonl *.json *.joblib
+recursive-include classifier/ml/models/all-MiniLM-L6-v2 *
 recursive-exclude tests *
 recursive-exclude examples *
 recursive-exclude plan_docs *

@@ -4,7 +4,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
 [![Python versions](https://img.shields.io/pypi/pyversions/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Downloads](https://img.shields.io/pypi/dm/dynamic-model-router.svg)](https://pypi.org/project/dynamic-model-router/)
+[![Downloads](https://static.pepy.tech/badge/dynamic-model-router/month)](https://pepy.tech/project/dynamic-model-router)
 [![Coverage](https://img.shields.io/badge/coverage-78%25-brightgreen.svg)](#)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/tests-397%20passing-brightgreen.svg)](#)
@@ -77,6 +77,8 @@ pip install 'dynamic-model-router[ml]'    # + Layer 3 (recommended)
 pip install 'dynamic-model-router[ml,google]'           # + Gemini provider
 pip install 'dynamic-model-router[ml,google,anthropic,openai]'   # all 3
 ```
+
+> **Offline by default.** The Layer 3 encoder (`all-MiniLM-L6-v2`) **ships inside the wheel** — no model download on first use, works on air-gapped / restricted networks out of the box. The `[ml]` extra installs the *libraries* it runs on (`sentence-transformers`, `torch`, `scikit-learn`); the model *weights* are already bundled.
 
 Set one API key in `.env` (Google has a free tier — easiest start):
 
@@ -632,7 +634,7 @@ Before going live with serious traffic:
 LiteLLM is a unified SDK — you specify which model to call and it handles the API call to that provider. We do the step *before*: deciding *which* model is the right one in the first place. They stack perfectly: `decision = router.classify(task)` → pass `decision.model_name` to LiteLLM. We are not a proxy or an SDK.
 
 ### 2. How does Layer 3 (the ML classifier) actually work?
-A frozen `sentence-transformers/all-MiniLM-L6-v2` encoder produces a 384-dim embedding of the task. A small calibrated MLP head (~150 KB on disk) maps that embedding to `(task_type, complexity, confidence)`. Inference is ~15 ms on CPU, no API calls. You can train it three ways:
+A frozen `sentence-transformers/all-MiniLM-L6-v2` encoder produces a 384-dim embedding of the task. **The encoder is bundled in the package** (`classifier/ml/models/all-MiniLM-L6-v2/`), so it loads locally with no download — fully offline, air-gap friendly. A small calibrated MLP head (~150 KB on disk) maps that embedding to `(task_type, complexity, confidence)`. Inference is ~15 ms on CPU, no API calls. The encoder caps input at 256 tokens, so classify on the **task/intent**, not a giant pasted context. You can train it three ways:
 - **zero-shot** (default, no data needed) — uses bundled reference examples
 - **labeled data** you provide via `dmr train --data your.jsonl`
 - **auto-labels** mined from your production logs via `dmr train --auto` (uses 8 Snorkel-style weak labeling functions)

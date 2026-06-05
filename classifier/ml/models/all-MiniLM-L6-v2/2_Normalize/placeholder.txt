@@ -1,0 +1,3 @@
+# Ensures the 2_Normalize/ module path referenced by modules.json survives
+# into the wheel — sentence-transformers' Normalize module has no config files
+# of its own, so without this placeholder the directory would be dropped.

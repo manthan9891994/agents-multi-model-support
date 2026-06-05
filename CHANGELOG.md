@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Bundled Layer 3 encoder (offline by default):** `all-MiniLM-L6-v2` now ships inside the package (`classifier/ml/models/all-MiniLM-L6-v2/`) and is included in the wheel/sdist. `ml.embeddings` resolves the bundled copy first — no Hugging Face download on first use, works on air-gapped / restricted networks. A custom `DMR_EMBEDDING_MODEL` (local dir or HF id) is still honored. The `[ml]` extra remains required for the runtime libraries (`sentence-transformers`, `torch`, `scikit-learn`); only the model *download* is removed.
 - **Continual learning — PR 1 of 4 (outcome logger):**
   - `decision_id: str` (UUID4 hex prefix) field on `ClassificationDecision` — joins decision ⨝ outcome streams.
   - `Router.report_outcome(decision_id, tokens_in, tokens_out, wall_ms, success, user_retried, user_escalated_model, user_feedback, edit_distance, error_message)` API.
