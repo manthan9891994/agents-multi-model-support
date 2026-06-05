@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # ── Classifier behaviour ──────────────────────────────────────────────────
     default_provider: str = "google"
+    layer1_enabled: bool = True
     layer2_enabled: bool = False
     layer3_enabled: bool = False
     layer4_enabled: bool = False

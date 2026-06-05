@@ -375,6 +375,12 @@ def _classify_inner_traced(
     if plugin_pre_used:
         task_type, complexity, tier, confidence, reasoning = plugin_pre
         layer_used = "plugin:pre"
+    elif not settings.layer1_enabled:
+        # L1 disabled — start from a neutral, low-confidence default so the
+        # cascade falls through to L3/L2 to actually decide. If those are also
+        # disabled, this safe MEDIUM default is returned.
+        task_type, complexity, tier = TaskType.REASONING, TaskComplexity.STANDARD, ModelTier.MEDIUM
+        confidence, reasoning, layer_used = 0.0, "layer1 disabled", "disabled"
     else:
         layer_used = "layer1"
         try:

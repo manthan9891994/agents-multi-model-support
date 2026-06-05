@@ -49,6 +49,22 @@ def test_layer2_can_be_disabled():
     assert d.layer_used == "layer1"
 
 
+def test_layer1_enabled_does_not_crash():
+    """Regression: Router(layer1_enabled=...) used to raise
+    ValueError('"Settings" object has no field "layer1_enabled"') on classify,
+    because Settings lacked the field that _apply_overrides wrote. Passing the
+    flag (True or False) must classify cleanly."""
+    on = Router(layer1_enabled=True, layer2_enabled=False, layer3_enabled=False)
+    d_on = on.classify("implement a balanced BST in rust for layer1 on")
+    assert d_on.layer_used == "layer1"
+
+    off = Router(layer1_enabled=False, layer2_enabled=False, layer3_enabled=False)
+    d_off = off.classify("summarize this discharge note for layer1 off")
+    # L1 off with L2/L3 off → neutral fall-through default, never a crash.
+    assert d_off.layer_used == "disabled"
+    assert d_off.tier.value in ("low", "medium", "high")
+
+
 # ── Threshold overrides ───────────────────────────────────────────────────────
 
 

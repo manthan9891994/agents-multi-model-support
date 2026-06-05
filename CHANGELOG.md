@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`Router(layer1_enabled=...)` no longer crashes.** `Settings` was missing the `layer1_enabled` field, so `_apply_overrides` raised `ValueError: "Settings" object has no field "layer1_enabled"` on every `classify()` when L1 was toggled. Added the field (default `True`) and made the cascade honor `layer1_enabled=False` — it falls through to L3/L2, or returns a safe MEDIUM default if those are off too.
+
 ### Added
 - **Bundled Layer 3 encoder (offline by default):** `all-MiniLM-L6-v2` now ships inside the package (`classifier/ml/models/all-MiniLM-L6-v2/`) and is included in the wheel/sdist. `ml.embeddings` resolves the bundled copy first — no Hugging Face download on first use, works on air-gapped / restricted networks. A custom `DMR_EMBEDDING_MODEL` (local dir or HF id) is still honored. The `[ml]` extra remains required for the runtime libraries (`sentence-transformers`, `torch`, `scikit-learn`); only the model *download* is removed.
 - **Continual learning — PR 1 of 4 (outcome logger):**
