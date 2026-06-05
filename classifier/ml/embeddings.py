@@ -74,9 +74,7 @@ def ensure_encoder_available(
     unavailable (caller falls back to ST's own resolution).
     """
     name = model_name or _MODEL_NAME
-    rev = revision if revision is not None else (
-        _MODEL_REVISION if name == _DEFAULT_MODEL_NAME else None
-    )
+    rev = revision if revision is not None else (_MODEL_REVISION if name == _DEFAULT_MODEL_NAME else None)
 
     # Offline-first. For the default MiniLM, prefer the encoder bundled in the
     # package — no network, no huggingface_hub needed, works air-gapped.
@@ -94,8 +92,7 @@ def ensure_encoder_available(
     except ImportError:
         if not quiet:
             logger.warning(
-                "ml.embeddings: huggingface_hub not installed — "
-                "run `pip install dynamic-model-router[ml]`"
+                "ml.embeddings: huggingface_hub not installed — run `pip install dynamic-model-router[ml]`"
             )
         return None
 
@@ -115,7 +112,9 @@ def ensure_encoder_available(
     if not quiet:
         logger.info(
             "ml.embeddings: downloading %s (rev=%s) → %s (one-time, ~90MB for MiniLM)",
-            name, rev or "main", cache,
+            name,
+            rev or "main",
+            cache,
         )
     try:
         local = snapshot_download(repo_id=name, revision=rev, cache_dir=str(cache))
