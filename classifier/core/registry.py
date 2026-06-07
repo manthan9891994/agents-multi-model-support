@@ -52,6 +52,11 @@ TIER_MATRIX = {
 # The package ships zero hardcoded model names or pricing. See registry_loader.py.
 MODEL_REGISTRY: dict[str, dict[ModelTier, str]] = {}
 MODEL_CAPABILITIES: dict[str, dict] = {}
+# Per-model provider prompt-cache descriptor: {"supported": bool, "discount": float, "min_tokens": int}
+MODEL_CACHE: dict[str, dict] = {}
+
+# Safe defaults for unknown models: assume capable (don't over-gate) + no cache.
+_CACHE_DEFAULT = {"supported": False, "discount": 0.1, "min_tokens": 1024}
 
 
 def register_provider(
@@ -111,3 +116,33 @@ def list_models() -> list[str]:
 def capabilities_for(model: str) -> dict:
     """Return capability dict for a model (empty dict if unknown)."""
     return MODEL_CAPABILITIES.get(model, {})
+
+
+def get_tool_calling(model: str) -> str:
+    """Tool-calling reliability of a model: 'none' | 'basic' | 'reliable'.
+
+    Unknown/undeclared models default to 'reliable' so the capability gate never
+    over-restricts a model the registry simply hasn't annotated.
+    """
+    return MODEL_CAPABILITIES.get(model, {}).get("tool_calling", "reliable")
+
+
+def model_supports_reasoning(model: str) -> bool:
+    """True if the model exposes a reasoning/thinking budget (for effort routing)."""
+    return bool(MODEL_CAPABILITIES.get(model, {}).get("reasoning", False))
+
+
+def get_cache(model: str) -> dict:
+    """Provider prompt-cache descriptor for a model (safe default if undeclared)."""
+    return {**_CACHE_DEFAULT, **MODEL_CACHE.get(model, {})}
+
+
+def tier_of_model(model: str, provider: str | None = None) -> ModelTier:
+    """The tier a configured model maps to = its routing CEILING. Unknown → HIGH
+    (no cap). Search the given provider first, else all providers."""
+    provs = [provider] if provider else list(MODEL_REGISTRY.keys())
+    for p in provs:
+        for tier, m in (MODEL_REGISTRY.get(p) or {}).items():
+            if m == model and isinstance(tier, ModelTier):
+                return tier
+    return ModelTier.HIGH

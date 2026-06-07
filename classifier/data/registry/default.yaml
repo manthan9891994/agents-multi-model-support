@@ -49,6 +49,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: basic
+      reasoning: false
+    cache: { supported: false, discount: 0.25, min_tokens: 1024 }
 
   gemini-2.5-flash:
     cost: { input_per_1m: 0.25, output_per_1m: 0.75 }
@@ -58,6 +61,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: reliable
+      reasoning: true
+    cache: { supported: true, discount: 0.25, min_tokens: 1024 }
 
   gemini-2.5-pro:
     cost: { input_per_1m: 2.50, output_per_1m: 7.50 }
@@ -67,6 +73,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: reliable
+      reasoning: true
+    cache: { supported: true, discount: 0.25, min_tokens: 1024 }
 
   claude-haiku-4-5-20251001:
     cost: { input_per_1m: 0.40, output_per_1m: 2.00 }
@@ -76,6 +85,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: false
+      tool_calling: basic
+      reasoning: false
+    cache: { supported: true, discount: 0.1, min_tokens: 1024 }
 
   claude-sonnet-4-6:
     cost: { input_per_1m: 3.00, output_per_1m: 15.00 }
@@ -85,6 +97,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: false
+      tool_calling: reliable
+      reasoning: true
+    cache: { supported: true, discount: 0.1, min_tokens: 1024 }
 
   claude-opus-4-7:
     cost: { input_per_1m: 15.00, output_per_1m: 75.00 }
@@ -94,6 +109,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: false
+      tool_calling: reliable
+      reasoning: true
+    cache: { supported: true, discount: 0.1, min_tokens: 1024 }
 
   gpt-4o-mini:
     cost: { input_per_1m: 0.15, output_per_1m: 0.60 }
@@ -103,6 +121,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: basic
+      reasoning: false
+    cache: { supported: true, discount: 0.5, min_tokens: 1024 }
 
   gpt-4o:
     cost: { input_per_1m: 2.50, output_per_1m: 10.00 }
@@ -112,6 +133,9 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: reliable
+      reasoning: true
+    cache: { supported: true, discount: 0.5, min_tokens: 1024 }
 
   gpt-4-turbo:
     cost: { input_per_1m: 10.00, output_per_1m: 30.00 }
@@ -121,3 +145,6 @@ models:
       supports_function_calling: true
       supports_streaming: true
       supports_json_mode: true
+      tool_calling: reliable
+      reasoning: false
+    cache: { supported: true, discount: 0.5, min_tokens: 1024 }

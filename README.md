@@ -274,8 +274,64 @@ Router(
     layer3_enabled="auto",                                     # default
     layer3_threshold=0.85,                                      # higher = stricter
     layer3_embedding_model="BAAI/bge-large-en-v1.5",           # swap encoder
+    layer3_savings_level=0,                                     # quality↔savings dial (see below)
 )
 ```
+
+### Layer 3 quality↔savings dial
+
+Cost and quality trade off. `layer3_savings_level` lets you pick where on that curve to run **a single trained head** — no retraining:
+
+| Level | Effect | Lean |
+|---|---|---|
+| `0` (default) | L3's natural tier | quality |
+| `1` | one tier cheaper (HIGH→MEDIUM, MEDIUM→LOW) | balanced |
+| `2`+ | two tiers cheaper, clamped at LOW | savings |
+
+```bash
+L3_DMR_SAVINGS_LEVEL=1 dmr classify "…"     # env var
+```
+```python
+Router(layer3_savings_level=1)              # or in code
+```
+
+It shifts only the **tier** L3 picks; the learned `(task_type, complexity)` prediction is unchanged. Applied at the L3 dispatcher, so it works for every strategy (head / zeroshot / custom). Default `0` = no change.
+
+---
+
+## Agentic cost levers (for tool-using agents)
+
+In agent loops the cost is dominated by **input context** (the context resent every step), not the model tier — and cheap models fail at *driving tools*, not at writing prose. So the safe savings come from cutting input cost while keeping the same capable model. DMR exposes these as composable levers behind one **posture dial** (all opt-in; default off = today's behavior):
+
+```bash
+DMR_SAVINGS_LEVEL=2 python app.py     # 0 Off · 1 Saver · 2 Balanced · 3 Aggressive · 4 Max
+dmr frontier                          # show the cost↔posture frontier
+```
+```python
+Router(savings_level=2)               # or per-Router
+```
+
+| Level | Turns on | Lean |
+|---|---|---|
+| 1 Saver | prompt-cache awareness + effort (thinking budget) | quality‑neutral |
+| 2 Balanced | + context pruning (drop stale tool outputs) | quality‑neutral |
+| 3 Aggressive | + capability‑gated dispatch‑downgrade + escalate‑on‑failure | verify |
+| 4 Max | most aggressive (capability gate still protects tool calls) | danger zone |
+
+**Capability gate:** a tool‑driving call is never routed to a model that can't reliably tool‑call. **Configured model = ceiling:** routing never exceeds the model your agent is configured with. **Escalate‑on‑failure:** a refusal/no‑answer escalates the turn to the ceiling.
+
+### Use it in *any* framework (or a bespoke loop)
+
+```python
+from classifier import route_scope, route, report
+
+with route_scope(scope_key=thread_id, ceiling="gpt-4o"):   # async-safe
+    model = route("summarize these labs", role="synthesis")  # pick the model
+    ...call your provider with `model`...
+    report(response_text)                                    # enables escalate-on-failure
+```
+
+Named frameworks (Google ADK, …) ship thin adapters over the same core. See `plan_docs/09_redesign_agentic_realworld.md` for the design + measured savings envelope (~25–58% quality‑neutral).
 
 ---
 

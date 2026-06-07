@@ -37,6 +37,23 @@ class Settings(BaseSettings):
     # ── Layer 3 settings ──────────────────────────────────────────────────────
     # Strategy: zeroshot (no data, ~80ms) | head (1.5K examples, ~15ms) | distilbert (5K, ~12ms)
     layer3_strategy: str = "zeroshot"
+    # Quality<->savings dial for Layer 3 (env: L3_DMR_SAVINGS_LEVEL). 0 = quality
+    # (L3's natural tier); each step shifts the chosen tier one notch cheaper
+    # (HIGH->MEDIUM->LOW), clamped at LOW. Lets one trained head run anywhere on
+    # the cost/quality frontier without retraining. Default 0 = no change.
+    l3_dmr_savings_level: int = 0
+
+    # ── Agentic cost levers (router-wide; all opt-in, default = today's behavior) ─
+    # Field names are dmr_-prefixed so the env var is DMR_* (pydantic maps field→UPPER).
+    # Posture dial 0..4 (Off/Saver/Balanced/Aggressive/Max) — presets the levers below.
+    dmr_savings_level: int = 0  # DMR_SAVINGS_LEVEL
+    dmr_cache_aware: bool = False  # DMR_CACHE_AWARE — account for prompt-cache economics
+    dmr_context_reduction: str = "off"  # DMR_CONTEXT_REDUCTION: off | prune
+    dmr_effort_routing: bool = False  # DMR_EFFORT_ROUTING — vary thinking budget per call
+    dmr_model_routing: str = "off"  # DMR_MODEL_ROUTING: off | dispatch_downgrade | turn
+    dmr_escalate_on_failure: bool = False  # DMR_ESCALATE_ON_FAILURE — escalate on refusals
+    dmr_routing_scope: str = "call"  # DMR_ROUTING_SCOPE: call | turn | agent | conversation
+    dmr_scope_decision_ttl_s: int = 300  # how long a sticky per-scope decision is reused
     # Higher abstain threshold than `layer3_confidence_threshold` because zero-shot
     # is uncalibrated and tends to be over-confident on out-of-distribution inputs.
     layer3_zeroshot_threshold: float = 0.85

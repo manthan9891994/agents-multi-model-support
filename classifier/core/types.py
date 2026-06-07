@@ -64,6 +64,32 @@ class ModelTier(Enum):
 _TIER_ORDER: list = [ModelTier.LOW, ModelTier.MEDIUM, ModelTier.HIGH]
 
 
+class CallRole(str, Enum):
+    """How a model call is used inside an agent loop (drives capability gating)."""
+
+    CONVERSATIONAL = "conversational"  # greeting/chit-chat, no tools needed
+    ORCHESTRATION = "orchestration"  # pick/route to a sub-agent or tool
+    TOOL_CALL = "tool_call"  # drive a tool (needs reliable tool-calling)
+    SYNTHESIS = "synthesis"  # write the user-facing answer from gathered data
+
+
+class RoutingScope(str, Enum):
+    """Granularity at which a routing decision is reused (stickiness)."""
+
+    CALL = "call"  # decide every call (default; backward compatible)
+    TURN = "turn"  # one decision per user turn (whole tool loop)
+    AGENT = "agent"  # one decision per agent
+    CONVERSATION = "conversation"
+
+
+class Effort(str, Enum):
+    """Reasoning/thinking budget, applied by adapters to provider-native controls."""
+
+    NONE = "none"
+    LOW = "low"
+    HIGH = "high"
+
+
 def set_tier_levels(names: list[str]) -> list:
     """Replace the global tier ordering with a custom list of names.
 
@@ -179,6 +205,10 @@ class ClassificationDecision:
     exploration: bool = False  # set True by Explorer when this call is a random sample
     cached: bool = False  # True when returned from in-process or pluggable cache
     cached_from: str = ""  # decision_id of the original (uncached) decision
+    sticky: bool = False  # reused from a prior decision within the same routing scope
+    call_role: str = "synthesis"  # CallRole value — how this call is used in an agent loop
+    effort: str = "none"  # Effort value — reasoning/thinking budget for this call
+    cache_state: str = "cold"  # "warm" if the provider prompt cache is likely hot
 
     def to_dict(self) -> dict:
         """Serialise to a JSON-safe dict (enums → string values)."""
@@ -198,6 +228,10 @@ class ClassificationDecision:
             "exploration": self.exploration,
             "cached": self.cached,
             "cached_from": self.cached_from,
+            "sticky": self.sticky,
+            "call_role": self.call_role,
+            "effort": self.effort,
+            "cache_state": self.cache_state,
         }
 
     def to_json(self) -> str:
@@ -235,6 +269,10 @@ class ClassificationDecision:
             exploration=bool(data.get("exploration", False)),
             cached=bool(data.get("cached", False)),
             cached_from=data.get("cached_from", "") or "",
+            sticky=bool(data.get("sticky", False)),
+            call_role=data.get("call_role", "synthesis") or "synthesis",
+            effort=data.get("effort", "none") or "none",
+            cache_state=data.get("cache_state", "cold") or "cold",
         )
 
     @classmethod
@@ -254,3 +292,5 @@ class ContextSignals:
     last_role: str = "user"
     has_multimodal: bool = False  # inline_data or file_data parts in request
     available_tools: int = 0  # number of tools exposed to the agent
+    scope_key: str = ""  # turn/agent/conversation id — enables sticky routing
+    call_role: str = "synthesis"  # CallRole value — drives capability gating

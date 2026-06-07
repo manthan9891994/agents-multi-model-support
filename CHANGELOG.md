@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agentic cost levers + framework-neutral universal API (0.5.0).** A new layer for *agentic* workloads, where the cost is dominated by input context (not model tier) and cheap models fail at tool-driving. All opt-in; defaults preserve today's behavior.
+  - **Universal API:** `from classifier import route_scope, route, report` — works for any framework or bespoke agent loop (contextvar-based, async-safe). Framework adapters (ADK, …) are now thin translators over the neutral core `classifier.integrations._agentic` (`AgentCallContext`, `route_agent_call`, `report_agent_outcome`).
+  - **Posture dial `DMR_SAVINGS_LEVEL` (0–4)** / `Router(savings_level=…)` composes the levers: **1** cache+effort, **2** +context-prune, **3** +capability-gated dispatch-downgrade+escalate, **4** max. Per-lever flags `DMR_CACHE_AWARE`, `DMR_CONTEXT_REDUCTION`, `DMR_EFFORT_ROUTING`, `DMR_MODEL_ROUTING`, `DMR_ESCALATE_ON_FAILURE`, `DMR_ROUTING_SCOPE`.
+  - **Capability gate** — a tool-driving call is never routed to a model with `tool_calling: basic` (registry `capabilities`); fixes the agentic "no-answer" failures.
+  - **Effort routing** — `decision.effort` (none/low/high) for reasoning-capable models; adapters map to provider thinking budgets.
+  - **Scope stickiness** — one decision per turn (default scope keeps `call`) so models don't thrash mid-loop (preserves provider prompt caches).
+  - **Escalate-on-failure** — `classifier.quality.failure_detect` flags refusals/no-answer; the scope escalates to the ceiling.
+  - **Context reduction** — `classifier.context.reduce.prune_context` trims stale tool outputs (the biggest input-cost lever).
+  - **Cache-aware cost** — `cost_tracker.estimate_cost(..., cached_fraction)` + `switch_penalty`; registry `cache` block per model.
+  - **Configured model = ceiling** — routing never exceeds the agent's configured model.
+  - CLI: `dmr frontier` shows the cost↔posture frontier. Registry models gain `capabilities.tool_calling`/`reasoning` + `cache`.
+- **Layer 3 quality↔savings dial (`L3_DMR_SAVINGS_LEVEL`).** A single integer that biases L3's chosen tier toward cheaper models without retraining: `0` = quality (L3's natural tier), each step shifts the tier one notch cheaper (HIGH→MEDIUM→LOW), clamped at LOW. Set via env `L3_DMR_SAVINGS_LEVEL` or `Router(layer3_savings_level=…)`. Default `0` (no behavior change). Lets one trained head run anywhere on the cost/quality frontier. Applied at the L3 dispatcher (`classify_layer3`), so it covers every strategy (head/zeroshot/custom).
+
 ### Fixed
 - **`Router(layer1_enabled=...)` no longer crashes.** `Settings` was missing the `layer1_enabled` field, so `_apply_overrides` raised `ValueError: "Settings" object has no field "layer1_enabled"` on every `classify()` when L1 was toggled. Added the field (default `True`) and made the cascade honor `layer1_enabled=False` — it falls through to L3/L2, or returns a safe MEDIUM default if those are off too.
 

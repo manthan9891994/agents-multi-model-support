@@ -115,69 +115,115 @@ def _extract_context_signals(llm_request, agent_name: str):
     )
 
 
+def _build_agent_ctx(callback_context, llm_request):
+    """Translate an ADK LlmRequest into the framework-neutral AgentCallContext.
+    Counts tool-output (function_response) tokens, not just text, and uses the
+    invocation/session id as the routing scope key."""
+    from classifier.integrations._agentic import AgentCallContext
+
+    task = ""
+    history: list[dict] = []
+    total_chars = 0
+    last_role = "user"
+    had_error = False
+    for content in llm_request.contents or []:
+        role = getattr(content, "role", None) or "user"
+        last_role = role
+        first_text = ""
+        for part in getattr(content, "parts", None) or []:
+            t = getattr(part, "text", "") or ""
+            if t:
+                total_chars += len(t)
+                first_text = first_text or t
+            fr = getattr(part, "function_response", None)
+            if fr is not None:
+                s = str(getattr(fr, "response", "") or "")
+                total_chars += len(s)
+                last_role = "tool"
+                if any(k in s.lower() for k in _ERROR_SIGNALS):
+                    had_error = True
+            fc = getattr(part, "function_call", None)
+            if fc is not None:
+                total_chars += len(str(getattr(fc, "args", "") or ""))
+        history.append({"role": role, "text": first_text})
+
+    for content in reversed(llm_request.contents or []):
+        if getattr(content, "role", None) == "user":
+            for part in getattr(content, "parts", None) or []:
+                if getattr(part, "text", None):
+                    task = part.text
+                    break
+            if task:
+                break
+
+    scope_key = str(
+        getattr(callback_context, "invocation_id", "")
+        or getattr(getattr(callback_context, "session", None), "id", "")
+        or ""
+    )
+    return AgentCallContext(
+        task=task or None,
+        scope_key=scope_key,
+        configured_model=getattr(llm_request, "model", "") or "",
+        history=history,
+        tool_count=len(getattr(llm_request, "tools", None) or []),
+        context_tokens=total_chars // 4,
+        last_role=last_role,
+        had_error=had_error,
+    )
+
+
 def dynamic_model_selector(callback_context, llm_request):
     """ADK `before_model_callback` — fires before every LLM API call.
 
-    Mutates `llm_request.model` to the router-selected model. Returns None
-    so ADK proceeds with the (now-modified) request.
+    Thin translator: builds an AgentCallContext and delegates the decision to the
+    framework-neutral core (real-question recovery, ceiling, capability gate,
+    stickiness, effort). Mutates `llm_request.model`; returns None so ADK proceeds.
     """
-    from classifier import classify_task
-    from classifier.core.exceptions import ClassificationError
-    from classifier.infra.config import settings
+    import time
 
-    # Extract the user's task from the latest user message
-    task = ""
-    for content in reversed(llm_request.contents):
-        if content.role == "user" and content.parts:
-            task = content.parts[0].text or ""
-            break
+    from classifier.integrations._agentic import route_agent_call
 
-    if not task:
+    try:
+        ctx = _build_agent_ctx(callback_context, llm_request)
+    except Exception as exc:
+        logger.warning("dynamic_model_selector: could not read request (%s) — keeping default", exc)
+        return None
+
+    if not (ctx.task or ctx.history):
         logger.warning("dynamic_model_selector: no user message found — keeping default model.")
         return None
 
-    agent_name = getattr(callback_context, "agent_name", "Agent")
-    ctx_signals = _extract_context_signals(llm_request, agent_name=agent_name)
-
     try:
-        decision = classify_task(
-            task,
-            provider=settings.default_provider,
-            context_signals=ctx_signals,
-        )
-    except ClassificationError as exc:
-        logger.error("dynamic_model_selector: classification failed (%s) — keeping default model.", exc)
+        decision = route_agent_call(ctx)
+    except Exception as exc:
+        logger.error("dynamic_model_selector: routing failed (%s) — keeping default model.", exc)
         return None
 
     original = llm_request.model
     llm_request.model = decision.model_name
-
-    # Stash the decision so the paired after_model_callback can report the outcome.
-    # Bounded LRU + stable key via invocation_id / callback_context.state to
-    # prevent leaks if after_model_callback never fires (agent crash).
-    import time
+    # Apply effort (thinking budget) best-effort — provider-specific; ignored if unsupported.
+    if decision.effort and decision.effort != "none":
+        llm_request.dmr_effort = decision.effort
 
     _store_pending(
         callback_context,
         {
             "decision_id": decision.decision_id,
             "model": decision.model_name,
-            "task": task,
+            "task": ctx.task or "",
             "t0": time.perf_counter(),
         },
     )
 
     logger.info(
-        "Model selected | %s => %s [%s | %s | %s | call=%d | ctx_tokens=%d%s%s]",
+        "Model selected | %s => %s [%s | role=%s | effort=%s%s]",
         original,
         decision.model_name,
         decision.tier.value.upper(),
-        decision.task_type.value,
-        decision.complexity.value,
-        ctx_signals.call_number,
-        ctx_signals.total_context_tokens,
-        " | PII" if decision.compliance_flag else "",
-        f" | tools={ctx_signals.available_tools}" if ctx_signals.available_tools else "",
+        decision.call_role,
+        decision.effort,
+        " | sticky" if decision.sticky else "",
     )
     return None
 
@@ -235,6 +281,22 @@ def report_model_outcome(callback_context, llm_response):
             error_message=error,
         )
     )
+
+    # Feed the agentic escalation loop (no-op unless escalate_on_failure is on).
+    try:
+        from classifier.integrations._agentic import report_agent_outcome
+
+        text = ""
+        resp_content = getattr(llm_response, "content", None)
+        if resp_content is not None:
+            for part in getattr(resp_content, "parts", []) or []:
+                if getattr(part, "text", None):
+                    text += part.text
+        sk = str(getattr(callback_context, "invocation_id", "") or "")
+        if sk:
+            report_agent_outcome(sk, text)
+    except Exception:
+        pass
     return None
 
 

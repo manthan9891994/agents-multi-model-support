@@ -74,6 +74,10 @@ from classifier.hooks import (
     register_hook,
     unregister_hook,
 )
+
+# Apply the env-configured posture (DMR_SAVINGS_LEVEL) once at import — this is a
+# coarse, process-global operating point. Router(savings_level=...) is per-call.
+from classifier.infra.config import settings as _settings
 from classifier.infra.cost_tracker import get_model_cost, register_model_cost
 from classifier.infra.decision_logger import read_decisions
 from classifier.infra.feedback import record_feedback
@@ -85,6 +89,16 @@ from classifier.infra.outcome_logger import (
     read_outcomes,
 )
 from classifier.infra.tokenizers import count_tokens, register_tokenizer
+
+# Framework-neutral agentic routing + universal API (works for any agent loop).
+from classifier.integrations._agentic import (
+    AgentCallContext,
+    report,
+    report_agent_outcome,
+    route,
+    route_agent_call,
+    route_scope,
+)
 from classifier.layers.layer1 import classify_layer1, detect_pii  # re-exported (test fixtures)
 from classifier.layers.layer1.keyword_pack import KeywordPack
 from classifier.layers.layer3 import register_strategy as register_l3_strategy
@@ -113,6 +127,11 @@ from classifier.pipeline.classify_task import (
     reset_last_decision,
 )
 from classifier.router import Router, classify
+
+if getattr(_settings, "dmr_savings_level", 0):
+    from classifier.routing.posture import apply_posture as _apply_posture
+
+    _apply_posture(_settings.dmr_savings_level)
 
 # ── @route_model decorator ───────────────────────────────────────────────────
 
@@ -182,6 +201,13 @@ __all__ = [
     "route_model",
     "reset_last_decision",
     "MAX_TASK_CHARS",
+    # Agentic routing (framework-neutral core + universal API)
+    "route_scope",
+    "route",
+    "report",
+    "route_agent_call",
+    "report_agent_outcome",
+    "AgentCallContext",
     # Domain
     "ClassificationDecision",
     "ContextSignals",

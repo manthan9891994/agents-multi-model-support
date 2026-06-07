@@ -67,6 +67,8 @@ class Router:
                              `dmr train --auto` without changing your code.
         layer1_threshold:    Confidence below which L1 escalates (default 0.75).
         layer3_threshold:    Confidence below which L3 abstains (default 0.75).
+        layer3_savings_level: Quality<->savings dial for L3 (0=quality default;
+                              each step shifts L3's tier one notch cheaper, clamp at LOW).
         budget_usd:          Monthly budget cap (USD).
         cache_enabled:       In-memory result caching (default True).
     """
@@ -84,6 +86,15 @@ class Router:
         layer3_enabled: bool | str | None = None,
         escalation_threshold: float | None = None,
         layer3_threshold: float | None = None,
+        layer3_savings_level: int | None = None,
+        # ── Agentic cost levers (opt-in; see plan_docs/09) ────────────────────
+        savings_level: int | None = None,
+        cache_aware: bool | None = None,
+        context_reduction: str | None = None,
+        effort_routing: bool | None = None,
+        model_routing: str | None = None,
+        escalate_on_failure: bool | None = None,
+        routing_scope: str | None = None,
         budget_usd: float | None = None,
         cache_enabled: bool | None = None,
         # ── Extensibility hooks (v2) ──────────────────────────────────────────
@@ -124,6 +135,14 @@ class Router:
             self.layer3_enabled = layer3_enabled
         self.escalation_threshold = escalation_threshold
         self.layer3_threshold = layer3_threshold
+        self.layer3_savings_level = layer3_savings_level
+        self.savings_level = savings_level
+        self.cache_aware = cache_aware
+        self.context_reduction = context_reduction
+        self.effort_routing = effort_routing
+        self.model_routing = model_routing
+        self.escalate_on_failure = escalate_on_failure
+        self.routing_scope = routing_scope
         self.budget_usd = budget_usd
         self.cache_enabled = cache_enabled
 
@@ -210,6 +229,14 @@ class Router:
                 self.layer3_enabled,
                 self.escalation_threshold,
                 self.layer3_threshold,
+                self.layer3_savings_level,
+                self.savings_level,
+                self.cache_aware,
+                self.context_reduction,
+                self.effort_routing,
+                self.model_routing,
+                self.escalate_on_failure,
+                self.routing_scope,
                 self.cache_enabled,
                 self.layer2_provider,
                 self.layer2_model,
@@ -534,6 +561,7 @@ class Router:
             "layer3_enabled": self.layer3_enabled,
             "escalation_threshold": self.escalation_threshold,
             "layer3_threshold": self.layer3_threshold,
+            "layer3_savings_level": self.layer3_savings_level,
             "budget_usd": self.budget_usd,
             "cache_enabled": self.cache_enabled,
             "layer2_provider": self.layer2_provider,
@@ -593,6 +621,7 @@ class Router:
             "layer3_enabled",
             "layer1_threshold",
             "layer3_threshold",
+            "layer3_savings_level",
             "budget_usd",
             "cache_enabled",
             "tier_matrix",
@@ -666,6 +695,50 @@ class Router:
                 if self.layer3_threshold is not None:
                     saved["l3_thresh"] = settings.layer3_confidence_threshold
                     settings.layer3_confidence_threshold = self.layer3_threshold
+                if self.layer3_savings_level is not None:
+                    saved["l3_savings"] = settings.l3_dmr_savings_level
+                    settings.l3_dmr_savings_level = self.layer3_savings_level
+
+                # Agentic posture + per-lever overrides (isolated to this call)
+                _agentic_fields = (
+                    "dmr_savings_level",
+                    "dmr_cache_aware",
+                    "dmr_context_reduction",
+                    "dmr_effort_routing",
+                    "dmr_model_routing",
+                    "dmr_escalate_on_failure",
+                    "dmr_routing_scope",
+                )
+                if any(
+                    v is not None
+                    for v in (
+                        self.savings_level,
+                        self.cache_aware,
+                        self.context_reduction,
+                        self.effort_routing,
+                        self.model_routing,
+                        self.escalate_on_failure,
+                        self.routing_scope,
+                    )
+                ):
+                    saved["agentic"] = {k: getattr(settings, k) for k in _agentic_fields}
+                    if self.savings_level is not None:
+                        from classifier.routing.posture import apply_posture
+
+                        settings.dmr_savings_level = self.savings_level
+                        apply_posture(self.savings_level)
+                    if self.cache_aware is not None:
+                        settings.dmr_cache_aware = self.cache_aware
+                    if self.context_reduction is not None:
+                        settings.dmr_context_reduction = self.context_reduction
+                    if self.effort_routing is not None:
+                        settings.dmr_effort_routing = self.effort_routing
+                    if self.model_routing is not None:
+                        settings.dmr_model_routing = self.model_routing
+                    if self.escalate_on_failure is not None:
+                        settings.dmr_escalate_on_failure = self.escalate_on_failure
+                    if self.routing_scope is not None:
+                        settings.dmr_routing_scope = self.routing_scope
 
                 # Cache
                 if self.cache_enabled is not None:
@@ -764,6 +837,11 @@ class Router:
                     settings.layer2_confidence_threshold = saved["esc_thresh"]
                 if "l3_thresh" in saved:
                     settings.layer3_confidence_threshold = saved["l3_thresh"]
+                if "l3_savings" in saved:
+                    settings.l3_dmr_savings_level = saved["l3_savings"]
+                if "agentic" in saved:
+                    for _k, _v in saved["agentic"].items():
+                        setattr(settings, _k, _v)
                 if "cache" in saved:
                     settings.cache_enabled = saved["cache"]
                 if "budget" in saved:

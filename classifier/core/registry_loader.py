@@ -78,6 +78,7 @@ def apply_registry(data: dict) -> dict:
     Does NOT clear existing entries — call clear_registry() first for a fresh slate.
     """
     from classifier.core.registry import (
+        MODEL_CACHE,
         MODEL_CAPABILITIES,
         register_provider,
     )
@@ -105,6 +106,9 @@ def apply_registry(data: dict) -> dict:
         caps = (model_data or {}).get("capabilities") or {}
         if caps:
             MODEL_CAPABILITIES.setdefault(model_name, {}).update(caps)
+        cache = (model_data or {}).get("cache") or {}
+        if cache:
+            MODEL_CACHE.setdefault(model_name, {}).update(cache)
 
     return {
         "version": data.get("version", "unknown"),
@@ -115,11 +119,12 @@ def apply_registry(data: dict) -> dict:
 
 def clear_registry() -> None:
     """Wipe all registered providers, models, costs, and capabilities."""
-    from classifier.core.registry import MODEL_CAPABILITIES, MODEL_REGISTRY
+    from classifier.core.registry import MODEL_CACHE, MODEL_CAPABILITIES, MODEL_REGISTRY
     from classifier.infra.cost_tracker import COST_TABLE
 
     MODEL_REGISTRY.clear()
     MODEL_CAPABILITIES.clear()
+    MODEL_CACHE.clear()
     COST_TABLE.clear()
 
 

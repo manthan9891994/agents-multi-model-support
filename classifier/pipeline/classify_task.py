@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from classifier.config.feature_flags import feature_flags
 from classifier.core.exceptions import ClassificationError, UnsupportedProviderError
-from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX
+from classifier.core.registry import MODEL_REGISTRY, TIER_MATRIX, model_supports_reasoning
 from classifier.core.types import _TIER_ORDER as _DYN_TIER_ORDER
 from classifier.core.types import (
     ClassificationDecision,
@@ -44,6 +44,7 @@ from classifier.infra.config import settings
 from classifier.infra.cost_tracker import cost_tracker
 from classifier.infra.feedback import record_feedback
 from classifier.layers.layer1 import classify_layer1, detect_pii
+from classifier.routing.capability import enforce_capability
 
 if TYPE_CHECKING:
     from classifier.core.types import ContextSignals
@@ -627,7 +628,24 @@ def _classify_inner_traced(
                     reasoning += f" [residency={residency} → {try_tier.value.upper()}]"
                     break
 
+    # ── Agentic capability gate (T4) — a tool-driving call needs a capable model ─
+    call_role = (
+        getattr(context_signals, "call_role", "synthesis") if context_signals is not None else "synthesis"
+    )
+    if context_signals is not None:
+        gated = enforce_capability(resolved_provider, tier, call_role)
+        if gated is not tier:
+            reasoning += f" [capability:{call_role} → {gated.value.upper()}]"
+            tier = gated
+
     model_name = MODEL_REGISTRY[resolved_provider][tier]
+
+    # ── Effort routing (T5) — vary thinking budget on reasoning-capable models ──
+    effort = "none"
+    if settings.dmr_effort_routing and model_supports_reasoning(model_name):
+        effort = {"simple": "none", "standard": "low", "complex": "high", "research": "high"}.get(
+            complexity.value, "low"
+        )
 
     decision = ClassificationDecision(
         model_name=model_name,
@@ -641,6 +659,8 @@ def _classify_inner_traced(
         latency_ms=round(latency_ms, 2),
         compliance_flag=compliance_flag,
         disagreement=disagreement,
+        call_role=call_role,
+        effort=effort,
     )
 
     logger.info(

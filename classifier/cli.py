@@ -951,12 +951,83 @@ def _cmd_benchmark(args) -> int:
     return 0
 
 
+def _cmd_frontier(args) -> int:
+    """Show the cost↔posture frontier: per savings_level, which levers turn on and
+    the projected relative cost on a nominal multi-step (input-dominant) turn.
+
+    Projects the model-stable cost levers (cache / context-prune / effort) which are
+    quality-neutral. Quality at aggressive levels (3+) must be verified with a judge.
+    """
+    from classifier.infra.config import settings
+    from classifier.routing.posture import apply_posture
+
+    profile = [(2000, 80)] * 8 + [(4000, 600)]  # 8 light dispatch calls + 1 heavy synthesis
+    fields = (
+        "dmr_cache_aware",
+        "dmr_context_reduction",
+        "dmr_effort_routing",
+        "dmr_model_routing",
+        "dmr_escalate_on_failure",
+    )
+    saved = {f: getattr(settings, f) for f in fields}
+
+    def _reset():
+        settings.dmr_cache_aware = False
+        settings.dmr_context_reduction = "off"
+        settings.dmr_effort_routing = False
+        settings.dmr_model_routing = "off"
+        settings.dmr_escalate_on_failure = False
+
+    def _project() -> float:
+        c_in = 0.6 if settings.dmr_context_reduction == "prune" else 1.0
+        c_out = 0.8 if settings.dmr_effort_routing else 1.0
+        cached = 0.7 if settings.dmr_cache_aware else 0.0
+        total = 0.0
+        for i, (ti, to) in enumerate(profile):
+            eff_in = ti * ((1 - cached) + cached * 0.25) if i > 0 else ti
+            total += eff_in * c_in * 1.25 / 1e6 + to * c_out * 10.0 / 1e6
+        return total
+
+    names = ["Off", "Saver", "Balanced", "Aggressive", "Max"]
+    base = None
+    print(f"\n  {'lvl':<4}{'name':<12}{'levers':<46}{'rel cost':>9}")
+    print(f"  {'-' * 70}")
+    for lvl in range(5):
+        _reset()
+        apply_posture(lvl)
+        cost = _project()
+        base = base or cost
+        levers = []
+        if settings.dmr_cache_aware:
+            levers.append("cache")
+        if settings.dmr_effort_routing:
+            levers.append("effort")
+        if settings.dmr_context_reduction != "off":
+            levers.append("prune")
+        if settings.dmr_model_routing != "off":
+            levers.append("dispatch-downgrade")
+        if settings.dmr_escalate_on_failure:
+            levers.append("escalate")
+        print(f"  {lvl:<4}{names[lvl]:<12}{(', '.join(levers) or '-'):<46}{cost / base * 100:>8.0f}%")
+    for f, v in saved.items():
+        setattr(settings, f, v)
+    print(
+        "\n  Projection of model-stable cost levers on an input-dominant turn.\n"
+        "  Levels 1-2 are quality-neutral; verify levels 3+ with a judge on your workload.\n"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dmr",
         description="Dynamic Model Router — classify and route tasks to the right LLM tier.",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    # frontier
+    p = sub.add_parser("frontier", help="Show the cost↔savings posture frontier (levels 0–4)")
+    p.set_defaults(func=_cmd_frontier)
 
     # classify
     p = sub.add_parser("classify", help="Classify a single task")

@@ -36,6 +36,35 @@ def get_model_cost(model: str) -> dict[str, float]:
     return COST_TABLE.get(model, _DEFAULT_COST)
 
 
+def estimate_cost(model: str, tokens_in: int, tokens_out: int, cached_fraction: float = 0.0) -> float:
+    """USD cost of one call. `cached_fraction` of the input is billed at the model's
+    prompt-cache discount when the model supports caching (else full price)."""
+    from classifier.core.registry import get_cache
+
+    rates = get_model_cost(model)
+    cache = get_cache(model)
+    disc = cache["discount"] if cache.get("supported") else 1.0
+    cf = max(0.0, min(1.0, cached_fraction))
+    in_cost = (tokens_in / 1_000_000) * rates["input"] * ((1.0 - cf) + cf * disc)
+    return in_cost + (tokens_out / 1_000_000) * rates["output"]
+
+
+def switch_penalty(prev_model: str, new_model: str, ctx_tokens: int) -> float:
+    """Approximate extra cost of switching models mid-conversation: the prompt-cache
+    discount you forgo by re-warming `ctx_tokens` on `new_model`. 0 if no switch or
+    the previous model wasn't cacheable."""
+    from classifier.core.registry import get_cache
+
+    if not prev_model or prev_model == new_model:
+        return 0.0
+    if not get_cache(prev_model).get("supported"):
+        return 0.0  # no warm cache to break
+    rates = get_model_cost(new_model)
+    new_cache = get_cache(new_model)
+    forgone = 1.0 - (new_cache["discount"] if new_cache.get("supported") else 1.0)
+    return (ctx_tokens / 1_000_000) * rates["input"] * forgone
+
+
 # Back-compat alias — keeps any external imports working.
 def _legacy_per_1m(model: str) -> float:
     """Returns the average of input+output rate for legacy callers."""
