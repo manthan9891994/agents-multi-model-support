@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/manthan9891994/agents-multi-model-support/compare/v0.4.0...v0.5.0) (2026-06-07)
+
+
+### Features
+
+* agentic-efficiency redesign + L3 savings dial (0.5.0) ([7083a27](https://github.com/manthan9891994/agents-multi-model-support/commit/7083a273416f49debe1b33e7e14c7414340e20d5))
+* **ml:** bundle MiniLM encoder for fully offline Layer 3 ([a3d3c4c](https://github.com/manthan9891994/agents-multi-model-support/commit/a3d3c4c119b2ae08c04091073702b2d7e9bb6647))
+
+
+### Documentation
+
+* add competitor comparison table + FAQ ([071d10b](https://github.com/manthan9891994/agents-multi-model-support/commit/071d10b993dc00176a7edc9676ebb8d72ef1b9ad))
+* add demo GIF showing 94% cost reduction on real traffic ([2999c9c](https://github.com/manthan9891994/agents-multi-model-support/commit/2999c9c406b5a333395257a548ae35035260e32d))
+* reframe cost comparison from 'GPT-4o' to 'frontier reasoning models' ([0cf0659](https://github.com/manthan9891994/agents-multi-model-support/commit/0cf0659675c1253aae3d5b8feb5223f1a3e52139))
+* replace specific-percentage claim in demo GIF alt text with benchmark-source description ([b6b27e8](https://github.com/manthan9891994/agents-multi-model-support/commit/b6b27e85b4d2eaf5f7b997f08e0526571accdfd0))
+
 ## [Unreleased]
 
 ### Added
